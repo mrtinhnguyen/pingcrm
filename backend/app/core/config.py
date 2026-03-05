@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     TELEGRAM_API_ID: int = 0
     TELEGRAM_API_HASH: str = ""
 
+    TWITTER_BEARER_TOKEN: str = ""
+
     class Config:
         env_file = ".env"
 

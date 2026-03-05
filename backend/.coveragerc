@@ -1,0 +1,12 @@
+[run]
+source = app
+omit =
+    app/integrations/*
+    app/services/tasks.py
+    app/core/celery_app.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__
+    raise NotImplementedError

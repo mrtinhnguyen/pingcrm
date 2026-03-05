@@ -239,10 +239,12 @@ async def merge_contacts(
     db.add(match)
     await db.flush()
 
-    # Delete secondary contact.
+    # Delete secondary contact (CASCADE will also delete the match FK).
+    # We must expunge the match before deleting contact_b to keep it in memory.
+    await db.flush()
+    db.expunge(match)
     await db.delete(contact_b)
     await db.flush()
-    await db.refresh(match)
 
     return match
 

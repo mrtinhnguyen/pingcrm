@@ -228,7 +228,7 @@ Guided 4-step setup flow for new users:
 | **Google APIs** | google-api-python-client + google-auth-oauthlib |
 | **Auth** | python-jose (JWT) + passlib (bcrypt) |
 | **HTTP Client** | httpx (async) + openapi-fetch (frontend) |
-| **Testing** | pytest (backend, 227 tests) + Vitest (frontend) |
+| **Testing** | pytest (backend, 245 tests) + Vitest (frontend, 121 tests) |
 
 ---
 
@@ -327,7 +327,7 @@ cd frontend
 npm install
 ```
 
-No additional frontend configuration is needed. The frontend proxies all `/api/*` requests to the backend at `http://localhost:8000` via Next.js rewrites.
+No additional frontend configuration is needed for local development. The frontend proxies all `/api/*` requests to the backend via Next.js rewrites (default: `http://localhost:8000`, configurable via `NEXT_PUBLIC_API_URL`).
 
 ### 6. Platform Credentials
 
@@ -478,27 +478,36 @@ pingcrm/
 │   │   ├── models/                  # SQLAlchemy ORM models
 │   │   │   ├── user.py
 │   │   │   ├── contact.py
+│   │   │   ├── contact_merge.py     # Merge audit trail
 │   │   │   ├── interaction.py
 │   │   │   ├── detected_event.py
-│   │   │   ├── followup_suggestion.py
+│   │   │   ├── follow_up.py         # FollowUpSuggestion model
 │   │   │   ├── identity_match.py
 │   │   │   ├── notification.py
 │   │   │   └── google_account.py
-│   │   ├── schemas/                 # Pydantic request/response schemas
+│   │   ├── schemas/                 # Pydantic request/response schemas (typed Envelope[T])
 │   │   ├── services/                # Business logic
 │   │   │   ├── tasks.py             # Celery background tasks (all syncs)
 │   │   │   ├── followup_engine.py   # Follow-up suggestion generation
 │   │   │   ├── identity_resolution.py  # Cross-platform matching
-│   │   │   └── message_composer.py  # AI message drafting via Claude
+│   │   │   ├── message_composer.py  # AI message drafting via Claude
+│   │   │   ├── event_classifier.py  # LLM-based event classification
+│   │   │   ├── contact_search.py    # Contact search/filter logic
+│   │   │   ├── contact_import.py    # CSV/LinkedIn import logic
+│   │   │   ├── bio_refresh.py       # Twitter bio refresh service
+│   │   │   ├── telegram_service.py  # Telegram orchestration
+│   │   │   ├── digest_email.py      # Weekly digest email
+│   │   │   ├── scoring.py           # Relationship score calculation
+│   │   │   └── notifications.py     # Notification creation helpers
 │   │   ├── integrations/            # Third-party API clients
 │   │   │   ├── gmail.py             # Gmail thread sync
 │   │   │   ├── google_auth.py       # Google OAuth helpers
 │   │   │   ├── google_calendar.py   # Calendar event sync
 │   │   │   ├── telegram.py          # Telethon MTProto client
 │   │   │   └── twitter.py           # Twitter API v2 client
-│   │   └── core/                    # Config, auth, database, Celery setup
+│   │   └── core/                    # Config, auth, database, encryption, Redis, Celery
 │   ├── alembic/                     # Database migrations
-│   ├── tests/                       # 227 pytest tests
+│   ├── tests/                       # 245 pytest tests
 │   ├── worker.py                    # Celery entry point
 │   ├── requirements.txt
 │   └── .env.example
@@ -523,9 +532,16 @@ pingcrm/
     │   │   ├── score-badge.tsx      # Relationship score badge
     │   │   ├── csv-import.tsx       # CSV drag-and-drop importer
     │   │   ├── empty-state.tsx      # Empty state placeholder
-    │   │   └── message-editor.tsx   # AI message editor
+    │   │   ├── message-editor.tsx   # AI message editor
+    │   │   └── nav.tsx              # Navigation bar with notification badge
     │   ├── hooks/                   # React Query data hooks
-    │   └── lib/                     # API client, utilities
+    │   │   ├── use-auth.ts          # Login, register, logout
+    │   │   ├── use-contacts.ts      # Contact CRUD + search
+    │   │   ├── use-dashboard.ts     # Dashboard stats
+    │   │   ├── use-identity.ts      # Identity match operations
+    │   │   ├── use-notifications.ts # Notification queries
+    │   │   └── use-suggestions.ts   # Follow-up suggestions
+    │   └── lib/                     # Typed API client (openapi-fetch), utilities
     ├── vitest.config.ts
     └── package.json
 ```
@@ -542,24 +558,32 @@ All endpoints return a standard envelope: `{ data, error, meta }`.
 |--------|----------|-------------|
 | POST | `/api/v1/auth/register` | Register with email/password |
 | POST | `/api/v1/auth/login` | Login with email/password |
+| GET | `/api/v1/auth/me` | Get current authenticated user profile |
 | GET | `/api/v1/auth/google/url` | Get Google OAuth authorization URL |
 | POST | `/api/v1/auth/google/callback` | Exchange Google OAuth code for JWT |
+| GET | `/api/v1/auth/google/accounts` | List connected Google accounts |
+| DELETE | `/api/v1/auth/google/accounts/{id}` | Remove a connected Google account |
 | GET | `/api/v1/auth/twitter/url` | Get Twitter OAuth 2.0 PKCE URL |
-| GET | `/api/v1/auth/twitter/callback` | Exchange Twitter OAuth code for JWT |
-| GET | `/api/v1/auth/me` | Get current authenticated user profile |
+| POST | `/api/v1/auth/twitter/callback` | Exchange Twitter OAuth code for JWT |
 
 ### Contacts
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/contacts` | List contacts (paginated, searchable, sortable, filterable by tag) |
+| GET | `/api/v1/contacts` | List contacts (paginated, searchable, sortable, filterable) |
 | POST | `/api/v1/contacts` | Create a contact |
+| GET | `/api/v1/contacts/tags` | List all unique tags |
+| GET | `/api/v1/contacts/stats` | Get contact statistics for dashboard |
 | GET | `/api/v1/contacts/{id}` | Get contact detail |
-| PATCH | `/api/v1/contacts/{id}` | Update contact fields |
+| PUT | `/api/v1/contacts/{id}` | Update contact fields |
 | DELETE | `/api/v1/contacts/{id}` | Delete a contact |
-| POST | `/api/v1/contacts/import/csv` | Import contacts from CSV file |
-| POST | `/api/v1/contacts/{id}/merge/{other_id}` | Merge two contacts into one |
 | GET | `/api/v1/contacts/{id}/duplicates` | Find potential duplicate contacts |
+| POST | `/api/v1/contacts/{id}/merge/{other_id}` | Merge two contacts into one |
+| POST | `/api/v1/contacts/{id}/refresh-bios` | Refresh Twitter/Telegram bios |
+| POST | `/api/v1/contacts/import/csv` | Import contacts from CSV file |
+| POST | `/api/v1/contacts/import/linkedin` | Import LinkedIn connections export |
+| POST | `/api/v1/contacts/import/linkedin-messages` | Import LinkedIn messages export |
+| POST | `/api/v1/contacts/scores/recalculate` | Recalculate all relationship scores |
 
 ### Sync (Background Tasks)
 
@@ -579,22 +603,25 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 | POST | `/api/v1/auth/telegram/connect` | Send OTP to phone number |
 | POST | `/api/v1/auth/telegram/verify` | Verify OTP code |
 | POST | `/api/v1/auth/telegram/verify-2fa` | Complete 2FA password verification |
+| POST | `/api/v1/auth/telegram/sync` | Sync Telegram chats (background) |
 | GET | `/api/v1/contacts/{id}/telegram/common-groups` | Get shared Telegram groups with a contact |
 
 ### Interactions
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/interactions/{contact_id}` | Get interaction timeline for a contact |
-| POST | `/api/v1/interactions` | Add a manual interaction/note |
+| GET | `/api/v1/contacts/{id}/interactions` | Get interaction timeline for a contact |
+| POST | `/api/v1/contacts/{id}/interactions` | Add a manual interaction/note |
 
 ### Suggestions
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/v1/suggestions` | List follow-up suggestions |
-| PATCH | `/api/v1/suggestions/{id}` | Update suggestion status (snooze/dismiss/send) |
+| GET | `/api/v1/suggestions/digest` | Get weekly digest suggestions |
+| PUT | `/api/v1/suggestions/{id}` | Update suggestion status (snooze/dismiss/send) |
 | POST | `/api/v1/suggestions/generate` | Generate new AI-powered suggestions |
+| POST | `/api/v1/suggestions/{id}/regenerate` | Regenerate AI message for a suggestion |
 
 ### Identity Resolution
 
@@ -609,10 +636,10 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/v1/notifications` | List all notifications |
+| GET | `/api/v1/notifications` | List all notifications (paginated) |
 | GET | `/api/v1/notifications/unread-count` | Get unread notification count |
-| PATCH | `/api/v1/notifications/{id}/read` | Mark a notification as read |
-| POST | `/api/v1/notifications/read-all` | Mark all notifications as read |
+| PUT | `/api/v1/notifications/{id}/read` | Mark a notification as read |
+| PUT | `/api/v1/notifications/read-all` | Mark all notifications as read |
 
 ### Health Check
 
@@ -639,7 +666,7 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 ## Testing
 
 ```bash
-# Backend tests (227 tests)
+# Backend tests (245 tests)
 cd backend
 pytest
 

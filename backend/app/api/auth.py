@@ -146,7 +146,7 @@ async def remove_google_account(
         raise HTTPException(status_code=404, detail="Google account not found")
 
     await db.delete(ga)
-    return {"data": {"deleted": True}, "error": None}
+    return {"data": {"id": account_id, "deleted": True}, "error": None}
 
 
 @router.get("/google/url", response_model=Envelope[OAuthUrlData])

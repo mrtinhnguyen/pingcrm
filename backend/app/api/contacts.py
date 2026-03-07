@@ -414,9 +414,6 @@ async def recalculate_scores(
 
 from app.core.redis import get_redis
 
-_BIO_CHECK_TTL = 86400  # 24 hours
-
-
 @router.post("/{contact_id}/refresh-bios", response_model=Envelope[BioRefreshData])
 async def refresh_contact_bios(
     contact_id: uuid.UUID,
@@ -439,7 +436,7 @@ async def refresh_contact_bios(
     if await r.exists(cache_key):
         return envelope({"skipped": True, "reason": "checked_recently"})
 
-    from app.services.bio_refresh import refresh_contact_bios as _refresh_bios
+    from app.services.bio_refresh import refresh_contact_bios as _refresh_bios, _BIO_CHECK_TTL
 
     changes = await _refresh_bios(contact, current_user, db)
 

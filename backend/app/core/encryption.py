@@ -57,5 +57,8 @@ class EncryptedString(TypeDecorator):
         try:
             return decrypt_value(value)
         except InvalidToken:
-            # Value is not encrypted (pre-migration plaintext) — return as-is
+            import logging
+            logging.getLogger(__name__).error(
+                "EncryptedString: failed to decrypt value — wrong key or unencrypted data"
+            )
             return value

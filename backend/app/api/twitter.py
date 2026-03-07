@@ -84,9 +84,10 @@ async def twitter_callback(
     try:
         tokens = await exchange_twitter_code(body.code, verifier)
     except Exception as exc:
+        logger.error("Twitter code exchange failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to exchange code: {exc}",
+            detail="Failed to exchange Twitter authorization code",
         ) from exc
 
     current_user.twitter_access_token = tokens.get("access_token")

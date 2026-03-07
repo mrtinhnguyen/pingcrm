@@ -22,9 +22,9 @@ def _patch_redis():
 
 
 async def _inject_state(state: str = "test-state-123") -> str:
-    """Insert a valid state nonce into the Redis-backed Google state store."""
+    """Insert a valid anonymous state nonce into the Redis-backed Google state store."""
     from app.api.auth import _store_google_state
-    await _store_google_state(state, "test-user-id")
+    await _store_google_state(state, None)  # anonymous: allows signup/login without auth
     return state
 
 

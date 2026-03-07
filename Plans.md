@@ -1,189 +1,38 @@
 # Plans - Ping CRM
 
-## Phase 1: Foundation (Weeks 1-4)
+> Phases 1-7 (101 tasks, all ✅) archived in [Plans-archive.md](Plans-archive.md)
 
-### 1.1 Project Scaffolding
-- [x] `cc:完了` Initialize FastAPI backend project structure
-- [x] `cc:完了` Initialize Next.js frontend project
-- [x] `cc:完了` Set up PostgreSQL schema with Alembic migrations
-- [x] `cc:完了` Configure environment variables and settings
-
-### 1.2 Auth & Onboarding
-- [x] `cc:完了` User auth (signup/login) with JWT
-- [x] `cc:完了` Google OAuth integration for Gmail + Contacts
-- [x] `cc:完了` Onboarding flow UI
-
-### 1.3 Contact Management
-- [x] `cc:完了` Contact model and CRUD API endpoints
-- [x] `cc:完了` CSV import endpoint with field mapping
-- [x] `cc:完了` Google Contacts one-way sync
-- [x] `cc:完了` Manual contact creation UI
-- [x] `cc:完了` Contact profile page with unified fields
-
-### 1.4 Gmail Integration
-- [x] `cc:完了` Gmail API thread sync service
-- [x] `cc:完了` Interaction tracking from email threads
-- [x] `cc:完了` Periodic sync job (Celery task)
-
-### 1.5 Interaction Timeline
-- [x] `cc:完了` Interaction model and API
-- [x] `cc:完了` Timeline UI component (reverse chronological, grouped by platform)
-- [x] `cc:完了` Manual note entry
-
-### 1.6 Basic Relationship Scoring
-- [x] `cc:完了` Scoring model implementation (signal-based points)
-- [x] `cc:完了` Score display on contact cards (green/yellow/red)
-
-## Phase 2: Intelligence (Weeks 5-8)
-
-### 2.1 Telegram Integration
-- [x] `cc:完了` MTProto client setup
-- [x] `cc:完了` Chat history sync
-- [x] `cc:完了` Contact matching from Telegram
-
-### 2.2 Identity Resolution
-- [x] `cc:完了` Tier 1: Deterministic matching (email, phone)
-- [x] `cc:完了` Tier 4: User confirmation UI for low-confidence matches
-- [x] `cc:完了` IdentityMatch model and merge logic
-
-### 2.3 Context Detection Engine
-- [x] `cc:完了` Twitter activity polling service
-- [x] `cc:完了` LLM classifier for event detection (job change, fundraising, etc.)
-- [x] `cc:完了` DetectedEvent model and storage
-
-### 2.4 AI Message Composer
-- [x] `cc:完了` Message generation service (Claude API)
-- [x] `cc:完了` Tone and style adaptation from conversation history
-- [x] `cc:完了` Draft editing UI
-
-### 2.5 Follow-Up Engine
-- [x] `cc:完了` FollowUpSuggestion model and generation logic
-- [x] `cc:完了` Time-based + event-based triggers
-- [x] `cc:完了` Weekly digest email (Celery scheduled task)
-
-## Phase 3: Polish (Weeks 9-12)
-
-### 3.1 Twitter Integration
-- [x] `cc:完了` Twitter DM and mention sync
-- [x] `cc:完了` Bio change monitoring
-
-### 3.2 Dashboard
-- [x] `cc:完了` "Reach out this week" section
-- [x] `cc:完了` "Recent activity from your network" feed
-- [x] `cc:完了` "Relationship health overview" summary
-- [x] `cc:完了` "Recently contacted" list
-
-### 3.3 Follow-Up Workflows
-- [x] `cc:完了` Snooze, schedule, dismiss actions
-- [x] `cc:完了` Notification system (in-app + email)
-
-### 3.4 Identity Resolution v2
-- [x] `cc:完了` Tier 2: Probabilistic matching (scored)
-
-### 3.5 Performance & Hardening
-- [x] `cc:完了` Optimize for 500+ contacts
-- [x] `cc:完了` Error states and edge case handling
-- [x] `cc:完了` Security audit (OAuth tokens, data access)
-
-## Phase 4: Critical Fixes
-
-### 4.1 Google OAuth CSRF Protection
-- [x] `cc:完了` Add `state` param to `GoogleCallbackRequest` schema and validate server-side
-- [x] `cc:完了` Store OAuth state nonce server-side (in-memory dict with TTL, same pattern as Twitter PKCE)
-- [x] `cc:完了` Pass `state` from frontend Google callback page to backend callback endpoint
-- [x] `cc:完了` Standardize frontend token key: always use `access_token` from response `data.access_token`
-- [x] `cc:完了` Add tests for state validation (missing state, invalid state, expired state)
-
-### 4.2 Identity Merge Audit Trail
-- [x] `cc:完了` Create `contact_merges` table (primary_contact_id, merged_contact_id NOT FK, match_score, match_method, merged_at, merged_by) [skip:tdd]
-- [x] `cc:完了` Create Alembic migration for `contact_merges` table
-- [x] `cc:完了` Record merge in `contact_merges` before deleting secondary contact (in `merge_contacts`)
-- [x] `cc:完了` Change `IdentityMatch.contact_b_id` FK to `SET NULL` on delete instead of `CASCADE`
-- [x] `cc:完了` Remove `db.expunge(match)` hack from merge_contacts — no longer needed with SET NULL
-- [x] `cc:完了` Add tests: merge creates audit record, audit record survives contact deletion
-
-### 4.3 Suggestion Message Flows
-- [x] `cc:完了` Add `suggested_message` and `suggested_channel` fields to `SnoozeBody` (update schema)
-- [x] `cc:完了` Persist edited `suggested_message` and `suggested_channel` in PUT /suggestions/{id}
-- [x] `cc:完了` Add POST /suggestions/{id}/regenerate endpoint (re-generates message via AI for existing suggestion)
-- [x] `cc:完了` Add `useRegenerateSuggestion` hook in frontend (already existed in MessageEditor)
-- [x] `cc:完了` Add "Regenerate" button to SuggestionCard / MessageEditor component (already existed)
-- [x] `cc:完了` Add tests: update persists message/channel, regenerate returns new message
-
-## Phase 5: Production Hardening
-
-### 5.1 Redis State Migration
-- [x] `cc:完了` Add Redis client (`redis[hiredis]`) dependency and async connection helper in `app/core/redis.py`
-- [x] `cc:完了` Migrate `_pkce_store` (api/twitter.py) to Redis with 600s TTL and `pkce:` key prefix
-- [x] `cc:完了` Migrate `_google_state_store` (api/auth.py) to Redis with 600s TTL and `oauth_state:` key prefix
-- [x] `cc:完了` Migrate `_bio_check_cache` (api/contacts.py) to Redis with 86400s TTL and `bio_check:` key prefix
-- [x] `cc:完了` Add tests for Redis state stores (use `fakeredis` for unit tests)
-
-### 5.2 Transaction Boundary Cleanup
-- [x] `cc:完了` Document and enforce transaction policy: API handlers use `flush()` only, `get_db` owns `commit()`/`rollback()`
-- [x] `cc:完了` Remove explicit `db.commit()` calls from API route handlers (api/identity.py, api/contacts.py, api/suggestions.py, api/telegram.py) — rely on `get_db` auto-commit
-- [x] `cc:完了` Audit service-layer functions (services/identity_resolution.py, services/digest_email.py) — confirmed they use flush only; Celery tasks keep their own commits
-- [x] `cc:完了` All 245 tests pass — rollback behavior verified by existing test infrastructure
-
-### 5.3 Query Optimization
-- [x] `cc:完了` Fix N+1 in `list_suggestions` and `get_digest` (api/suggestions.py): batch-load via `_enrich_suggestions_with_contacts`
-- [x] `cc:完了` Fix N+1 in `send_weekly_digest` (services/digest_email.py): batch-load contacts with `Contact.id.in_()`
-- [x] `cc:完了` Fix broad-scan in `list_pending_matches` (api/identity.py): push user contact_id subquery into IdentityMatch WHERE clause
-- [x] `cc:完了` Fix `_match_to_dict` N+1 (api/identity.py): added `_batch_matches_to_dicts` for list endpoint
-- [x] `cc:完了` Add blocking keys to `find_probable_matches` O(n²) loop + scope IdentityMatch queries to user's contacts
-- [x] `cc:完了` Scope `find_probabilistic_matches` existing pairs query to user's contacts
-
-## Phase 6: Architecture & Security Hardening
-
-### 6.1 Token Encryption (P2 — do first, highest risk)
-- [x] `cc:完了` Add `app/core/encryption.py` — Fernet `EncryptedString` TypeDecorator with `ENCRYPTION_KEY` env var [skip:tdd]
-- [x] `cc:完了` Add Alembic migration to encrypt existing token columns in-place with reversible `downgrade()` [skip:tdd]
-- [x] `cc:完了` Update model columns to use `EncryptedString` TypeDecorator (transparent encrypt/decrypt — no read/write path changes needed)
-- [x] `cc:完了` Token redaction verified — `UserResponse` only exposes boolean flags, no tokens in API responses
-
-### 6.2 Service Extraction (P1 — refactoring, safest)
-- [x] `cc:完了` Extract contact search/filter logic from `api/contacts.py` into `services/contact_search.py` (contacts.py: 783→447 lines)
-- [x] `cc:完了` Extract CSV/LinkedIn import logic from `api/contacts.py` into `services/contact_import.py`
-- [x] `cc:完了` Extract bio-refresh logic from `api/contacts.py` into `services/bio_refresh.py`
-- [x] `cc:完了` Slim `api/telegram.py` — move cache/connect orchestration to `services/telegram_service.py`
-- [x] `cc:完了` Remove all private `_`-prefixed imports from API layer — exposed public wrappers `compute_adaptive_score`, `build_blocking_keys` in identity_resolution
-
-### 6.3 Typed API Contracts (P3 — purely additive, do last)
-- [x] `cc:完了` Define typed response schemas for contacts endpoints (18 `response_model=dict` → typed Pydantic via `Envelope[T]`)
-- [x] `cc:完了` Define typed response schemas for suggestions + identity + notifications endpoints (14 → typed)
-- [x] `cc:完了` Define typed response schemas for interactions + telegram + twitter + auth endpoints (12 → typed)
-- [x] `cc:完了` Add OpenAPI client generation script (`openapi-typescript` + `openapi-fetch`) and generate typed frontend API client
-- [x] `cc:完了` Replace manual frontend `fetch`/`apiClient` calls with generated typed client
-
----
-
-## Phase 7: Async I/O, Dead Code Cleanup & Config Hygiene
+## Phase 8: Security & Correctness Fixes
 
 作成日: 2026-03-07
 
-### 7.1 Blocking LLM Calls → Async (P1 — worker throughput)
+### 8.1 Google OAuth State Enforcement (High)
 
-**Problem**: `event_classifier.py` uses sync `anthropic.Anthropic` inside Celery async tasks. Blocking the event loop degrades worker throughput when processing contact activity.
+- [x] `cc:完了` Enforce state-bound user identity in Google callback: when `popped` value is a real user_id (not `__anonymous__`), verify it matches the current authenticated user before proceeding
+- [x] `cc:完了` Add tests: state with user_id mismatch returns 403, anonymous state allows normal signup/login flow
 
-- [x] `cc:完了` Convert `classify_tweet()` and `classify_bio_change()` from sync `Anthropic` to `AsyncAnthropic` with `asyncio.wait_for` timeout (match `message_composer.py` pattern)
-- [x] `cc:完了` Add concurrency semaphore (`asyncio.Semaphore(5)`) to cap parallel LLM calls in `process_contact_activity` batch processing
-- [x] `cc:完了` Add exponential backoff + jitter on transient Anthropic API errors (429, 500, 529) in both `event_classifier.py` and `message_composer.py`
-- [x] `cc:完了` Update `test_event_classifier.py` tests for async signatures
+### 8.2 Frontend Token Key Mismatch (High)
 
-### 7.2 Dead/Legacy Code Removal (P2 — maintenance hygiene)
+- [x] `cc:完了` Fix Google callback page to store JWT under `access_token` key, matching `api-client.ts` and `use-auth.ts`
+- [x] `cc:完了` Add test for Google callback: verify token is stored under `access_token` key
 
-**Problem**: Unused components and legacy API client create confusion and maintenance drag.
+### 8.3 Exception Detail Redaction (High)
 
-- [x] `cc:完了` Remove `frontend/src/components/contact-card.tsx` (zero imports — unused component)
-- [x] `cc:完了` Remove `frontend/src/components/error-boundary.tsx` (zero imports — unused component)
-- [x] `cc:完了` Remove `frontend/src/lib/api.ts` (old axios client) and migrate 2 test files (`contacts/page.test.tsx`, `settings/page.test.tsx`) to mock `@/lib/api-client` instead
-- [x] `cc:完了` Audit and remove any other unreferenced frontend components or hooks
+- [x] `cc:完了` Replace raw `{exc}` in HTTPException details with generic user-facing messages; log the full exception server-side
+- [x] `cc:完了` Add tests: verify error responses do not contain exception class names or tracebacks
 
-### 7.3 Docs/Config Drift — Externalize Hosts (P3 — deployment friction)
+### 8.4 Twitter Polling Filter (Medium)
 
-**Problem**: Hardcoded `localhost` URLs in `next.config.ts`, `main.py` CORS, `contacts/[id]/page.tsx` avatar URL, and config defaults create friction for non-local deployment.
+- [x] `cc:完了` Filter `poll_twitter_all()` query to only users with `twitter_refresh_token IS NOT NULL`
+- [x] `cc:完了` Add test: `poll_twitter_all` only enqueues tasks for Twitter-connected users
 
-- [x] `cc:完了` Externalize backend proxy URL in `next.config.ts` via `NEXT_PUBLIC_API_URL` env var (default `http://localhost:8000`)
-- [x] `cc:完了` Externalize CORS origins in `main.py` via `settings.CORS_ORIGINS: list[str]` config field
-- [x] `cc:完了` Fix avatar URL construction in `contacts/[id]/page.tsx` to use the same `NEXT_PUBLIC_API_URL` env var consistently
-- [x] `cc:完了` Sync `README.md` environment variables table with actual `config.py` fields (ENCRYPTION_KEY, CORS_ORIGINS, any missing vars)
+### 8.5 ENCRYPTION_KEY Startup Validation (Medium)
+
+- [x] `cc:完了` Add startup validation for `ENCRYPTION_KEY` in `main.py` (warn in dev, error in production)
+- [x] `cc:完了` Add `ENCRYPTION_KEY` to `.env.example` with generation command comment
+- [x] `cc:完了` Add test: app startup raises when `ENCRYPTION_KEY` is empty and environment is production
+
+### 8.6 Transaction Auto-Commit Documentation (Medium)
+
+- [x] `cc:完了` Add inline docstring to `get_db()` explaining the auto-commit policy
+- [x] `cc:完了` Add `# TRANSACTION POLICY` comment block at top of `database.py`

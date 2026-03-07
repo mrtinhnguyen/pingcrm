@@ -29,6 +29,18 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             "SECRET_KEY is not set or uses the insecure default. "
             "Set a strong random value in your .env file."
         )
+    if not settings.ENCRYPTION_KEY:
+        env = getattr(settings, "ENVIRONMENT", "production")
+        if env == "production":
+            raise RuntimeError(
+                "ENCRYPTION_KEY is not set. "
+                "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+        else:
+            logger.warning(
+                "ENCRYPTION_KEY is not set. Encrypted fields will not work. "
+                "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
     logger.info("Ping CRM API starting up...")
     yield
     logger.info("Ping CRM API shutting down.")

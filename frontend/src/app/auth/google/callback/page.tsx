@@ -27,7 +27,7 @@ function GoogleCallbackInner() {
       } else {
         const token = (data?.data as { access_token?: string })?.access_token;
         if (token) {
-          localStorage.setItem("token", token);
+          localStorage.setItem("access_token", token);
         }
         router.replace("/settings?connected=google");
       }

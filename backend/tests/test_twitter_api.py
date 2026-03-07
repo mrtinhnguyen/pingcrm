@@ -271,7 +271,7 @@ async def test_callback_exchange_failure_returns_400(
         )
 
     assert response.status_code == 400
-    assert "Failed to exchange code" in response.json()["detail"]
+    assert "Failed to exchange Twitter authorization code" in response.json()["detail"]
 
 
 @pytest.mark.asyncio

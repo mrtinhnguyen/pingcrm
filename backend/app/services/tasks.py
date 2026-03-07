@@ -517,14 +517,20 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
 
 @shared_task(name="app.services.tasks.poll_twitter_all")
 def poll_twitter_all() -> dict:
-    """Beat-scheduled task: enqueue poll_twitter_activity + DM sync for every user.
+    """Beat-scheduled task: enqueue poll_twitter_activity + DM sync for every user
+    that has a twitter_refresh_token set.
+
+    Only users with Twitter connected (twitter_refresh_token IS NOT NULL) are
+    enqueued, matching the pattern used by sync_gmail_all().
 
     Returns:
         A dict with ``queued`` count.
     """
     async def _get_user_ids() -> list[str]:
         async with AsyncSessionLocal() as db:
-            result = await db.execute(select(User.id))
+            result = await db.execute(
+                select(User.id).where(User.twitter_refresh_token.isnot(None))
+            )
             return [str(row) for row in result.scalars().all()]
 
     user_ids = _run(_get_user_ids())

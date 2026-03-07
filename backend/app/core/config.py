@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://localhost:6379/0"
     SECRET_KEY: str = ""
     ALGORITHM: str = "HS256"
+    ENVIRONMENT: str = "development"  # Set to "production" in production deployments
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
 
     GOOGLE_CLIENT_ID: str = ""

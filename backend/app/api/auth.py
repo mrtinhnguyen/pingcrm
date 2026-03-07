@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import create_access_token, get_current_user, hash_password, verify_password
+from app.core.auth import create_access_token, get_current_user, get_current_user_optional, hash_password, verify_password
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.redis import get_redis
@@ -23,6 +24,8 @@ from app.schemas.responses import (
     UserWithAccountsData,
 )
 from app.schemas.user import Token, UserCreate, UserResponse
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -173,11 +176,14 @@ class GoogleCallbackRequest(BaseModel):
 async def google_callback(
     payload: GoogleCallbackRequest,
     db: AsyncSession = Depends(get_db),
+    caller: User | None = Depends(get_current_user_optional),
 ) -> Envelope[TokenData]:
     """Exchange a Google authorization code for a JWT access token.
 
     - Validates the ``state`` parameter against the server-side nonce store
       to prevent CSRF attacks.
+    - If the state was created by an authenticated user (connect-account flow),
+      verifies that the current authenticated user matches the stored user_id.
     - If a user with the returned email already exists, update their refresh token.
     - Otherwise create a new account from the Google profile information.
     """
@@ -193,12 +199,25 @@ async def google_callback(
             detail="Invalid or expired OAuth state parameter",
         )
 
+    # Task 8.1: Enforce state ownership for "connect account" flows.
+    # When a logged-in user initiated the OAuth flow via GET /google/url,
+    # the state was bound to their user_id. If the callback arrives with a
+    # different (or absent) authenticated user, reject the request to prevent
+    # account-binding hijack via a leaked state token.
+    if popped != "__anonymous__":
+        if caller is None or str(caller.id) != popped:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Authenticated user does not match the OAuth state",
+            )
+
     try:
         tokens = exchange_code(payload.code)
     except Exception as exc:
+        logger.error("Google code exchange failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Failed to exchange Google authorization code: {exc}",
+            detail="Failed to exchange Google authorization code",
         )
 
     # Verify the id_token and extract the user profile.
@@ -209,9 +228,10 @@ async def google_callback(
             settings.GOOGLE_CLIENT_ID,
         )
     except Exception as exc:
+        logger.error("Google ID token verification failed: %s", exc, exc_info=True)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Invalid Google ID token: {exc}",
+            detail="Invalid Google ID token",
         )
 
     email: str = id_info.get("email", "")

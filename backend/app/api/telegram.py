@@ -82,11 +82,11 @@ async def telegram_connect(
         if "PhoneNumberInvalid" in exc_name:
             detail = "Invalid phone number. Use international format, e.g. +14155552671"
         elif "FloodWait" in exc_name:
-            detail = f"Too many attempts. Please wait before trying again. ({exc})"
+            detail = "Too many attempts. Please wait before trying again."
         elif "ApiIdInvalid" in exc_name:
             detail = "Telegram API credentials are invalid. Check TELEGRAM_API_ID and TELEGRAM_API_HASH."
         else:
-            detail = f"Failed to send Telegram OTP: {exc}"
+            detail = "Failed to send Telegram OTP. Please try again."
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=detail,
@@ -136,7 +136,7 @@ async def telegram_verify(
         logger.exception("telegram_verify failed for user %s.", current_user.id)
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Telegram verification failed: {exc}",
+            detail="Telegram verification failed. Please check your code and try again.",
         ) from exc
 
     from app.models.notification import Notification as TgNotif
@@ -189,7 +189,7 @@ async def telegram_verify_2fa(
         if "PasswordHashInvalid" in exc_name:
             detail = "Incorrect 2FA password. Please try again."
         else:
-            detail = f"Telegram 2FA verification failed: {exc}"
+            detail = "Telegram 2FA verification failed. Please try again."
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=detail,

@@ -49,16 +49,23 @@ class EncryptedString(TypeDecorator):
     def process_bind_param(self, value: str | None, dialect) -> str | None:  # noqa: ANN001
         if value is None:
             return None
-        return encrypt_value(value)
+        try:
+            return encrypt_value(value)
+        except RuntimeError:
+            import logging
+            logging.getLogger(__name__).warning(
+                "EncryptedString: ENCRYPTION_KEY not set — storing value unencrypted"
+            )
+            return value
 
     def process_result_value(self, value: str | None, dialect) -> str | None:  # noqa: ANN001
         if value is None:
             return None
         try:
             return decrypt_value(value)
-        except InvalidToken:
+        except (InvalidToken, RuntimeError):
             import logging
             logging.getLogger(__name__).error(
-                "EncryptedString: failed to decrypt value — wrong key or unencrypted data"
+                "EncryptedString: failed to decrypt value — wrong key, missing ENCRYPTION_KEY, or unencrypted data"
             )
             return value

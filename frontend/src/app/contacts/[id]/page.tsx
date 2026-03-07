@@ -233,7 +233,7 @@ export default function ContactDetailPage() {
     queryKey: ["contact-notifications", id],
     queryFn: async () => {
       const { data } = await client.GET("/api/v1/notifications", {
-        params: { query: { page_size: 50 } },
+        params: { query: { page_size: 50, link: `/contacts/${id}` } },
       });
       return (data?.data as NotificationItem[]) ?? [];
     },

@@ -45,12 +45,20 @@ async def refresh_contact_bios(
     # ------------------------------------------------------------------
     if contact.twitter_handle:
         try:
-            from app.integrations.twitter import fetch_user_profile
+            from app.integrations.twitter import fetch_user_profile, download_twitter_avatar
 
             handle = (contact.twitter_handle or "").lstrip("@").strip()
             if handle:
                 profile = await fetch_user_profile(handle)
                 new_bio = profile.get("description", "")
+
+                # Download Twitter avatar if the contact doesn't have one
+                if not contact.avatar_url:
+                    image_url = profile.get("profile_image_url")
+                    if image_url:
+                        avatar_path = await download_twitter_avatar(image_url, contact.id)
+                        if avatar_path:
+                            contact.avatar_url = avatar_path
                 if new_bio and new_bio != (contact.twitter_bio or ""):
                     old_bio = contact.twitter_bio
                     contact.twitter_bio = new_bio

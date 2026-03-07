@@ -441,6 +441,7 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
         from app.integrations.twitter import (
             sync_twitter_dms,
             sync_twitter_mentions,
+            sync_twitter_replies,
             sync_twitter_bios,
             _user_bearer_headers,
             _build_twitter_id_to_contact_map,
@@ -459,6 +460,7 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
 
             dm_result = await sync_twitter_dms(user, db, _id_map=id_map, _headers=headers)
             mentions = await sync_twitter_mentions(user, db, _id_map=id_map, _headers=headers)
+            replies = await sync_twitter_replies(user, db, _id_map=id_map, _headers=headers)
 
             dm_interactions = dm_result["new_interactions"] if isinstance(dm_result, dict) else dm_result
             new_contacts = dm_result.get("new_contacts", 0) if isinstance(dm_result, dict) else 0
@@ -486,6 +488,8 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
                 parts.append(f"{dm_interactions} DMs")
             if mentions:
                 parts.append(f"{mentions} mentions")
+            if replies:
+                parts.append(f"{replies} replies")
             if new_contacts:
                 parts.append(f"{new_contacts} new contacts")
             if bio_result.get("bio_changes"):
@@ -499,7 +503,7 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
             ))
             await db.commit()
 
-        return {"status": "ok", "dms": dm_interactions, "mentions": mentions, "new_contacts": new_contacts}
+        return {"status": "ok", "dms": dm_interactions, "mentions": mentions, "replies": replies, "new_contacts": new_contacts}
 
     try:
         uid = uuid.UUID(user_id)

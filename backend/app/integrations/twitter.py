@@ -5,9 +5,11 @@ import base64
 import hashlib
 import hmac
 import logging
+import os
 import time
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 
@@ -20,6 +22,8 @@ from app.models.contact import Contact
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
+
+AVATARS_DIR = Path(os.environ.get("AVATARS_DIR", "static/avatars"))
 
 _TWITTER_API_BASE = "https://api.twitter.com/2"
 
@@ -236,7 +240,7 @@ async def fetch_user_profile(twitter_handle: str) -> dict[str, Any]:
             resp = await client.get(
                 f"{_TWITTER_API_BASE}/users/by/username/{twitter_handle}",
                 headers={"Authorization": f"Bearer {token}"},
-                params={"user.fields": "description,public_metrics,entities,url"},
+                params={"user.fields": "description,public_metrics,entities,url,profile_image_url"},
             )
             resp.raise_for_status()
             return resp.json().get("data", {})
@@ -251,6 +255,29 @@ async def fetch_user_profile(twitter_handle: str) -> dict[str, Any]:
     except Exception:
         logger.exception("fetch_user_profile: unexpected error for @%s.", twitter_handle)
         return {}
+
+
+async def download_twitter_avatar(
+    profile_image_url: str, contact_id: uuid.UUID
+) -> str | None:
+    """Download a Twitter profile image and save to static/avatars/.
+
+    Twitter returns ``_normal`` (48×48) by default; we swap to ``_200x200``
+    for a sharper image.  Returns the local URL path, or ``None`` on failure.
+    """
+    url = profile_image_url.replace("_normal.", "_200x200.")
+    try:
+        AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+        filename = f"{contact_id}.jpg"
+        filepath = AVATARS_DIR / filename
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            resp = await client.get(url)
+            resp.raise_for_status()
+            filepath.write_bytes(resp.content)
+        return f"/static/avatars/{filename}"
+    except Exception:
+        logger.debug("Failed to download Twitter avatar for contact %s", contact_id)
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -291,6 +318,15 @@ async def poll_contacts_activity(
         tweets = await fetch_user_tweets(handle)
         profile = await fetch_user_profile(handle)
         current_bio = profile.get("description", "")
+
+        # Download Twitter avatar if the contact doesn't have one yet
+        if not contact.avatar_url:
+            image_url = profile.get("profile_image_url")
+            if image_url:
+                avatar_path = await download_twitter_avatar(image_url, contact.id)
+                if avatar_path:
+                    contact.avatar_url = avatar_path
+                    await db.flush()
 
         stored_bio = contact.twitter_bio or ""
         bio_changed = bool(current_bio and current_bio != stored_bio)
@@ -842,6 +878,118 @@ async def sync_twitter_mentions(
             content_preview=text[:500] if text else "",
             raw_reference_id=f"twitter_mention:{tweet_id}",
             occurred_at=_parse_twitter_ts(mention.get("created_at")),
+        )
+        db.add(interaction)
+        contact.last_interaction_at = interaction.occurred_at
+        new_count += 1
+
+    await db.flush()
+    return new_count
+
+
+# ---------------------------------------------------------------------------
+# Reply sync — outbound replies to contacts' tweets
+# ---------------------------------------------------------------------------
+
+async def fetch_user_tweets_with_replies(
+    twitter_user_id: str,
+    headers: dict[str, str],
+    since_id: str | None = None,
+) -> list[dict[str, Any]]:
+    """Fetch the authenticated user's recent tweets, including replies.
+
+    Returns tweets that have ``in_reply_to_user_id`` set (i.e. replies).
+    """
+    all_tweets: list[dict[str, Any]] = []
+    pagination_token: str | None = None
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            for _ in range(MAX_DM_PAGES):
+                params: dict[str, str] = {
+                    "tweet.fields": "created_at,in_reply_to_user_id,text,referenced_tweets",
+                    "max_results": "100",
+                    "exclude": "retweets",
+                }
+                if since_id:
+                    params["since_id"] = since_id
+                if pagination_token:
+                    params["pagination_token"] = pagination_token
+
+                resp = await client.get(
+                    f"{_TWITTER_API_BASE}/users/{twitter_user_id}/tweets",
+                    headers=headers,
+                    params=params,
+                )
+                resp.raise_for_status()
+                body = resp.json()
+                all_tweets.extend(body.get("data", []))
+
+                pagination_token = body.get("meta", {}).get("next_token")
+                if not pagination_token:
+                    break
+
+        # Filter to only replies (have in_reply_to_user_id)
+        return [t for t in all_tweets if t.get("in_reply_to_user_id")]
+    except httpx.HTTPStatusError as exc:
+        logger.warning("fetch_user_tweets_with_replies: HTTP %s — %s", exc.response.status_code, exc.response.text)
+        return [t for t in all_tweets if t.get("in_reply_to_user_id")]
+    except Exception:
+        logger.exception("fetch_user_tweets_with_replies: unexpected error.")
+        return [t for t in all_tweets if t.get("in_reply_to_user_id")]
+
+
+async def sync_twitter_replies(
+    user: User,
+    db: AsyncSession,
+    *,
+    _id_map: dict[str, Contact] | None = None,
+    _headers: dict[str, str] | None = None,
+) -> int:
+    """Sync outbound replies to contacts' tweets. Returns count of new interactions."""
+    from app.models.interaction import Interaction
+
+    headers = _headers or await _user_bearer_headers(user, db)
+    if not headers or not user.twitter_user_id:
+        return 0
+
+    replies = await fetch_user_tweets_with_replies(user.twitter_user_id, headers)
+    if not replies:
+        return 0
+
+    # Build or reuse Twitter user ID -> Contact mapping
+    id_to_contact = _id_map if _id_map is not None else await _build_twitter_id_to_contact_map(user, db, headers)
+    new_count = 0
+
+    for reply in replies:
+        tweet_id = reply.get("id", "")
+        reply_to_user_id = reply.get("in_reply_to_user_id", "")
+        text = reply.get("text", "")
+
+        # Skip self-replies (threads)
+        if reply_to_user_id == user.twitter_user_id:
+            continue
+
+        # Match to a known contact
+        contact = id_to_contact.get(reply_to_user_id)
+        if not contact:
+            continue
+
+        # Dedup check
+        existing = await db.execute(
+            select(Interaction).where(Interaction.raw_reference_id == f"twitter_reply:{tweet_id}")
+        )
+        if existing.scalar_one_or_none():
+            continue
+
+        interaction = Interaction(
+            contact_id=contact.id,
+            user_id=user.id,
+            platform="twitter",
+            direction="outbound",
+            content_preview=text[:500] if text else "",
+            raw_reference_id=f"twitter_reply:{tweet_id}",
+            occurred_at=_parse_twitter_ts(reply.get("created_at")),
         )
         db.add(interaction)
         contact.last_interaction_at = interaction.occurred_at

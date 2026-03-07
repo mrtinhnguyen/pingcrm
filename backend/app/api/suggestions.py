@@ -11,7 +11,8 @@ from app.core.database import get_db
 from app.models.contact import Contact
 from app.models.follow_up import FollowUpSuggestion
 from app.models.user import User
-from app.schemas.follow_up import FollowUpResponse
+from app.schemas.follow_up import FollowUpResponse, FollowUpUpdate
+from app.schemas.responses import Envelope, RegenerateResult
 
 router = APIRouter(prefix="/api/v1/suggestions", tags=["suggestions"])
 
@@ -67,11 +68,11 @@ async def _enrich_suggestions_with_contacts(
 # ---------------------------------------------------------------------------
 
 
-@router.get("", response_model=dict)
+@router.get("", response_model=Envelope[list[dict]])
 async def list_suggestions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[list[dict]]:
     """List pending follow-up suggestions for the current user, with contact info."""
     result = await db.execute(
         select(FollowUpSuggestion)
@@ -101,11 +102,11 @@ async def list_suggestions(
 # ---------------------------------------------------------------------------
 
 
-@router.get("/digest", response_model=dict)
+@router.get("/digest", response_model=Envelope[list[dict]])
 async def get_digest(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[list[dict]]:
     """Return the weekly digest data for the current user."""
     from app.services.followup_engine import get_weekly_digest
 
@@ -127,13 +128,13 @@ class SuggestionUpdateBody(BaseModel):
     suggested_channel: str | None = None
 
 
-@router.put("/{suggestion_id}", response_model=dict)
+@router.put("/{suggestion_id}", response_model=Envelope[FollowUpResponse])
 async def update_suggestion(
     suggestion_id: uuid.UUID,
     update_in: SuggestionUpdateBody,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[FollowUpResponse]:
     """Update suggestion status.
 
     - **sent**: marks sent, updates contact.last_followup_at
@@ -200,11 +201,11 @@ async def update_suggestion(
 # ---------------------------------------------------------------------------
 
 
-@router.post("/generate", response_model=dict)
+@router.post("/generate", response_model=Envelope[list[FollowUpResponse]])
 async def generate_suggestions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[list[FollowUpResponse]]:
     """Manually trigger suggestion generation for the current user."""
     from app.services.followup_engine import generate_suggestions as _generate
 
@@ -224,13 +225,13 @@ class RegenerateBody(BaseModel):
     channel: str | None = None
 
 
-@router.post("/{suggestion_id}/regenerate", response_model=dict)
+@router.post("/{suggestion_id}/regenerate", response_model=Envelope[RegenerateResult])
 async def regenerate_suggestion(
     suggestion_id: uuid.UUID,
     body: RegenerateBody | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[RegenerateResult]:
     """Re-generate the AI-drafted message for an existing suggestion."""
     result = await db.execute(
         select(FollowUpSuggestion).where(

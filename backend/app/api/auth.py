@@ -14,6 +14,14 @@ from app.core.database import get_db
 from app.core.redis import get_redis
 from app.integrations.google_auth import build_oauth_url, exchange_code
 from app.models.user import User
+from app.schemas.responses import (
+    DeletedData,
+    Envelope,
+    GoogleAccountData,
+    OAuthUrlData,
+    TokenData,
+    UserWithAccountsData,
+)
 from app.schemas.user import Token, UserCreate, UserResponse
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -32,11 +40,11 @@ async def _pop_google_state(state: str) -> str | None:
     return val  # None if not found/expired
 
 
-@router.post("/register", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/register", response_model=Envelope[UserResponse], status_code=status.HTTP_201_CREATED)
 async def register(
     user_in: UserCreate,
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[UserResponse]:
     result = await db.execute(select(User).where(User.email == user_in.email))
     if result.scalar_one_or_none():
         raise HTTPException(
@@ -77,11 +85,11 @@ async def login(
     return Token(access_token=access_token, token_type="bearer")
 
 
-@router.get("/me", response_model=dict)
+@router.get("/me", response_model=Envelope[UserWithAccountsData])
 async def me(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[UserWithAccountsData]:
     from app.models.google_account import GoogleAccount
 
     result = await db.execute(
@@ -96,11 +104,11 @@ async def me(
     return {"data": user_data, "error": None}
 
 
-@router.get("/google/accounts", response_model=dict)
+@router.get("/google/accounts", response_model=Envelope[list[GoogleAccountData]])
 async def list_google_accounts(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[list[GoogleAccountData]]:
     from app.models.google_account import GoogleAccount
 
     result = await db.execute(
@@ -113,12 +121,12 @@ async def list_google_accounts(
     return {"data": accounts, "error": None}
 
 
-@router.delete("/google/accounts/{account_id}", response_model=dict)
+@router.delete("/google/accounts/{account_id}", response_model=Envelope[DeletedData])
 async def remove_google_account(
     account_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[DeletedData]:
     import uuid as _uuid
     from app.models.google_account import GoogleAccount
 
@@ -141,10 +149,10 @@ async def remove_google_account(
     return {"data": {"deleted": True}, "error": None}
 
 
-@router.get("/google/url", response_model=dict)
+@router.get("/google/url", response_model=Envelope[OAuthUrlData])
 async def google_oauth_url(
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[OAuthUrlData]:
     """Return the Google OAuth consent screen URL."""
     if not settings.GOOGLE_CLIENT_ID or not settings.GOOGLE_CLIENT_SECRET:
         raise HTTPException(
@@ -161,11 +169,11 @@ class GoogleCallbackRequest(BaseModel):
     state: str | None = None
 
 
-@router.post("/google/callback", response_model=dict)
+@router.post("/google/callback", response_model=Envelope[TokenData])
 async def google_callback(
     payload: GoogleCallbackRequest,
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[TokenData]:
     """Exchange a Google authorization code for a JWT access token.
 
     - Validates the ``state`` parameter against the server-side nonce store

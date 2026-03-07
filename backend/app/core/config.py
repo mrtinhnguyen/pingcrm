@@ -25,6 +25,8 @@ class Settings(BaseSettings):
 
     TWITTER_BEARER_TOKEN: str = ""
 
+    ENCRYPTION_KEY: str = ""
+
     class Config:
         env_file = ".env"
 

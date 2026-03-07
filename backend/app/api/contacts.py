@@ -1,82 +1,45 @@
-import csv
-import io
+from __future__ import annotations
+
 import logging
-import math
 import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
-from sqlalchemy import String, cast, exists, func, or_, select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.models.contact import Contact
-from app.models.interaction import Interaction
 from app.models.user import User
 from app.schemas.contact import (
     ContactCreate,
     ContactListResponse,
     ContactResponse,
     ContactUpdate,
-    PaginationMeta,
+)
+from app.schemas.responses import (
+    BioRefreshData,
+    ContactStatsData,
+    CsvImportResult,
+    DeletedData,
+    DuplicateContactData,
+    Envelope,
+    LinkedInImportResult,
+    LinkedInMessagesImportResult,
+    MergedContactData,
+    ScoresRecalculatedData,
+    SyncStartedData,
 )
 
-from app.models.notification import Notification
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/contacts", tags=["contacts"])
 
 
-def _add_sync_notification(
-    db: AsyncSession,
-    user_id: uuid.UUID,
-    *,
-    title: str,
-    body: str | None = None,
-    link: str | None = "/settings",
-) -> None:
-    """Queue a sync/connect notification for the user."""
-    db.add(Notification(
-        user_id=user_id,
-        notification_type="sync",
-        title=title,
-        body=body,
-        link=link,
-    ))
-
-
 def envelope(data: Any, error: str | None = None, meta: dict | None = None) -> dict:
     return {"data": data, "error": error, "meta": meta}
-
-
-import re as _re
-
-# Patterns like "Jan | Safe Foundation", "Mickey @ Arcadia", "Alice / ACME Corp"
-_NAME_ORG_RE = _re.compile(
-    r"^(.+?)\s*(?:\||@|/|—|–|-\s)\s*(.+)$"
-)
-
-
-def _parse_name_org(raw_name: str | None) -> tuple[str | None, str | None]:
-    """Extract (clean_name, company) from a raw name that may contain an org separator.
-
-    Recognises separators: |  @  /  —  –  and " - " (dash with spaces).
-    Returns (name, None) if no separator found.
-    """
-    if not raw_name:
-        return (None, None)
-    raw = raw_name.strip()
-    if not raw:
-        return (None, None)
-    m = _NAME_ORG_RE.match(raw)
-    if m:
-        name = m.group(1).strip()
-        org = m.group(2).strip()
-        if name and org:
-            return (name, org)
-    return (raw, None)
 
 
 @router.get("", response_model=ContactListResponse)
@@ -92,94 +55,27 @@ async def list_contacts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ContactListResponse:
-    base_query = select(Contact).where(Contact.user_id == current_user.id)
+    from app.services.contact_search import list_contacts_paginated
 
-    if search:
-        # Escape SQL LIKE wildcards to prevent wildcard injection
-        safe_search = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-        pattern = f"%{safe_search}%"
-        interaction_match = exists(
-            select(Interaction.id).where(
-                Interaction.contact_id == Contact.id,
-                Interaction.content_preview.ilike(pattern),
-            )
-        )
-        base_query = base_query.where(
-            or_(
-                Contact.full_name.ilike(pattern),
-                Contact.given_name.ilike(pattern),
-                Contact.family_name.ilike(pattern),
-                Contact.company.ilike(pattern),
-                Contact.title.ilike(pattern),
-                Contact.twitter_handle.ilike(pattern),
-                Contact.telegram_username.ilike(pattern),
-                Contact.twitter_bio.ilike(pattern),
-                Contact.telegram_bio.ilike(pattern),
-                Contact.notes.ilike(pattern),
-                Contact.source.ilike(pattern),
-                cast(Contact.emails, String).ilike(pattern),
-                cast(Contact.phones, String).ilike(pattern),
-                interaction_match,
-            )
-        )
-
-    if tag:
-        base_query = base_query.where(Contact.tags.any(tag))
-
-    if source:
-        base_query = base_query.where(Contact.source == source)
-
-    if date_from:
-        from datetime import datetime, UTC
-        try:
-            dt_from = datetime.strptime(date_from, "%Y-%m-%d").replace(tzinfo=UTC)
-            base_query = base_query.where(Contact.created_at >= dt_from)
-        except ValueError:
-            pass
-
-    if date_to:
-        from datetime import datetime, timedelta, UTC
-        try:
-            dt_to = datetime.strptime(date_to, "%Y-%m-%d").replace(tzinfo=UTC) + timedelta(days=1)
-            base_query = base_query.where(Contact.created_at < dt_to)
-        except ValueError:
-            pass
-
-    if score == "strong":
-        base_query = base_query.where(Contact.relationship_score >= 8)
-    elif score == "active":
-        base_query = base_query.where(
-            Contact.relationship_score >= 4, Contact.relationship_score <= 7
-        )
-    elif score == "dormant":
-        base_query = base_query.where(Contact.relationship_score <= 3)
-
-    count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
-    total = count_result.scalar_one()
-
-    offset = (page - 1) * page_size
-    result = await db.execute(
-        base_query.order_by(Contact.relationship_score.desc(), Contact.created_at.desc()).offset(offset).limit(page_size)
-    )
-    contacts = result.scalars().all()
-
-    return ContactListResponse(
-        data=[ContactResponse.model_validate(c) for c in contacts],
-        error=None,
-        meta=PaginationMeta(
-            total=total,
-            page=page,
-            page_size=page_size,
-            total_pages=math.ceil(total / page_size) if total > 0 else 1,
-        ),
+    return await list_contacts_paginated(
+        db,
+        current_user.id,
+        page=page,
+        page_size=page_size,
+        search=search,
+        tag=tag,
+        source=source,
+        score=score,
+        date_from=date_from,
+        date_to=date_to,
     )
 
 
-@router.get("/tags", response_model=dict)
+@router.get("/tags", response_model=Envelope[list[str]])
 async def list_tags(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[list[str]]:
     """Return all unique tags used across the user's contacts."""
     result = await db.execute(
         select(func.unnest(Contact.tags)).where(
@@ -191,11 +87,11 @@ async def list_tags(
     return {"data": tags, "error": None}
 
 
-@router.get("/stats", response_model=dict)
+@router.get("/stats", response_model=Envelope[ContactStatsData])
 async def contact_stats(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[ContactStatsData]:
     """Return aggregate contact stats for the dashboard."""
     result = await db.execute(
         select(
@@ -220,12 +116,12 @@ async def contact_stats(
     }
 
 
-@router.post("", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=Envelope[ContactResponse], status_code=status.HTTP_201_CREATED)
 async def create_contact(
     contact_in: ContactCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[ContactResponse]:
     contact = Contact(**contact_in.model_dump(), user_id=current_user.id)
     db.add(contact)
     await db.flush()
@@ -233,12 +129,12 @@ async def create_contact(
     return envelope(ContactResponse.model_validate(contact).model_dump())
 
 
-@router.get("/{contact_id}", response_model=dict)
+@router.get("/{contact_id}", response_model=Envelope[ContactResponse])
 async def get_contact(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[ContactResponse]:
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
     )
@@ -248,13 +144,13 @@ async def get_contact(
     return envelope(ContactResponse.model_validate(contact).model_dump())
 
 
-@router.put("/{contact_id}", response_model=dict)
+@router.put("/{contact_id}", response_model=Envelope[ContactResponse])
 async def update_contact(
     contact_id: uuid.UUID,
     contact_in: ContactUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[ContactResponse]:
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
     )
@@ -270,12 +166,12 @@ async def update_contact(
     return envelope(ContactResponse.model_validate(contact).model_dump())
 
 
-@router.delete("/{contact_id}", response_model=dict)
+@router.delete("/{contact_id}", response_model=Envelope[DeletedData])
 async def delete_contact(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[DeletedData]:
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
     )
@@ -287,14 +183,14 @@ async def delete_contact(
     return envelope({"id": str(contact_id), "deleted": True})
 
 
-@router.get("/{contact_id}/duplicates", response_model=dict)
+@router.get("/{contact_id}/duplicates", response_model=Envelope[list[DuplicateContactData]])
 async def find_contact_duplicates(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[list[DuplicateContactData]]:
     """Find possible duplicates for a specific contact."""
-    from app.services.identity_resolution import _compute_adaptive_score, _build_blocking_keys
+    from app.services.identity_resolution import compute_adaptive_score, build_blocking_keys
 
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
@@ -310,14 +206,14 @@ async def find_contact_duplicates(
     others: list[Contact] = list(all_result.scalars().all())
 
     # Use blocking keys for efficiency
-    target_keys = set(_build_blocking_keys(target))
+    target_keys = set(build_blocking_keys(target))
 
     duplicates = []
     for other in others:
-        other_keys = set(_build_blocking_keys(other))
+        other_keys = set(build_blocking_keys(other))
         if not target_keys & other_keys:
             continue
-        score = _compute_adaptive_score(target, other)
+        score = compute_adaptive_score(target, other)
         if score < 0.40:
             continue
         duplicates.append({
@@ -338,13 +234,13 @@ async def find_contact_duplicates(
     return envelope(duplicates[:20])
 
 
-@router.post("/{contact_id}/merge/{other_id}", response_model=dict)
+@router.post("/{contact_id}/merge/{other_id}", response_model=Envelope[MergedContactData])
 async def merge_contact_pair(
     contact_id: uuid.UUID,
     other_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[MergedContactData]:
     """Merge other_id into contact_id. Returns the surviving contact."""
     from app.services.identity_resolution import merge_contacts
 
@@ -370,237 +266,62 @@ async def merge_contact_pair(
     })
 
 
-@router.post("/import/csv", response_model=dict)
+@router.post("/import/csv", response_model=Envelope[CsvImportResult])
 async def import_contacts_csv(
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[CsvImportResult]:
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a CSV")
 
+    from app.services.contact_import import import_csv
+
     content = await file.read()
-    text = content.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
-
-    created: list[dict] = []
-    errors: list[str] = []
-
-    for i, row in enumerate(reader):
-        try:
-            raw_name = row.get("full_name") or row.get("name")
-            csv_company = row.get("company") or row.get("organization")
-            parsed_name, parsed_org = _parse_name_org(raw_name)
-            # Use parsed org only if no explicit company column value
-            effective_company = csv_company or parsed_org
-
-            contact = Contact(
-                user_id=current_user.id,
-                full_name=parsed_name,
-                given_name=row.get("given_name") or row.get("first_name"),
-                family_name=row.get("family_name") or row.get("last_name"),
-                emails=[e.strip() for e in row.get("emails", "").split(";") if e.strip()],
-                phones=[p.strip() for p in row.get("phones", "").split(";") if p.strip()],
-                company=effective_company,
-                title=row.get("title") or row.get("job_title"),
-                twitter_handle=row.get("twitter_handle") or row.get("twitter") or row.get("x_handle"),
-                telegram_username=row.get("telegram_username") or row.get("telegram"),
-                notes=row.get("notes") or row.get("note"),
-                tags=[t.strip() for t in row.get("tags", "").split(";") if t.strip()] or None,
-                source="csv",
-            )
-            db.add(contact)
-            await db.flush()
-            created.append({"id": str(contact.id), "full_name": contact.full_name})
-        except Exception as exc:
-            errors.append(f"Row {i + 1}: {exc!s}")
-
-    return envelope({"created": created, "errors": errors})
+    result = await import_csv(content, current_user.id, db)
+    return envelope(result)
 
 
-@router.post("/import/linkedin", response_model=dict)
+@router.post("/import/linkedin", response_model=Envelope[LinkedInImportResult])
 async def import_linkedin_csv(
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[LinkedInImportResult]:
     """Import contacts from LinkedIn Connections.csv export."""
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a CSV")
 
+    from app.services.contact_import import import_linkedin_connections
+
     content = await file.read()
-    text = content.decode("utf-8-sig")
-
-    # LinkedIn CSV has header notes before the actual CSV header row.
-    # Find the line that starts with "First Name," to locate the real header.
-    lines = text.split("\n")
-    header_idx = 0
-    for idx, line in enumerate(lines):
-        if line.strip().startswith("First Name,"):
-            header_idx = idx
-            break
-
-    csv_text = "\n".join(lines[header_idx:])
-    reader = csv.DictReader(io.StringIO(csv_text))
-
-    created = 0
-    skipped = 0
-    errors: list[str] = []
-
-    for i, row in enumerate(reader):
-        try:
-            first = (row.get("First Name") or "").strip()
-            last = (row.get("Last Name") or "").strip()
-            email = (row.get("Email Address") or "").strip()
-            company = (row.get("Company") or "").strip()
-            position = (row.get("Position") or "").strip()
-            url = (row.get("URL") or "").strip()
-
-            if not first and not last:
-                continue
-
-            full_name = f"{first} {last}".strip()
-
-            # Skip if contact with same name and company already exists
-            existing = await db.execute(
-                select(Contact).where(
-                    Contact.user_id == current_user.id,
-                    Contact.full_name == full_name,
-                    Contact.company == (company or None),
-                )
-            )
-            if existing.scalar_one_or_none():
-                skipped += 1
-                continue
-
-            contact = Contact(
-                user_id=current_user.id,
-                full_name=full_name,
-                given_name=first or None,
-                family_name=last or None,
-                emails=[email] if email else [],
-                company=company or None,
-                title=position or None,
-                linkedin_url=url or None,
-                source="linkedin",
-            )
-            db.add(contact)
-            await db.flush()
-            created += 1
-        except Exception as exc:
-            errors.append(f"Row {i + 1}: {exc!s}")
-
-    return envelope({"created": created, "skipped": skipped, "errors": errors})
+    result = await import_linkedin_connections(content, current_user.id, db)
+    return envelope(result)
 
 
-@router.post("/import/linkedin-messages", response_model=dict)
+@router.post("/import/linkedin-messages", response_model=Envelope[LinkedInMessagesImportResult])
 async def import_linkedin_messages(
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[LinkedInMessagesImportResult]:
     """Import LinkedIn messages.csv and create interactions matched to existing contacts."""
-    from datetime import datetime, UTC
-
     if not file.filename or not file.filename.endswith(".csv"):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="File must be a CSV")
 
+    from app.services.contact_import import import_linkedin_messages as _import_messages
+
     content = await file.read()
-    text = content.decode("utf-8-sig")
-    reader = csv.DictReader(io.StringIO(text))
-
-    # Load all contacts for this user keyed by full_name (lowercased)
-    all_contacts_result = await db.execute(
-        select(Contact).where(Contact.user_id == current_user.id)
-    )
-    contacts_by_name: dict[str, Contact] = {}
-    for c in all_contacts_result.scalars().all():
-        if c.full_name:
-            contacts_by_name[c.full_name.lower()] = c
-
     user_name = (current_user.full_name or current_user.email or "").lower()
-
-    new_interactions = 0
-    skipped = 0
-    unmatched_names: set[str] = set()
-
-    for row in reader:
-        from_name = (row.get("FROM") or "").strip()
-        to_name = (row.get("TO") or "").strip()
-        content_preview = (row.get("CONTENT") or "").strip()
-        date_str = (row.get("DATE") or "").strip()
-        conv_id = (row.get("CONVERSATION ID") or "").strip()
-
-        if not content_preview or not date_str:
-            continue
-
-        # Determine the other party and direction
-        if from_name.lower() == user_name:
-            other_name = to_name
-            direction = "outbound"
-        elif to_name.lower() == user_name:
-            other_name = from_name
-            direction = "inbound"
-        else:
-            # Neither side matches the user — skip
-            continue
-
-        contact = contacts_by_name.get(other_name.lower())
-        if not contact:
-            unmatched_names.add(other_name)
-            continue
-
-        # Parse date
-        try:
-            occurred_at = datetime.strptime(date_str, "%Y-%m-%d %H:%M:%S %Z").replace(tzinfo=UTC)
-        except ValueError:
-            try:
-                occurred_at = datetime.fromisoformat(date_str).replace(tzinfo=UTC)
-            except ValueError:
-                continue
-
-        # Idempotent: check by reference id
-        ref_id = f"linkedin:{conv_id}:{date_str}"
-        existing = await db.execute(
-            select(Interaction).where(
-                Interaction.raw_reference_id == ref_id,
-                Interaction.user_id == current_user.id,
-            )
-        )
-        if existing.scalar_one_or_none():
-            skipped += 1
-            continue
-
-        interaction = Interaction(
-            contact_id=contact.id,
-            user_id=current_user.id,
-            platform="linkedin",
-            direction=direction,
-            content_preview=content_preview[:500],
-            raw_reference_id=ref_id,
-            occurred_at=occurred_at,
-        )
-        db.add(interaction)
-        new_interactions += 1
-
-        # Update last_interaction_at
-        if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
-            contact.last_interaction_at = occurred_at
-
-    await db.flush()
-    return envelope({
-        "new_interactions": new_interactions,
-        "skipped": skipped,
-        "unmatched": len(unmatched_names),
-        "unmatched_names": sorted(unmatched_names)[:20],
-    })
+    result = await _import_messages(content, current_user.id, user_name, db)
+    return envelope(result)
 
 
-@router.post("/sync/google", response_model=dict)
+@router.post("/sync/google", response_model=Envelope[SyncStartedData])
 async def sync_google_contacts(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[SyncStartedData]:
     """Dispatch a background Google Contacts sync.
 
     Returns immediately. A notification is created when sync completes.
@@ -623,11 +344,11 @@ async def sync_google_contacts(
     return envelope({"status": "started"})
 
 
-@router.post("/sync/google-calendar", response_model=dict)
+@router.post("/sync/google-calendar", response_model=Envelope[SyncStartedData])
 async def sync_google_calendar(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[SyncStartedData]:
     """Dispatch a background Google Calendar sync.
 
     Returns immediately. A notification is created when sync completes.
@@ -650,11 +371,11 @@ async def sync_google_calendar(
     return envelope({"status": "started"})
 
 
-@router.post("/sync/twitter", response_model=dict)
+@router.post("/sync/twitter", response_model=Envelope[SyncStartedData])
 async def sync_twitter(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[SyncStartedData]:
     """Dispatch a background Twitter sync (DMs + mentions + bios).
 
     Returns immediately. A notification is created when sync completes.
@@ -671,11 +392,11 @@ async def sync_twitter(
     return envelope({"status": "started"})
 
 
-@router.post("/scores/recalculate", response_model=dict)
+@router.post("/scores/recalculate", response_model=Envelope[ScoresRecalculatedData])
 async def recalculate_scores(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[ScoresRecalculatedData]:
     """Recalculate relationship scores for all contacts of the authenticated user."""
     from app.services.scoring import calculate_score
 
@@ -696,12 +417,12 @@ from app.core.redis import get_redis
 _BIO_CHECK_TTL = 86400  # 24 hours
 
 
-@router.post("/{contact_id}/refresh-bios", response_model=dict)
+@router.post("/{contact_id}/refresh-bios", response_model=Envelope[BioRefreshData])
 async def refresh_contact_bios(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[BioRefreshData]:
     """Check for bio updates on Twitter and Telegram for a single contact.
 
     Rate-limited to once per 24 hours per contact.
@@ -718,66 +439,9 @@ async def refresh_contact_bios(
     if await r.exists(cache_key):
         return envelope({"skipped": True, "reason": "checked_recently"})
 
-    changes: dict[str, Any] = {"twitter_bio_changed": False, "telegram_bio_changed": False}
+    from app.services.bio_refresh import refresh_contact_bios as _refresh_bios
 
-    # Twitter bio check
-    if contact.twitter_handle:
-        try:
-            from app.integrations.twitter import fetch_user_profile
-            handle = (contact.twitter_handle or "").lstrip("@").strip()
-            if handle:
-                profile = await fetch_user_profile(handle)
-                new_bio = profile.get("description", "")
-                if new_bio and new_bio != (contact.twitter_bio or ""):
-                    old_bio = contact.twitter_bio
-                    contact.twitter_bio = new_bio
-                    changes["twitter_bio_changed"] = True
-                    if old_bio:
-                        from app.models.notification import Notification
-                        notif = Notification(
-                            user_id=current_user.id,
-                            notification_type="bio_change",
-                            title=f"@{handle} updated their Twitter bio",
-                            body=f"{contact.full_name or handle} changed their bio to: {new_bio[:200]}",
-                            link=f"/contacts/{contact.id}",
-                        )
-                        db.add(notif)
-        except Exception:
-            logger.warning("refresh_contact_bios: Twitter bio fetch failed for contact %s", contact_id)
-
-    # Telegram bio check
-    if contact.telegram_username and current_user.telegram_session:
-        try:
-            from app.integrations.telegram import _make_client, _ensure_connected
-            from telethon.tl.functions.users import GetFullUserRequest
-
-            username = (contact.telegram_username or "").lstrip("@").strip()
-            if username:
-                client = _make_client(current_user.telegram_session)
-                await _ensure_connected(client)
-                try:
-                    input_user = await client.get_input_entity(username)
-                    full = await client(GetFullUserRequest(input_user))
-                    new_bio = getattr(full.full_user, "about", None) or ""
-                    if new_bio and new_bio != (contact.telegram_bio or ""):
-                        old_bio = contact.telegram_bio
-                        contact.telegram_bio = new_bio
-                        changes["telegram_bio_changed"] = True
-                        if old_bio:
-                            from app.models.notification import Notification
-                            notif = Notification(
-                                user_id=current_user.id,
-                                notification_type="bio_change",
-                                title=f"@{username} updated their Telegram bio",
-                                body=f"{contact.full_name or username} changed their bio to: {new_bio[:200]}",
-                                link=f"/contacts/{contact.id}",
-                            )
-                            db.add(notif)
-                finally:
-                    await client.disconnect()
-        except Exception:
-            logger.warning("refresh_contact_bios: Telegram bio fetch failed for contact %s", contact_id)
+    changes = await _refresh_bios(contact, current_user, db)
 
     await r.setex(cache_key, _BIO_CHECK_TTL, "1")
-    await db.flush()
     return envelope(changes)

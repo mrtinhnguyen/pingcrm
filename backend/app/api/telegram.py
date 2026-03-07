@@ -10,6 +10,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.models.user import User
+from app.schemas.responses import (
+    Envelope,
+    SyncStartedData,
+    TelegramConnectData,
+    TelegramConnectedData,
+    TelegramVerifyData,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -45,14 +52,14 @@ class Telegram2FARequest(BaseModel):
 
 @router.post(
     "/api/v1/auth/telegram/connect",
-    response_model=dict,
+    response_model=Envelope[TelegramConnectData],
     status_code=status.HTTP_200_OK,
 )
 async def telegram_connect(
     payload: TelegramConnectRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[TelegramConnectData]:
     """
     Initiate Telegram login by sending an OTP to *phone*.
 
@@ -91,14 +98,14 @@ async def telegram_connect(
 
 @router.post(
     "/api/v1/auth/telegram/verify",
-    response_model=dict,
+    response_model=Envelope[TelegramVerifyData],
     status_code=status.HTTP_200_OK,
 )
 async def telegram_verify(
     payload: TelegramVerifyRequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[TelegramVerifyData]:
     """
     Complete Telegram sign-in with the OTP code.
 
@@ -147,14 +154,14 @@ async def telegram_verify(
 
 @router.post(
     "/api/v1/auth/telegram/verify-2fa",
-    response_model=dict,
+    response_model=Envelope[TelegramConnectedData],
     status_code=status.HTTP_200_OK,
 )
 async def telegram_verify_2fa(
     payload: Telegram2FARequest,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[TelegramConnectedData]:
     """
     Complete Telegram sign-in for accounts with two-step verification enabled.
 
@@ -208,12 +215,12 @@ async def telegram_verify_2fa(
 
 @router.post(
     "/api/v1/contacts/sync/telegram",
-    response_model=dict,
+    response_model=Envelope[SyncStartedData],
     status_code=status.HTTP_200_OK,
 )
 async def sync_telegram(
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[SyncStartedData]:
     """
     Dispatch a background Telegram sync for the authenticated user.
 
@@ -239,14 +246,14 @@ async def sync_telegram(
 
 @router.get(
     "/api/v1/contacts/{contact_id}/telegram/common-groups",
-    response_model=dict,
+    response_model=Envelope[list[dict]],
     status_code=status.HTTP_200_OK,
 )
 async def get_common_groups(
     contact_id: str,
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> dict:
+) -> Envelope[list[dict]]:
     """Return Telegram groups in common with a contact.
 
     Results are cached on the contact for 24 hours to avoid repeated Telegram API calls.
@@ -254,7 +261,6 @@ async def get_common_groups(
     if not current_user.telegram_session:
         return {"data": [], "error": None}
 
-    from datetime import UTC, datetime, timedelta
     from sqlalchemy import select as sa_select
     from app.models.contact import Contact
 
@@ -268,32 +274,10 @@ async def get_common_groups(
     if not contact:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
-    username = contact.telegram_username
-    user_id = contact.telegram_user_id
-    if not username and not user_id:
+    if not contact.telegram_username and not contact.telegram_user_id:
         return {"data": [], "error": None}
 
-    # Return cached data if fresh (< 24 hours)
-    now = datetime.now(UTC)
-    if (
-        contact.telegram_common_groups is not None
-        and contact.telegram_groups_fetched_at is not None
-        and (now - contact.telegram_groups_fetched_at) < timedelta(hours=24)
-    ):
-        return {"data": contact.telegram_common_groups, "error": None}
+    from app.services.telegram_service import get_common_groups_cached
 
-    # Fetch fresh data from Telegram
-    from app.integrations.telegram import fetch_common_groups
-
-    groups = await fetch_common_groups(
-        current_user,
-        telegram_username=username,
-        telegram_user_id=user_id,
-    )
-
-    # Cache the result
-    contact.telegram_common_groups = groups
-    contact.telegram_groups_fetched_at = now
-    await db.flush()
-
+    groups = await get_common_groups_cached(contact, current_user, db)
     return {"data": groups, "error": None}

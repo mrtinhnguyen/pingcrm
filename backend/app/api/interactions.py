@@ -11,6 +11,7 @@ from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.user import User
 from app.schemas.interaction import InteractionCreate, InteractionResponse
+from app.schemas.responses import Envelope
 
 router = APIRouter(prefix="/api/v1/contacts", tags=["interactions"])
 
@@ -19,12 +20,12 @@ def envelope(data: object, error: str | None = None, meta: dict | None = None) -
     return {"data": data, "error": error, "meta": meta}
 
 
-@router.get("/{contact_id}/interactions", response_model=dict)
+@router.get("/{contact_id}/interactions", response_model=Envelope[list[InteractionResponse]])
 async def list_interactions(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[list[InteractionResponse]]:
     contact_result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
     )
@@ -40,13 +41,13 @@ async def list_interactions(
     return envelope([InteractionResponse.model_validate(i).model_dump() for i in interactions])
 
 
-@router.post("/{contact_id}/interactions", response_model=dict, status_code=status.HTTP_201_CREATED)
+@router.post("/{contact_id}/interactions", response_model=Envelope[InteractionResponse], status_code=status.HTTP_201_CREATED)
 async def create_interaction(
     contact_id: uuid.UUID,
     interaction_in: InteractionCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[InteractionResponse]:
     contact_result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
     )

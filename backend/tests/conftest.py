@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 # Force test config before any app imports
 os.environ["SECRET_KEY"] = "test-secret-key-for-unit-tests-only"
+os.environ["ENCRYPTION_KEY"] = "HiuobeEdnSk93dMtnycRm8Kob9D3-7-vCw3_L0YG9Ek="
 os.environ["DATABASE_URL"] = os.environ.get(
     "TEST_DATABASE_URL",
     "postgresql+asyncpg://localhost:5432/pingcrm_test",

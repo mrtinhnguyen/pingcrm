@@ -9,18 +9,25 @@ from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.models.notification import Notification
 from app.models.user import User
+from app.schemas.responses import (
+    Envelope,
+    MarkedData,
+    NotificationListResponse,
+    NotificationReadData,
+    UnreadCountData,
+)
 
 router = APIRouter(prefix="/api/v1/notifications", tags=["notifications"])
 
 
-@router.get("", response_model=dict)
+@router.get("", response_model=NotificationListResponse)
 async def list_notifications(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     link: str | None = Query(None),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> NotificationListResponse:
     base_query = select(Notification).where(Notification.user_id == current_user.id)
     if link:
         base_query = base_query.where(Notification.link == link)
@@ -57,11 +64,11 @@ async def list_notifications(
     }
 
 
-@router.get("/unread-count", response_model=dict)
+@router.get("/unread-count", response_model=Envelope[UnreadCountData])
 async def unread_count(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[UnreadCountData]:
     result = await db.execute(
         select(func.count()).where(
             Notification.user_id == current_user.id,
@@ -72,11 +79,11 @@ async def unread_count(
     return {"data": {"count": count}, "error": None}
 
 
-@router.put("/read-all", response_model=dict)
+@router.put("/read-all", response_model=Envelope[MarkedData])
 async def mark_all_read(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[MarkedData]:
     await db.execute(
         update(Notification)
         .where(Notification.user_id == current_user.id, Notification.read == False)  # noqa: E712
@@ -85,12 +92,12 @@ async def mark_all_read(
     return {"data": {"marked": True}, "error": None}
 
 
-@router.put("/{notification_id}/read", response_model=dict)
+@router.put("/{notification_id}/read", response_model=Envelope[NotificationReadData])
 async def mark_read(
     notification_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[NotificationReadData]:
     result = await db.execute(
         select(Notification).where(
             Notification.id == notification_id,

@@ -46,6 +46,10 @@ async def _ensure_connected(client: TelegramClient) -> None:
         raise RuntimeError("Failed to establish connection to Telegram servers")
 
 
+# Public aliases — use these instead of the private _-prefixed functions
+make_client = _make_client
+ensure_connected = _ensure_connected
+
 AVATARS_DIR = Path(os.environ.get("AVATARS_DIR", "static/avatars"))
 
 

@@ -17,6 +17,7 @@ from app.integrations.twitter import (
     generate_pkce_pair,
 )
 from app.models.user import User
+from app.schemas.responses import Envelope, TwitterAuthUrlData, TwitterConnectedData
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +40,10 @@ async def _pop_pkce(state: str) -> tuple[str, str] | None:
     return data["verifier"], data["user_id"]
 
 
-@router.get("/url", response_model=dict)
+@router.get("/url", response_model=Envelope[TwitterAuthUrlData])
 async def get_twitter_auth_url(
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[TwitterAuthUrlData]:
     """Return a Twitter OAuth 2.0 authorization URL."""
     state = secrets.token_urlsafe(32)
     verifier, challenge = generate_pkce_pair()
@@ -57,12 +58,12 @@ class TwitterCallbackRequest(BaseModel):
     state: str
 
 
-@router.post("/callback", response_model=dict)
+@router.post("/callback", response_model=Envelope[TwitterConnectedData])
 async def twitter_callback(
     body: TwitterCallbackRequest,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[TwitterConnectedData]:
     """Exchange Twitter authorization code for tokens and store on user."""
     entry = await _pop_pkce(body.state)
     if not entry:

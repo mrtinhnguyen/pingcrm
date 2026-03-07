@@ -567,6 +567,21 @@ def _build_blocking_keys(contact: Contact) -> list[str]:
     return keys
 
 
+# ---------------------------------------------------------------------------
+# Public wrappers — use these instead of the private _-prefixed functions
+# ---------------------------------------------------------------------------
+
+
+def compute_adaptive_score(ca: Contact, cb: Contact) -> float:
+    """Public alias for :func:`_compute_adaptive_score`."""
+    return _compute_adaptive_score(ca, cb)
+
+
+def build_blocking_keys(contact: Contact) -> list[str]:
+    """Public alias for :func:`_build_blocking_keys`."""
+    return _build_blocking_keys(contact)
+
+
 async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> list[IdentityMatch]:
     """Tier 2: Weighted probabilistic matching with adaptive weights.
 

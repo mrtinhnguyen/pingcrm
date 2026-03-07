@@ -14,6 +14,11 @@ from app.core.database import get_db
 from app.models.contact import Contact
 from app.models.identity_match import IdentityMatch
 from app.models.user import User
+from app.schemas.responses import (
+    Envelope,
+    IdentityMatchData,
+    ScanResultData,
+)
 from app.services.identity_resolution import (
     find_deterministic_matches,
     find_probabilistic_matches,
@@ -102,11 +107,11 @@ async def _batch_matches_to_dicts(matches: list[IdentityMatch], db: AsyncSession
     return items
 
 
-@router.get("/matches", response_model=dict)
+@router.get("/matches", response_model=Envelope[list[IdentityMatchData]])
 async def list_pending_matches(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[list[IdentityMatchData]]:
     """List all pending identity matches for the authenticated user's contacts."""
     user_contacts_sq = select(Contact.id).where(Contact.user_id == current_user.id)
 
@@ -126,12 +131,12 @@ async def list_pending_matches(
     )
 
 
-@router.post("/matches/{match_id}/merge", response_model=dict)
+@router.post("/matches/{match_id}/merge", response_model=Envelope[IdentityMatchData])
 async def confirm_merge(
     match_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[IdentityMatchData]:
     """Confirm and execute a pending identity match merge."""
     result = await db.execute(
         select(IdentityMatch).where(IdentityMatch.id == match_id)
@@ -164,12 +169,12 @@ async def confirm_merge(
     return envelope(await _match_to_dict(merged, db))
 
 
-@router.post("/matches/{match_id}/reject", response_model=dict)
+@router.post("/matches/{match_id}/reject", response_model=Envelope[IdentityMatchData])
 async def reject_match(
     match_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[IdentityMatchData]:
     """Reject a pending identity match (mark as rejected)."""
     result = await db.execute(
         select(IdentityMatch).where(IdentityMatch.id == match_id)
@@ -194,11 +199,11 @@ async def reject_match(
     return envelope(await _match_to_dict(match, db))
 
 
-@router.post("/scan", response_model=dict)
+@router.post("/scan", response_model=Envelope[ScanResultData])
 async def trigger_scan(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
-) -> dict:
+) -> Envelope[ScanResultData]:
     """Trigger a full identity resolution scan for the current user's contacts."""
     deterministic = await find_deterministic_matches(current_user.id, db)
     probabilistic = await find_probabilistic_matches(current_user.id, db)

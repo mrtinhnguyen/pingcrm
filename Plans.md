@@ -132,3 +132,25 @@
 - [x] `cc:完了` Fix `_match_to_dict` N+1 (api/identity.py): added `_batch_matches_to_dicts` for list endpoint
 - [x] `cc:完了` Add blocking keys to `find_probable_matches` O(n²) loop + scope IdentityMatch queries to user's contacts
 - [x] `cc:完了` Scope `find_probabilistic_matches` existing pairs query to user's contacts
+
+## Phase 6: Architecture & Security Hardening
+
+### 6.1 Token Encryption (P2 — do first, highest risk)
+- [x] `cc:完了` Add `app/core/encryption.py` — Fernet `EncryptedString` TypeDecorator with `ENCRYPTION_KEY` env var [skip:tdd]
+- [x] `cc:完了` Add Alembic migration to encrypt existing token columns in-place with reversible `downgrade()` [skip:tdd]
+- [x] `cc:完了` Update model columns to use `EncryptedString` TypeDecorator (transparent encrypt/decrypt — no read/write path changes needed)
+- [x] `cc:完了` Token redaction verified — `UserResponse` only exposes boolean flags, no tokens in API responses
+
+### 6.2 Service Extraction (P1 — refactoring, safest)
+- [x] `cc:完了` Extract contact search/filter logic from `api/contacts.py` into `services/contact_search.py` (contacts.py: 783→447 lines)
+- [x] `cc:完了` Extract CSV/LinkedIn import logic from `api/contacts.py` into `services/contact_import.py`
+- [x] `cc:完了` Extract bio-refresh logic from `api/contacts.py` into `services/bio_refresh.py`
+- [x] `cc:完了` Slim `api/telegram.py` — move cache/connect orchestration to `services/telegram_service.py`
+- [x] `cc:完了` Remove all private `_`-prefixed imports from API layer — exposed public wrappers `compute_adaptive_score`, `build_blocking_keys` in identity_resolution
+
+### 6.3 Typed API Contracts (P3 — purely additive, do last)
+- [x] `cc:完了` Define typed response schemas for contacts endpoints (18 `response_model=dict` → typed Pydantic via `Envelope[T]`)
+- [x] `cc:完了` Define typed response schemas for suggestions + identity + notifications endpoints (14 → typed)
+- [x] `cc:完了` Define typed response schemas for interactions + telegram + twitter + auth endpoints (12 → typed)
+- [ ] `cc:TODO` Add OpenAPI client generation script (`openapi-typescript` + `openapi-fetch`) and generate typed frontend API client
+- [ ] `cc:TODO` Replace manual frontend `fetch`/`apiClient` calls with generated typed client

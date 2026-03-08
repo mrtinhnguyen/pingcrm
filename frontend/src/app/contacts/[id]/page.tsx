@@ -20,6 +20,7 @@ import {
   MapPin,
   MoreVertical,
   RefreshCw,
+  Sparkles,
   Trash2,
   Users,
   X,
@@ -209,6 +210,7 @@ export default function ContactDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isEnriching, setIsEnriching] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu on outside click
@@ -355,6 +357,19 @@ export default function ContactDetailPage() {
     }
   };
 
+  const handleEnrich = async () => {
+    if (!id || isEnriching) return;
+    setIsEnriching(true);
+    try {
+      await client.POST("/api/v1/contacts/{contact_id}/enrich" as any, {
+        params: { path: { contact_id: id } },
+      });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+    } finally {
+      setIsEnriching(false);
+    }
+  };
+
   const allInteractions = (interactionsData?.data ?? []) as InteractionResponse[];
   const meetings = allInteractions.filter((i) => i.platform === "meeting");
   const interactions: TimelineEntry[] = allInteractions.map((i) => ({
@@ -469,6 +484,17 @@ export default function ContactDetailPage() {
                 >
                   <RefreshCw className={`w-4 h-4 text-gray-400 ${isRefreshing ? "animate-spin" : ""}`} />
                   {isRefreshing ? "Refreshing..." : "Refresh details"}
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleEnrich();
+                  }}
+                  disabled={isEnriching || !contact?.emails?.length}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 disabled:opacity-50"
+                >
+                  <Sparkles className={`w-4 h-4 text-gray-400 ${isEnriching ? "animate-spin" : ""}`} />
+                  {isEnriching ? "Enriching..." : "Enrich with Apollo"}
                 </button>
                 <button
                   onClick={() => {

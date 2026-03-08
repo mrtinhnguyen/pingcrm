@@ -114,6 +114,11 @@ class SendMessageData(BaseModel):
     interaction_id: str | None = None
 
 
+class EnrichData(BaseModel):
+    fields_updated: list[str]
+    source: str = "apollo"
+
+
 # ---------------------------------------------------------------------------
 # suggestions.py payload types
 # ---------------------------------------------------------------------------

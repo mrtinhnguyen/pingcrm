@@ -26,6 +26,7 @@ from app.schemas.responses import (
     CsvImportResult,
     DeletedData,
     DuplicateContactData,
+    EnrichData,
     Envelope,
     LinkedInImportResult,
     LinkedInMessagesImportResult,
@@ -504,6 +505,68 @@ async def bulk_update_contacts(
 
     await db.flush()
     return envelope({"updated": len(contacts)})
+
+
+@router.post("/{contact_id}/enrich", response_model=Envelope[EnrichData])
+async def enrich_contact(
+    contact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[EnrichData]:
+    """Enrich a contact using the Apollo People Enrichment API.
+
+    Only fills in fields that are currently empty/null on the contact.
+    """
+    result = await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    if not contact.emails:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contact has no email addresses. An email is required for enrichment.",
+        )
+
+    from app.integrations.apollo import enrich_person
+
+    enriched = await enrich_person(contact.emails[0])
+    if not enriched:
+        return envelope({"fields_updated": [], "source": "apollo"})
+
+    # Simple string/scalar fields — only update if contact field is empty
+    fields_updated: list[str] = []
+    scalar_fields = [
+        "given_name", "family_name", "full_name", "title", "company",
+        "location", "linkedin_url", "twitter_handle", "avatar_url",
+    ]
+    for field in scalar_fields:
+        if field in enriched and not getattr(contact, field, None):
+            setattr(contact, field, enriched[field])
+            fields_updated.append(field)
+
+    # List fields — append new values
+    if "phones" in enriched:
+        existing_phones = set(contact.phones or [])
+        new_phones = [p for p in enriched["phones"] if p not in existing_phones]
+        if new_phones:
+            contact.phones = list(existing_phones | set(new_phones))
+            fields_updated.append("phones")
+
+    if "emails" in enriched:
+        existing_emails = set(contact.emails or [])
+        new_emails = [e for e in enriched["emails"] if e not in existing_emails]
+        if new_emails:
+            contact.emails = list(existing_emails | set(new_emails))
+            fields_updated.append("emails")
+
+    if fields_updated:
+        await db.flush()
+        await db.refresh(contact)
+
+    return envelope({"fields_updated": fields_updated, "source": "apollo"})
 
 
 from app.core.redis import get_redis

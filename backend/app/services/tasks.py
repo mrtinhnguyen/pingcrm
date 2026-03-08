@@ -56,7 +56,7 @@ async def _notify_tagging_failure(user_id: uuid.UUID, error: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-@shared_task(name="app.services.tasks.sync_gmail_for_user", bind=True, max_retries=3)
+@shared_task(name="app.services.tasks.sync_gmail_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
 def sync_gmail_for_user(self, user_id: str) -> dict:
     """
     Sync Gmail threads for a single user.
@@ -124,7 +124,7 @@ def sync_gmail_all() -> dict:
 # ---------------------------------------------------------------------------
 
 
-@shared_task(name="app.services.tasks.sync_telegram_for_user", bind=True, max_retries=3)
+@shared_task(name="app.services.tasks.sync_telegram_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
 def sync_telegram_for_user(self, user_id: str) -> dict:
     """
     Full Telegram sync for a single user: chats + group members + bios + scores.

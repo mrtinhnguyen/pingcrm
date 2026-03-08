@@ -119,6 +119,7 @@ async def _find_or_create_contact(
     db: AsyncSession,
     event_summary: str | None = None,
     user_name: str | None = None,
+    is_one_on_one: bool = False,
 ) -> Contact:
     """Find an existing contact by email or create a new one."""
     result = await db.execute(
@@ -139,8 +140,8 @@ async def _find_or_create_contact(
         given_name = parts[0] if parts else None
         family_name = parts[1] if len(parts) > 1 else None
     else:
-        # Try to extract name from event summary
-        if event_summary:
+        # Only use event summary for 1:1 meetings to avoid giving all guests the same name
+        if event_summary and is_one_on_one:
             extracted = _extract_name_from_summary(event_summary, user_name)
             if extracted:
                 parts = extracted.strip().split(None, 1)
@@ -251,8 +252,11 @@ async def sync_calendar_events(user: User, db: AsyncSession) -> dict[str, int]:
                             contact.given_name = parts[0] if parts else None
                             contact.family_name = parts[1] if len(parts) > 1 else None
                         else:
-                            # Try event summary, then email local part
-                            extracted = _extract_name_from_summary(summary, user.full_name)
+                            # Only use event summary for 1:1 meetings to avoid
+                            # assigning the same name to all unnamed guests
+                            extracted = None
+                            if len(attendee_emails) == 1:
+                                extracted = _extract_name_from_summary(summary, user.full_name)
                             if extracted:
                                 parts = extracted.strip().split(None, 1)
                                 contact.full_name = extracted
@@ -272,6 +276,7 @@ async def sync_calendar_events(user: User, db: AsyncSession) -> dict[str, int]:
                         db,
                         event_summary=summary,
                         user_name=user.full_name,
+                        is_one_on_one=len(attendee_emails) == 1,
                     )
                     new_contacts += 1
 

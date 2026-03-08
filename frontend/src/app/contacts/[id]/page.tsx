@@ -420,7 +420,6 @@ export default function ContactDetailPage() {
   };
 
   const allInteractions = (interactionsData?.data ?? []) as InteractionResponse[];
-  const meetings = allInteractions.filter((i) => i.platform === "meeting");
   const interactions: TimelineEntry[] = allInteractions.map((i) => ({
     id: i.id,
     platform: i.platform as TimelineEntry["platform"],
@@ -1004,49 +1003,6 @@ export default function ContactDetailPage() {
                 }}
               />
             </div>
-
-            {meetings.length > 0 && (
-              <div className="bg-white rounded-lg border border-stone-200 p-5">
-                <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">
-                  Meetings ({meetings.length})
-                </h2>
-                <div className="space-y-2">
-                  {meetings.map((m) => {
-                    const meetingDate = new Date(m.occurred_at);
-                    const isFuture = meetingDate > new Date();
-                    return (
-                      <div
-                        key={m.id}
-                        className={`flex items-start gap-3 p-3 rounded-lg border ${
-                          isFuture
-                            ? "border-blue-200 bg-blue-50"
-                            : "border-gray-100 bg-gray-50"
-                        }`}
-                      >
-                        <span className="mt-0.5 flex-shrink-0">
-                          <Calendar
-                            className={`w-4 h-4 ${
-                              isFuture ? "text-blue-500" : "text-gray-400"
-                            }`}
-                          />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-900">
-                            {m.content_preview || "Meeting"}
-                          </p>
-                          <p className="text-xs text-gray-400 mt-0.5">
-                            {isFuture ? "Upcoming" : "Past"} &middot;{" "}
-                            {formatDistanceToNow(meetingDate, {
-                              addSuffix: true,
-                            })}
-                          </p>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
 
             {contactNotifications.length > 0 && (
               <div className="bg-white rounded-lg border border-stone-200 p-5">

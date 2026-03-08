@@ -8,6 +8,9 @@ export interface SuggestionContact {
   family_name: string | null;
   company: string | null;
   title: string | null;
+  avatar_url: string | null;
+  telegram_username: string | null;
+  twitter_handle: string | null;
   last_interaction_at: string | null;
 }
 
@@ -78,4 +81,49 @@ export function useGenerateSuggestions() {
       void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
     },
   });
+}
+
+export function useSendMessage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async ({
+      contactId,
+      message,
+      channel,
+    }: {
+      contactId: string;
+      message: string;
+      channel: string;
+    }) => {
+      const res = await fetch(
+        `/api/v1/contacts/${contactId}/send-message`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${typeof window !== "undefined" ? localStorage.getItem("access_token") : ""}`,
+          },
+          body: JSON.stringify({ message, channel }),
+        }
+      );
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || "Failed to send message");
+      }
+      return res.json();
+    },
+    onSuccess: (_data, vars) => {
+      void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
+      void queryClient.invalidateQueries({ queryKey: ["interactions", vars.contactId] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts", vars.contactId] });
+    },
+  });
+}
+
+export function useContactSuggestion(contactId: string | undefined) {
+  const { data } = useSuggestions();
+  const allSuggestions = (data?.data ?? []) as Suggestion[];
+  return allSuggestions.find(
+    (s) => s.contact_id === contactId && s.status === "pending"
+  ) ?? null;
 }

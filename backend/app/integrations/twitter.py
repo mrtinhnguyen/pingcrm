@@ -23,7 +23,10 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-AVATARS_DIR = Path(os.environ.get("AVATARS_DIR", "static/avatars"))
+AVATARS_DIR = Path(os.environ.get(
+    "AVATARS_DIR",
+    str(Path(__file__).resolve().parent.parent.parent / "static" / "avatars"),
+))
 
 _TWITTER_API_BASE = "https://api.twitter.com/2"
 
@@ -685,14 +688,23 @@ async def sync_twitter_dms(
         direction = "outbound" if sender_id == user.twitter_user_id else "inbound"
 
         # Find the other participant's Twitter user ID
-        participant_id = sender_id if direction == "inbound" else event.get("participant_id", "")
+        participant_id = sender_id if direction == "inbound" else ""
         if not participant_id or participant_id == user.twitter_user_id:
-            # Try to extract from participant_ids field
+            # Try participant_ids field (group DMs)
             participant_ids = event.get("participant_ids", [])
             for pid in participant_ids:
                 if pid != user.twitter_user_id:
                     participant_id = pid
                     break
+        if not participant_id or participant_id == user.twitter_user_id:
+            # Extract from dm_conversation_id (format: "{id1}-{id2}" for 1:1 DMs)
+            convo_id = event.get("dm_conversation_id", "")
+            parts = convo_id.split("-") if convo_id else []
+            if len(parts) == 2:
+                for part in parts:
+                    if part != user.twitter_user_id:
+                        participant_id = part
+                        break
         if not participant_id or participant_id == user.twitter_user_id:
             continue
 

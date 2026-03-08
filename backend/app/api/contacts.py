@@ -5,6 +5,7 @@ import uuid
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,6 +20,7 @@ from app.schemas.contact import (
     ContactUpdate,
 )
 from app.schemas.responses import (
+    AvatarRefreshData,
     BioRefreshData,
     ContactStatsData,
     CsvImportResult,
@@ -29,6 +31,7 @@ from app.schemas.responses import (
     LinkedInMessagesImportResult,
     MergedContactData,
     ScoresRecalculatedData,
+    SendMessageData,
     SyncStartedData,
 )
 
@@ -102,7 +105,10 @@ async def contact_stats(
                 Contact.relationship_score < 8,
             ).label("active"),
             func.count().filter(Contact.relationship_score < 4).label("dormant"),
-        ).where(Contact.user_id == current_user.id)
+        ).where(
+            Contact.user_id == current_user.id,
+            Contact.priority_level != "archived",
+        )
     )
     row = result.one()
     return {
@@ -160,6 +166,18 @@ async def update_contact(
 
     for field, value in contact_in.model_dump(exclude_unset=True).items():
         setattr(contact, field, value)
+
+    # When archiving, dismiss any pending follow-up suggestions
+    if contact.priority_level == "archived":
+        from app.models.follow_up import FollowUpSuggestion
+        pending_result = await db.execute(
+            select(FollowUpSuggestion).where(
+                FollowUpSuggestion.contact_id == contact_id,
+                FollowUpSuggestion.status == "pending",
+            )
+        )
+        for suggestion in pending_result.scalars().all():
+            suggestion.status = "dismissed"
 
     await db.flush()
     await db.refresh(contact)
@@ -371,6 +389,32 @@ async def sync_google_calendar(
     return envelope({"status": "started"})
 
 
+@router.post("/sync/gmail", response_model=Envelope[SyncStartedData])
+async def sync_gmail(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[SyncStartedData]:
+    """Dispatch a background Gmail thread sync.
+
+    Returns immediately. A notification is created when sync completes.
+    """
+    if not current_user.google_refresh_token:
+        from app.models.google_account import GoogleAccount
+        ga_result = await db.execute(
+            select(GoogleAccount).where(GoogleAccount.user_id == current_user.id)
+        )
+        if not ga_result.scalars().first():
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No Google account connected. Complete Google OAuth first.",
+            )
+
+    from app.services.tasks import sync_gmail_for_user
+    sync_gmail_for_user.delay(str(current_user.id))
+
+    return envelope({"status": "started"})
+
+
 @router.post("/sync/twitter", response_model=Envelope[SyncStartedData])
 async def sync_twitter(
     db: AsyncSession = Depends(get_db),
@@ -442,3 +486,205 @@ async def refresh_contact_bios(
 
     await r.setex(cache_key, _BIO_CHECK_TTL, "1")
     return envelope(changes)
+
+
+_AVATAR_CHECK_TTL = 86400  # 24 hours
+
+
+@router.post("/{contact_id}/refresh-avatar", response_model=Envelope[AvatarRefreshData])
+async def refresh_contact_avatar(
+    contact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[AvatarRefreshData]:
+    """Refresh a contact's avatar from Telegram or Twitter. Rate-limited to once per 24h."""
+    result = await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    r = get_redis()
+    cache_key = f"avatar_check:{contact_id}"
+    if await r.exists(cache_key):
+        return envelope({"avatar_url": contact.avatar_url, "skipped": True, "reason": "checked_recently"})
+
+    old_avatar = contact.avatar_url
+    new_avatar = None
+
+    # Try Telegram first
+    if contact.telegram_username and current_user.telegram_session:
+        try:
+            from app.integrations.telegram import _make_client, _ensure_connected, _download_avatar
+            client = _make_client(current_user.telegram_session)
+            await _ensure_connected(client)
+            try:
+                username = (contact.telegram_username or "").lstrip("@").strip()
+                if username:
+                    entity = await client.get_input_entity(username)
+                    avatar_path = await _download_avatar(client, entity, contact.id)
+                    if avatar_path:
+                        new_avatar = avatar_path
+            finally:
+                await client.disconnect()
+        except Exception:
+            logger.debug("Avatar refresh: Telegram failed for contact %s", contact_id)
+
+    # Try Twitter if still no avatar
+    if not new_avatar and contact.twitter_handle:
+        try:
+            from app.integrations.twitter import fetch_user_profile, download_twitter_avatar
+            handle = (contact.twitter_handle or "").lstrip("@").strip()
+            if handle:
+                profile = await fetch_user_profile(handle)
+                image_url = profile.get("profile_image_url")
+                if image_url:
+                    avatar_path = await download_twitter_avatar(image_url, contact.id)
+                    if avatar_path:
+                        new_avatar = avatar_path
+        except Exception:
+            logger.debug("Avatar refresh: Twitter failed for contact %s", contact_id)
+
+    changed = False
+    if new_avatar and new_avatar != old_avatar:
+        contact.avatar_url = new_avatar
+        changed = True
+        await db.flush()
+
+    await r.setex(cache_key, _AVATAR_CHECK_TTL, "1")
+    return envelope({"avatar_url": contact.avatar_url, "changed": changed})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/contacts/{contact_id}/sync-emails
+# ---------------------------------------------------------------------------
+
+_EMAIL_SYNC_TTL = 3600  # 1 hour
+
+
+@router.post("/{contact_id}/sync-emails", response_model=Envelope[dict])
+async def sync_contact_emails(
+    contact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[dict]:
+    """Search Gmail for threads involving this contact's emails and save as interactions.
+
+    Rate-limited to once per hour per contact.
+    """
+    result = await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    if not contact.emails:
+        return envelope({"new_interactions": 0, "skipped": True, "reason": "no_emails"})
+
+    if not current_user.google_refresh_token:
+        return envelope({"new_interactions": 0, "skipped": True, "reason": "google_not_connected"})
+
+    r = get_redis()
+    cache_key = f"email_sync:{contact_id}"
+    if await r.exists(cache_key):
+        return envelope({"new_interactions": 0, "skipped": True, "reason": "synced_recently"})
+
+    from app.integrations.gmail import sync_contact_emails as _sync_emails
+
+    new_count = await _sync_emails(current_user, contact, db)
+
+    await r.setex(cache_key, _EMAIL_SYNC_TTL, "1")
+    return envelope({"new_interactions": new_count})
+
+
+# ---------------------------------------------------------------------------
+# POST /api/v1/contacts/{contact_id}/send-message
+# ---------------------------------------------------------------------------
+
+
+class SendMessageBody(BaseModel):
+    message: str
+    channel: str  # "telegram" | "twitter" | "email"
+
+
+@router.post(
+    "/{contact_id}/send-message",
+    response_model=Envelope[SendMessageData],
+    status_code=status.HTTP_200_OK,
+)
+async def send_message(
+    contact_id: uuid.UUID,
+    body: SendMessageBody,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[SendMessageData]:
+    """Send a message to a contact via the specified channel.
+
+    Currently supports Telegram. Creates an Interaction record on success.
+    """
+    from datetime import UTC, datetime
+
+    result = await db.execute(
+        select(Contact).where(
+            Contact.id == contact_id,
+            Contact.user_id == current_user.id,
+        )
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    if not body.message.strip():
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Message cannot be empty")
+
+    if body.channel == "telegram":
+        username = contact.telegram_username
+        if not username:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Contact has no Telegram username",
+            )
+        from app.integrations.telegram import send_telegram_message
+
+        try:
+            send_result = await send_telegram_message(current_user, username, body.message.strip())
+        except RuntimeError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        except Exception as exc:
+            logger.exception("Failed to send Telegram message to %s", username)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="Failed to send Telegram message. Please try again.",
+            ) from exc
+    else:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Sending via '{body.channel}' is not yet supported. Only 'telegram' is available.",
+        )
+
+    # Record the interaction
+    from app.models.interaction import Interaction
+
+    interaction = Interaction(
+        contact_id=contact.id,
+        user_id=current_user.id,
+        platform=body.channel,
+        direction="outbound",
+        content_preview=body.message.strip()[:500],
+        occurred_at=datetime.now(UTC),
+        raw_reference_id=f"sent:{send_result.get('message_id', '')}",
+    )
+    db.add(interaction)
+
+    # Update last_interaction_at and last_followup_at
+    contact.last_interaction_at = datetime.now(UTC)
+    contact.last_followup_at = datetime.now(UTC)
+    await db.flush()
+
+    return envelope({
+        "sent": True,
+        "channel": body.channel,
+        "interaction_id": str(interaction.id),
+    })

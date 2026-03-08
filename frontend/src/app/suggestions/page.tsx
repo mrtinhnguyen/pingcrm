@@ -14,6 +14,7 @@ import {
   useSuggestions,
   useUpdateSuggestion,
   useGenerateSuggestions,
+  useSendMessage,
   type Suggestion,
 } from "@/hooks/use-suggestions";
 import { MessageEditor } from "@/components/message-editor";
@@ -52,6 +53,7 @@ function getInitials(name: string | null): string {
 
 function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
   const updateSuggestion = useUpdateSuggestion();
+  const sendMessage = useSendMessage();
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
 
@@ -68,11 +70,45 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
   };
   const triggerReason = triggerLabels[suggestion.trigger_type] ?? suggestion.trigger_type;
 
-  const handleSend = (message: string, ch: Channel) => {
-    updateSuggestion.mutate({
-      id: suggestion.id,
-      input: { status: "sent", suggested_message: message, suggested_channel: ch },
-    });
+  const [sendConfirm, setSendConfirm] = useState<string | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  const handleSend = async (message: string, ch: Channel) => {
+    setSendError(null);
+
+    if (ch === "telegram" && c?.telegram_username) {
+      try {
+        await sendMessage.mutateAsync({
+          contactId: suggestion.contact_id,
+          message,
+          channel: ch,
+        });
+
+        updateSuggestion.mutate({
+          id: suggestion.id,
+          input: { status: "sent", suggested_message: message, suggested_channel: ch },
+        });
+
+        setSendConfirm("Message sent via Telegram!");
+        setTimeout(() => setSendConfirm(null), 3000);
+      } catch (err) {
+        setSendError(err instanceof Error ? err.message : "Failed to send message");
+      }
+    } else {
+      // Fallback for unsupported channels: copy to clipboard
+      void navigator.clipboard.writeText(message).catch(() => {});
+      if (ch === "twitter" && c?.twitter_handle) {
+        window.open(`https://x.com/${c.twitter_handle.replace(/^@/, "")}`, "_blank");
+      }
+
+      updateSuggestion.mutate({
+        id: suggestion.id,
+        input: { status: "sent", suggested_message: message, suggested_channel: ch },
+      });
+
+      setSendConfirm("Message copied to clipboard");
+      setTimeout(() => setSendConfirm(null), 3000);
+    }
   };
 
   const handleSnooze = (days: number) => {
@@ -95,6 +131,16 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
 
   return (
     <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-4">
+      {sendConfirm && (
+        <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+          {sendConfirm}
+        </div>
+      )}
+      {sendError && (
+        <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+          {sendError}
+        </div>
+      )}
       {/* Contact header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
@@ -148,9 +194,9 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
           <button
             onClick={() => setShowEditor(true)}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-md bg-green-600 text-white hover:bg-green-700 disabled:opacity-50 transition-colors"
-            disabled={updateSuggestion.isPending}
+            disabled={updateSuggestion.isPending || sendMessage.isPending}
           >
-            Send
+            {sendMessage.isPending ? "Sending..." : "Send"}
           </button>
 
           {/* Snooze with dropdown */}

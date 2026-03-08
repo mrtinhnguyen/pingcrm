@@ -373,6 +373,7 @@ function SettingsPageInner() {
   const [connected, setConnected] = useState<ConnectedAccounts>({ google: false, telegram: false, twitter: false, google_email: null, google_accounts: [], telegram_username: null, twitter_username: null });
   const [googleConnect, setGoogleConnect] = useState<SyncState>(defaultState);
   const [googleSync, setGoogleSync] = useState<SyncState>(defaultState);
+  const [gmailSync, setGmailSync] = useState<SyncState>(defaultState);
   const [calendarSync, setCalendarSync] = useState<SyncState>(defaultState);
   const [telegramConnect, setTelegramConnect] = useState<SyncState>(defaultState);
   const [telegramSync, setTelegramSync] = useState<SyncState>(defaultState);
@@ -480,9 +481,10 @@ function SettingsPageInner() {
       });
     } else {
       setGoogleSync({
-        status: "success",
-        message: "Sync started. You'll be notified when it completes.",
+        status: "loading",
+        message: "Sync dispatched. Waiting for background worker...",
       });
+      pollForNotification("Google Contacts", setGoogleSync);
     }
   };
 
@@ -496,9 +498,27 @@ function SettingsPageInner() {
       });
     } else {
       setCalendarSync({
-        status: "success",
-        message: "Sync started. You'll be notified when it completes.",
+        status: "loading",
+        message: "Sync dispatched. Waiting for background worker...",
       });
+      pollForNotification("Google Calendar", setCalendarSync);
+    }
+  };
+
+  const handleGmailSync = async () => {
+    setGmailSync({ status: "loading", message: "" });
+    const { error } = await client.POST("/api/v1/contacts/sync/gmail" as any);
+    if (error) {
+      setGmailSync({
+        status: "error",
+        message: (error as { detail?: string })?.detail ?? "Gmail sync failed. Connect Google account first.",
+      });
+    } else {
+      setGmailSync({
+        status: "loading",
+        message: "Sync dispatched. Waiting for background worker...",
+      });
+      pollForNotification("Gmail", setGmailSync);
     }
   };
 
@@ -572,6 +592,33 @@ function SettingsPageInner() {
     await showSuccess("Telegram", (data?.data as { username?: string })?.username);
   };
 
+  const pollForNotification = useCallback((platform: string, setter: (s: SyncState) => void) => {
+    let attempts = 0;
+    const maxAttempts = 60; // ~2 minutes
+    const interval = setInterval(async () => {
+      attempts++;
+      try {
+        const { data } = await client.GET("/api/v1/notifications/unread-count");
+        const count = (data as { data?: { count?: number } })?.data?.count ?? 0;
+        if (count > 0) {
+          clearInterval(interval);
+          setter({
+            status: "success",
+            message: `${platform} sync completed! Check notifications for details.`,
+          });
+        } else if (attempts >= maxAttempts) {
+          clearInterval(interval);
+          setter({
+            status: "error",
+            message: `${platform} sync is taking too long. The background worker may not be running. Try: celery -A worker.celery_app worker --beat --loglevel=info`,
+          });
+        }
+      } catch {
+        // ignore polling errors
+      }
+    }, 2000);
+  }, []);
+
   const handleTelegramSync = async () => {
     setTelegramSync({ status: "loading", message: "" });
     const { error } = await client.POST("/api/v1/contacts/sync/telegram");
@@ -582,9 +629,10 @@ function SettingsPageInner() {
       });
     } else {
       setTelegramSync({
-        status: "success",
-        message: "Sync started. You'll be notified when it completes.",
+        status: "loading",
+        message: "Sync dispatched. Waiting for background worker...",
       });
+      pollForNotification("Telegram", setTelegramSync);
     }
   };
 
@@ -614,9 +662,10 @@ function SettingsPageInner() {
       });
     } else {
       setTwitterSync({
-        status: "success",
-        message: "Sync started. You'll be notified when it completes.",
+        status: "loading",
+        message: "Sync dispatched. Waiting for background worker...",
       });
+      pollForNotification("Twitter", setTwitterSync);
     }
   };
 
@@ -687,6 +736,20 @@ function SettingsPageInner() {
               </button>
 
               <button
+                onClick={handleGmailSync}
+                disabled={gmailSync.status === "loading" || !connected.google}
+                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {gmailSync.status === "loading" ? (
+                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <Mail className="w-3.5 h-3.5" />
+                )}
+                Sync Gmail
+                <ElapsedTimer running={gmailSync.status === "loading"} />
+              </button>
+
+              <button
                 onClick={handleGoogleCalendarSync}
                 disabled={calendarSync.status === "loading" || !connected.google}
                 className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
@@ -743,6 +806,17 @@ function SettingsPageInner() {
 
             {googleSync.details && (
               <SyncResultPanel details={googleSync.details} status={googleSync.status} />
+            )}
+            {gmailSync.message && !gmailSync.details && (
+              <p className={`text-xs mt-3 flex items-center gap-1 ${
+                gmailSync.status === "error" ? "text-red-500" : "text-green-600"
+              }`}>
+                {gmailSync.status === "error" ? <AlertCircle className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+                {gmailSync.message}
+              </p>
+            )}
+            {gmailSync.details && (
+              <SyncResultPanel details={gmailSync.details} status={gmailSync.status} />
             )}
             {calendarSync.details && (
               <SyncResultPanel details={calendarSync.details} status={calendarSync.status} />

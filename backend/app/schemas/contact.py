@@ -18,6 +18,7 @@ class ContactBase(BaseModel):
     telegram_bio: str | None = None
     linkedin_url: str | None = None
     avatar_url: str | None = None
+    birthday: str | None = None
     tags: list[str] = []
     notes: str | None = None
     priority_level: str = "medium"
@@ -40,6 +41,7 @@ class ContactUpdate(BaseModel):
     twitter_bio: str | None = None
     telegram_username: str | None = None
     linkedin_url: str | None = None
+    birthday: str | None = None
     tags: list[str] | None = None
     notes: str | None = None
     priority_level: str | None = None

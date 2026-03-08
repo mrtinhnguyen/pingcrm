@@ -121,7 +121,7 @@ export function useContactDuplicates(id: string, enabled: boolean) {
         "/api/v1/contacts/{contact_id}/duplicates",
         { params: { path: { contact_id: id } } }
       );
-      return data;
+      return data ?? { data: [], error: null };
     },
     enabled: Boolean(id) && enabled,
   });

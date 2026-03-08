@@ -599,7 +599,7 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                                 fields["full_name"] = m.group(1).strip()
                                 fields["company"] = m.group(2).strip()
 
-                        emails = fields.get("emails", [])
+                        emails = fields.get("emails") or []
                         existing = None
                         if emails:
                             for email in emails:
@@ -616,6 +616,10 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                         if existing:
                             if raw_name and not existing.full_name:
                                 existing.full_name = raw_name
+                            if fields.get("given_name") and not existing.given_name:
+                                existing.given_name = fields["given_name"]
+                            if fields.get("family_name") and not existing.family_name:
+                                existing.family_name = fields["family_name"]
                             if fields.get("company") and not existing.company:
                                 existing.company = fields["company"]
                             if fields.get("title") and not existing.title:
@@ -639,7 +643,8 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                             db.add(contact)
                             created_count += 1
                     except Exception as exc:
-                        errors.append(f"Contact error: {exc}")
+                        name_hint = fields.get("full_name") or ", ".join(fields.get("emails", [])[:1]) or "unknown"
+                        errors.append(f"{name_hint}: {exc}")
 
             parts = []
             if created_count:
@@ -648,11 +653,14 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                 parts.append(f"{updated_count} updated")
             if errors:
                 parts.append(f"{len(errors)} errors")
+            body = ", ".join(parts) if parts else "No changes"
+            if errors:
+                body += "\n\nErrors:\n" + "\n".join(f"- {e}" for e in errors[:20])
             db.add(Notification(
                 user_id=uid,
                 notification_type="sync",
                 title="Google Contacts sync completed",
-                body=", ".join(parts) if parts else "No changes",
+                body=body,
                 link="/contacts",
             ))
             await db.commit()

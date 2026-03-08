@@ -101,6 +101,19 @@ class BioRefreshData(BaseModel):
     reason: str | None = None
 
 
+class AvatarRefreshData(BaseModel):
+    avatar_url: str | None = None
+    changed: bool = False
+    skipped: bool = False
+    reason: str | None = None
+
+
+class SendMessageData(BaseModel):
+    sent: bool
+    channel: str
+    interaction_id: str | None = None
+
+
 # ---------------------------------------------------------------------------
 # suggestions.py payload types
 # ---------------------------------------------------------------------------

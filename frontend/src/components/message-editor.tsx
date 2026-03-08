@@ -51,10 +51,12 @@ export function MessageEditor({
   className,
 }: MessageEditorProps) {
   const [message, setMessage] = useState(initialMessage);
-  const [channel, setChannel] = useState<Channel>(initialChannel);
+  const [channel, setChannel] = useState<Channel>(
+    initialChannel in channelConfig ? initialChannel : "email"
+  );
   const [isRegenerating, setIsRegenerating] = useState(false);
 
-  const config = channelConfig[channel];
+  const config = channelConfig[channel] ?? channelConfig.email;
   const charCount = message.length;
   const isOverLimit = charCount > config.maxChars;
 

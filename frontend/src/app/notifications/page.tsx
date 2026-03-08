@@ -1,6 +1,7 @@
 "use client";
 
-import { Bell, Mail, Sparkles, Activity, Settings, CheckCheck, ScanSearch, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { Bell, Mail, Sparkles, Activity, Settings, CheckCheck, ScanSearch, RefreshCw, ChevronDown, ChevronUp } from "lucide-react";
 import { useNotifications, useMarkRead, useMarkAllRead } from "@/hooks/use-notifications";
 import type { AppNotification } from "@/hooks/use-notifications";
 import { EmptyState } from "@/components/empty-state";
@@ -19,42 +20,73 @@ const typeIcons: Record<string, typeof Bell> = {
 function NotificationRow({ notification }: { notification: AppNotification }) {
   const router = useRouter();
   const markRead = useMarkRead();
+  const [expanded, setExpanded] = useState(false);
   const Icon = typeIcons[notification.notification_type] || Bell;
+
+  const body = notification.body || "";
+  const hasDetails = body.includes("\n\n");
+  const summary = hasDetails ? body.split("\n\n")[0] : body;
+  const details = hasDetails ? body.slice(body.indexOf("\n\n") + 2) : "";
 
   const handleClick = () => {
     if (!notification.read) {
       markRead.mutate(notification.id);
     }
-    if (notification.link) {
+    if (hasDetails) {
+      setExpanded((prev) => !prev);
+    } else if (notification.link) {
       router.push(notification.link);
     }
   };
 
   return (
-    <button
-      onClick={handleClick}
-      className={`w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors border-b border-gray-100 ${
-        notification.read ? "opacity-60" : ""
-      }`}
+    <div
+      className={`w-full border-b border-gray-100 ${notification.read ? "opacity-60" : ""}`}
     >
-      <div className={`mt-0.5 p-2 rounded-full ${notification.read ? "bg-gray-100" : "bg-blue-50"}`}>
-        <Icon className={`w-4 h-4 ${notification.read ? "text-gray-400" : "text-blue-600"}`} />
-      </div>
-      <div className="flex-1 min-w-0">
-        <p className={`text-sm ${notification.read ? "text-gray-600" : "text-gray-900 font-medium"}`}>
-          {notification.title}
-        </p>
-        {notification.body && (
-          <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{notification.body}</p>
-        )}
-        {notification.created_at && (
-          <p className="text-xs text-gray-400 mt-1">
-            {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+      <button
+        onClick={handleClick}
+        className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+      >
+        <div className={`mt-0.5 p-2 rounded-full ${notification.read ? "bg-gray-100" : "bg-blue-50"}`}>
+          <Icon className={`w-4 h-4 ${notification.read ? "text-gray-400" : "text-blue-600"}`} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className={`text-sm ${notification.read ? "text-gray-600" : "text-gray-900 font-medium"}`}>
+            {notification.title}
           </p>
-        )}
-      </div>
-      {!notification.read && <div className="w-2 h-2 rounded-full bg-blue-600 mt-2 shrink-0" />}
-    </button>
+          {summary && (
+            <p className="text-sm text-gray-500 mt-0.5">{summary}</p>
+          )}
+          {hasDetails && (
+            <span className="inline-flex items-center gap-1 text-xs text-blue-600 mt-1">
+              {expanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+              {expanded ? "Hide details" : "Show details"}
+            </span>
+          )}
+          {notification.created_at && (
+            <p className="text-xs text-gray-400 mt-1">
+              {formatDistanceToNow(new Date(notification.created_at), { addSuffix: true })}
+            </p>
+          )}
+        </div>
+        {!notification.read && <div className="w-2 h-2 rounded-full bg-blue-600 mt-2 shrink-0" />}
+      </button>
+      {expanded && details && (
+        <div className="px-4 pb-3 ml-12">
+          <pre className="text-xs text-gray-600 bg-gray-50 rounded-md p-3 whitespace-pre-wrap font-mono overflow-x-auto">
+            {details}
+          </pre>
+          {notification.link && (
+            <button
+              onClick={() => router.push(notification.link!)}
+              className="text-xs text-blue-600 hover:text-blue-800 mt-2"
+            >
+              View related page →
+            </button>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

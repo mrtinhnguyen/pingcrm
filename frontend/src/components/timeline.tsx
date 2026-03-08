@@ -5,6 +5,31 @@ import { Mail, MessageCircle, Twitter, FileText, Plus, Calendar, Linkedin } from
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 
+const URL_RE = /(https?:\/\/[^\s<]+)/g;
+
+function Linkify({ text, className }: { text: string; className?: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <span>
+      {parts.map((part, i) =>
+        URL_RE.test(part) ? (
+          <a
+            key={i}
+            href={part}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={cn("underline break-all", className)}
+          >
+            {part}
+          </a>
+        ) : (
+          part
+        )
+      )}
+    </span>
+  );
+}
+
 export interface TimelineEntry {
   id: string;
   platform: "email" | "telegram" | "twitter" | "linkedin" | "manual" | "meeting";
@@ -16,28 +41,20 @@ export interface TimelineEntry {
 interface TimelineProps {
   interactions: TimelineEntry[];
   onAddNote?: (content: string) => void;
+  contactName?: string;
   className?: string;
 }
 
 const platformIcons: Record<TimelineEntry["platform"], React.ReactNode> = {
-  email: <Mail className="w-4 h-4" />,
-  telegram: <MessageCircle className="w-4 h-4" />,
-  twitter: <Twitter className="w-4 h-4" />,
-  linkedin: <Linkedin className="w-4 h-4" />,
-  manual: <FileText className="w-4 h-4" />,
-  meeting: <Calendar className="w-4 h-4" />,
+  email: <Mail className="w-3.5 h-3.5" />,
+  telegram: <MessageCircle className="w-3.5 h-3.5" />,
+  twitter: <Twitter className="w-3.5 h-3.5" />,
+  linkedin: <Linkedin className="w-3.5 h-3.5" />,
+  manual: <FileText className="w-3.5 h-3.5" />,
+  meeting: <Calendar className="w-3.5 h-3.5" />,
 };
 
-const platformColors: Record<TimelineEntry["platform"], string> = {
-  email: "bg-blue-100 text-blue-600",
-  telegram: "bg-sky-100 text-sky-600",
-  twitter: "bg-slate-100 text-slate-600",
-  linkedin: "bg-blue-100 text-blue-700",
-  manual: "bg-gray-100 text-gray-600",
-  meeting: "bg-purple-100 text-purple-600",
-};
-
-export function Timeline({ interactions, onAddNote, className }: TimelineProps) {
+export function Timeline({ interactions, onAddNote, contactName, className }: TimelineProps) {
   const [noteText, setNoteText] = useState("");
   const [showNoteInput, setShowNoteInput] = useState(false);
 
@@ -92,31 +109,89 @@ export function Timeline({ interactions, onAddNote, className }: TimelineProps) 
           No interactions yet. Add a note to get started.
         </p>
       ) : (
-        <ol className="relative border-l border-gray-200 space-y-6 pl-4">
-          {interactions.map((item) => (
-            <li key={item.id} className="ml-2">
-              <span
+        <div className="space-y-3">
+          {interactions.map((item) => {
+            const isManual = item.platform === "manual";
+            const isOutbound = item.direction === "outbound";
+            const isMutual = item.direction === "mutual";
+            const authorLabel = isOutbound
+              ? "You"
+              : isMutual
+                ? "Both"
+                : contactName || "Contact";
+
+            if (isManual) {
+              return (
+                <div
+                  key={item.id}
+                  className="mx-auto max-w-[90%] border border-amber-200 bg-amber-50 rounded-lg px-4 py-3"
+                >
+                  <div className="flex items-center gap-1.5 mb-1 text-amber-500">
+                    <FileText className="w-3.5 h-3.5" />
+                    <span className="text-xs font-medium">Note</span>
+                    <span className="text-xs">
+                      &middot;{" "}
+                      {formatDistanceToNow(new Date(item.occurred_at), {
+                        addSuffix: true,
+                      })}
+                    </span>
+                  </div>
+                  {item.content_preview && (
+                    <p className="text-sm text-amber-900 leading-relaxed">
+                      <Linkify text={item.content_preview} className="text-amber-700 hover:text-amber-900" />
+                    </p>
+                  )}
+                </div>
+              );
+            }
+
+            return (
+              <div
+                key={item.id}
                 className={cn(
-                  "absolute -left-3 flex h-6 w-6 items-center justify-center rounded-full",
-                  platformColors[item.platform]
+                  "flex",
+                  isOutbound ? "justify-end" : "justify-start"
                 )}
               >
-                {platformIcons[item.platform]}
-              </span>
-              <div className="ml-4">
-                <p className="text-xs text-gray-400 mb-0.5">
-                  {item.platform} &middot;{" "}
-                  {formatDistanceToNow(new Date(item.occurred_at), {
-                    addSuffix: true,
-                  })}
-                </p>
-                {item.content_preview && (
-                  <p className="text-sm text-gray-700">{item.content_preview}</p>
-                )}
+                <div
+                  className={cn(
+                    "max-w-[80%] rounded-2xl px-4 py-2.5",
+                    isOutbound
+                      ? "bg-blue-600 text-white rounded-br-md"
+                      : "bg-gray-100 text-gray-900 rounded-bl-md"
+                  )}
+                >
+                  <div className={cn(
+                    "flex items-center gap-1.5 mb-1",
+                    isOutbound ? "text-blue-100" : "text-gray-400"
+                  )}>
+                    <span className="flex-shrink-0">{platformIcons[item.platform]}</span>
+                    <span className="text-xs font-medium">
+                      {authorLabel}
+                    </span>
+                    <span className="text-xs">
+                      &middot; {item.platform} &middot;{" "}
+                      {formatDistanceToNow(new Date(item.occurred_at), {
+                        addSuffix: true,
+                      })}
+                    </span>
+                  </div>
+                  {item.content_preview && (
+                    <p className={cn(
+                      "text-sm leading-relaxed",
+                      isOutbound ? "text-white" : "text-gray-700"
+                    )}>
+                      <Linkify
+                        text={item.content_preview}
+                        className={isOutbound ? "text-blue-100 hover:text-white" : "text-blue-600 hover:text-blue-800"}
+                      />
+                    </p>
+                  )}
+                </div>
               </div>
-            </li>
-          ))}
-        </ol>
+            );
+          })}
+        </div>
       )}
     </div>
   );

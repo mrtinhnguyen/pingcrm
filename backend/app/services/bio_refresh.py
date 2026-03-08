@@ -95,6 +95,25 @@ async def refresh_contact_bios(
                     input_user = await client.get_input_entity(username)
                     full = await client(GetFullUserRequest(input_user))
                     new_bio = getattr(full.full_user, "about", None) or ""
+                    # Extract birthday if available
+                    if not contact.birthday:
+                        bday = getattr(full.full_user, "birthday", None)
+                        if bday:
+                            day = getattr(bday, "day", None)
+                            month = getattr(bday, "month", None)
+                            year = getattr(bday, "year", None)
+                            if day and month:
+                                contact.birthday = (
+                                    f"{year}-{month:02d}-{day:02d}" if year
+                                    else f"{month:02d}-{day:02d}"
+                                )
+                    # Extract Twitter handle from Telegram bio if not already set
+                    if not contact.twitter_handle and new_bio:
+                        from app.integrations.telegram import _extract_twitter_handle
+                        twitter_handle = _extract_twitter_handle(new_bio)
+                        if twitter_handle:
+                            contact.twitter_handle = twitter_handle
+
                     if new_bio and new_bio != (contact.telegram_bio or ""):
                         old_bio = contact.telegram_bio
                         contact.telegram_bio = new_bio

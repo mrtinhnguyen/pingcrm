@@ -46,6 +46,9 @@ _not_2nd_tier = or_(Contact.tags.is_(None), ~Contact.tags.contains(["2nd tier"])
 # Only contacts with previous interactions
 _has_interactions = Contact.last_interaction_at.isnot(None)
 
+# Exclude archived contacts
+_not_archived = Contact.priority_level != "archived"
+
 
 _SENDABLE_CHANNELS = {"email", "telegram", "twitter"}
 
@@ -149,6 +152,7 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
             _not_2nd_tier,
             _has_channel,
             _has_interactions,
+            _not_archived,
             Contact.relationship_score < TIME_BASED_MAX_SCORE,
             Contact.last_interaction_at < cutoff_time,
         )
@@ -175,6 +179,7 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
             _not_2nd_tier,
             _has_channel,
             _has_interactions,
+            _not_archived,
             DetectedEvent.detected_at >= event_cutoff,
             DetectedEvent.confidence > EVENT_CONFIDENCE_THRESHOLD,
         )
@@ -200,6 +205,7 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
             _not_2nd_tier,
             _has_channel,
             _has_interactions,
+            _not_archived,
             Contact.last_followup_at.isnot(None),
             Contact.last_followup_at < scheduled_cutoff,
         )

@@ -19,6 +19,31 @@ def _build_people_service(access_token: str) -> Any:
     return build("people", "v1", credentials=credentials, cache_discovery=False)
 
 
+def _name_from_email(email: str) -> tuple[str, str] | None:
+    """Try to extract (given_name, family_name) from an email local part.
+
+    Handles patterns like:
+      david.rodriguez@company.co  → ("David", "Rodriguez")
+      john_smith@gmail.com        → ("John", "Smith")
+      jane-doe@example.com        → ("Jane", "Doe")
+      jdoe@example.com            → None (too ambiguous)
+    """
+    local = email.split("@")[0].lower()
+    # Remove trailing digits (e.g. john.smith01)
+    import re
+    local = re.sub(r"\d+$", "", local)
+    # Split on common separators
+    parts = re.split(r"[._\-]", local)
+    # Filter out empty or single-char fragments
+    parts = [p for p in parts if len(p) > 1]
+    if len(parts) < 2:
+        return None
+    # Take first two parts as given/family
+    given = parts[0].capitalize()
+    family = parts[1].capitalize()
+    return given, family
+
+
 def _extract_contact_fields(person: dict[str, Any]) -> dict[str, Any]:
     """Map a Google People API person resource to our Contact model fields."""
     names = person.get("names", [])
@@ -49,12 +74,19 @@ def _extract_contact_fields(person: dict[str, Any]) -> dict[str, Any]:
         company = org.get("name")
         title = org.get("title")
 
+    # Infer names from email when Google doesn't provide them
+    if not given_name and not family_name and not full_name and emails:
+        inferred = _name_from_email(emails[0])
+        if inferred:
+            given_name, family_name = inferred
+            full_name = f"{given_name} {family_name}".strip() or None
+
     return {
         "full_name": full_name,
         "given_name": given_name,
         "family_name": family_name,
-        "emails": emails or None,
-        "phones": phones or None,
+        "emails": emails or [],
+        "phones": phones or [],
         "company": company,
         "title": title,
         "source": "google",

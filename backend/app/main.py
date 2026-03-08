@@ -71,9 +71,10 @@ app.include_router(twitter_router)
 app.include_router(notifications_router)
 
 # Serve uploaded avatars
-_avatars_dir = Path("static/avatars")
+_static_dir = Path(__file__).resolve().parent.parent / "static"
+_avatars_dir = _static_dir / "avatars"
 _avatars_dir.mkdir(parents=True, exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
 
 
 @app.get("/api/health", tags=["health"])

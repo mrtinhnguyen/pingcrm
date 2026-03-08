@@ -36,7 +36,10 @@ def build_contact_filter_query(
     Returns:
         A SQLAlchemy select statement (not yet executed).
     """
-    base_query = select(Contact).where(Contact.user_id == user_id)
+    base_query = select(Contact).where(
+        Contact.user_id == user_id,
+        Contact.priority_level != "archived",
+    )
 
     if search:
         # Escape SQL LIKE wildcards to prevent wildcard injection

@@ -50,6 +50,9 @@ async def _enrich_suggestions_with_contacts(
                 "family_name": contact.family_name,
                 "company": contact.company,
                 "title": contact.title,
+                "avatar_url": contact.avatar_url,
+                "telegram_username": contact.telegram_username,
+                "twitter_handle": contact.twitter_handle,
                 "last_interaction_at": (
                     contact.last_interaction_at.isoformat()
                     if contact.last_interaction_at

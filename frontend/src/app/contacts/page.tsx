@@ -4,9 +4,10 @@ import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Plus, UserCircle, X, Filter } from "lucide-react";
+import { Search, Plus, X, Filter } from "lucide-react";
 import { useContacts } from "@/hooks/use-contacts";
 import { ScoreBadge } from "@/components/score-badge";
+import { ContactAvatar } from "@/components/contact-avatar";
 import { formatDistanceToNow } from "date-fns";
 import { client } from "@/lib/api-client";
 
@@ -284,7 +285,11 @@ export default function ContactsPage() {
                           href={`/contacts/${contact.id}`}
                           className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
                         >
-                          <UserCircle className="w-5 h-5 text-gray-400" />
+                          <ContactAvatar
+                            avatarUrl={contact.avatar_url}
+                            name={name}
+                            size="xs"
+                          />
                           {name}
                         </Link>
                       </td>

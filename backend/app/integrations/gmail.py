@@ -276,3 +276,106 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
 
     logger.info("Gmail sync for user %s: %d new interaction(s).", user.id, new_count)
     return new_count
+
+
+async def sync_contact_emails(user: User, contact: Contact, db: AsyncSession) -> int:
+    """Search Gmail for threads involving a specific contact's email addresses.
+
+    Returns the number of new interactions created.
+    """
+    if not user.google_refresh_token:
+        logger.warning("User %s has no google_refresh_token; skipping contact email sync.", user.id)
+        return 0
+
+    if not contact.emails:
+        return 0
+
+    try:
+        service = _build_gmail_service(user.google_refresh_token)
+    except Exception:
+        logger.exception("Failed to build Gmail service for user %s.", user.id)
+        return 0
+
+    user_email = user.email.lower()
+
+    # Build Gmail search query: from/to any of the contact's email addresses
+    email_clauses = " OR ".join(f"from:{e} OR to:{e}" for e in contact.emails)
+    query = f"({email_clauses}) newer_than:1y"
+
+    thread_items: list[dict] = []
+    page_token: str | None = None
+    try:
+        while True:
+            kwargs: dict[str, Any] = {
+                "userId": "me",
+                "maxResults": MAX_RESULTS,
+                "q": query,
+            }
+            if page_token:
+                kwargs["pageToken"] = page_token
+            list_response = service.users().threads().list(**kwargs).execute()
+            thread_items.extend(list_response.get("threads", []))
+            page_token = list_response.get("nextPageToken")
+            if not page_token:
+                break
+    except Exception:
+        logger.exception("Failed to list Gmail threads for contact %s.", contact.id)
+        return 0
+
+    if not thread_items:
+        return 0
+
+    new_count = 0
+
+    for item in thread_items:
+        thread_id = item.get("id")
+        if not thread_id:
+            continue
+
+        try:
+            thread_data = (
+                service.users()
+                .threads()
+                .get(userId="me", id=thread_id, format="metadata",
+                     metadataHeaders=["From", "To", "Cc", "Subject", "Date"])
+                .execute()
+            )
+        except Exception:
+            logger.warning("Failed to fetch thread %s for contact %s.", thread_id, contact.id)
+            continue
+
+        meta = _thread_to_metadata(thread_data)
+        if not meta:
+            continue
+
+        if user_email in meta["from_addresses"]:
+            direction = "outbound"
+        else:
+            direction = "inbound"
+
+        interaction = await _upsert_interaction(
+            contact=contact,
+            user_id=user.id,
+            thread_id=thread_id,
+            direction=direction,
+            snippet=meta["snippet"],
+            occurred_at=meta["occurred_at"],
+            db=db,
+        )
+        is_new = interaction.created_at is None
+        if is_new:
+            new_count += 1
+
+        occurred = meta["occurred_at"]
+        if contact.last_interaction_at is None or contact.last_interaction_at < occurred:
+            contact.last_interaction_at = occurred
+
+    try:
+        await db.flush()
+    except Exception:
+        logger.exception("Failed to flush contact email sync for contact %s.", contact.id)
+        await db.rollback()
+        return 0
+
+    logger.info("Contact email sync for contact %s: %d new interaction(s).", contact.id, new_count)
+    return new_count

@@ -31,6 +31,9 @@ import {
   EditableListField,
   EditableTagsField,
 } from "@/components/editable-field";
+import { ContactAvatar } from "@/components/contact-avatar";
+import { MessageEditor } from "@/components/message-editor";
+import { useContactSuggestion, useUpdateSuggestion, useSendMessage } from "@/hooks/use-suggestions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
 import { formatDistanceToNow } from "date-fns";
@@ -67,15 +70,20 @@ function DuplicatesModal({
   const mergeContacts = useMergeContacts();
   const [mergeConfirmId, setMergeConfirmId] = useState<string | null>(null);
   const queryClient = useQueryClient();
+  const router = useRouter();
 
   const handleMerge = (otherId: string) => {
     mergeContacts.mutate(
       { contactId, otherId },
       {
-        onSuccess: () => {
+        onSuccess: (result) => {
           setMergeConfirmId(null);
-          void queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
+          void queryClient.invalidateQueries({ queryKey: ["contacts"] });
           onClose();
+          const survivingId = result?.data?.id;
+          if (survivingId && survivingId !== contactId) {
+            router.replace(`/contacts/${survivingId}`);
+          }
         },
       }
     );
@@ -281,6 +289,43 @@ export default function ContactDetailPage() {
     retry: false,
   });
 
+  // Background email sync — fires once per contact if they have emails (rate-limited to 1/hr on backend)
+  const contactEmails = contact?.emails;
+  useQuery({
+    queryKey: ["sync-emails", id],
+    queryFn: async () => {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, {
+        params: { path: { contact_id: id } },
+      });
+      const data = (res.data as any)?.data;
+      if (data?.new_interactions > 0) {
+        void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
+        void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+      }
+      return true;
+    },
+    enabled: Boolean(id) && Boolean(contactEmails?.length),
+    staleTime: Infinity,
+    retry: false,
+  });
+
+  // Background avatar refresh (rate-limited to 1/24h on backend)
+  useQuery({
+    queryKey: ["refresh-avatar", id],
+    queryFn: async () => {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, {
+        params: { path: { contact_id: id } },
+      });
+      if ((res.data as any)?.data?.changed) {
+        void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+      }
+      return true;
+    },
+    enabled: Boolean(id),
+    staleTime: Infinity,
+    retry: false,
+  });
+
   const allInteractions = (interactionsData?.data ?? []) as InteractionResponse[];
   const meetings = allInteractions.filter((i) => i.platform === "meeting");
   const interactions: TimelineEntry[] = allInteractions.map((i) => ({
@@ -290,6 +335,13 @@ export default function ContactDetailPage() {
     content_preview: i.content_preview,
     occurred_at: i.occurred_at,
   }));
+
+  // Follow-up suggestion for this contact
+  const suggestion = useContactSuggestion(id);
+  const updateSuggestion = useUpdateSuggestion();
+  const sendMessageMutation = useSendMessage();
+  const [suggestionSent, setSuggestionSent] = useState<string | null>(null);
+  const [suggestionError, setSuggestionError] = useState<string | null>(null);
 
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
@@ -441,17 +493,11 @@ export default function ContactDetailPage() {
             {/* Header card with name + score */}
             <div className="bg-white rounded-lg border border-gray-200 p-5">
               <div className="flex items-center gap-3 mb-3">
-                {contact.avatar_url ? (
-                  <img
-                    src={`${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000"}${contact.avatar_url}`}
-                    alt={displayName}
-                    className="w-12 h-12 rounded-full object-cover flex-shrink-0"
-                  />
-                ) : (
-                  <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-semibold text-lg flex-shrink-0">
-                    {(contact.given_name?.[0] || contact.full_name?.[0] || "?").toUpperCase()}
-                  </div>
-                )}
+                <ContactAvatar
+                  avatarUrl={contact.avatar_url}
+                  name={displayName}
+                  size="lg"
+                />
                 <div className="min-w-0">
                   <h1 className="text-lg font-bold text-gray-900 truncate">
                     {displayName}
@@ -479,6 +525,40 @@ export default function ContactDetailPage() {
                     )}
                   </span>
                 )}
+              </div>
+            </div>
+
+            {/* Priority panel */}
+            <div className="bg-white rounded-lg border border-gray-200 p-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
+                Priority
+              </p>
+              <div className="flex gap-2">
+                {(["high", "medium", "low", "archived"] as const).map((level) => {
+                  const isActive = contact.priority_level === level;
+                  const colors: Record<string, string> = {
+                    high: isActive ? "bg-red-100 text-red-700 border-red-300" : "text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600",
+                    medium: isActive ? "bg-amber-100 text-amber-700 border-amber-300" : "text-gray-600 border-gray-200 hover:bg-amber-50 hover:text-amber-600",
+                    low: isActive ? "bg-blue-100 text-blue-700 border-blue-300" : "text-gray-600 border-gray-200 hover:bg-blue-50 hover:text-blue-600",
+                    archived: isActive ? "bg-gray-200 text-gray-700 border-gray-400" : "text-gray-600 border-gray-200 hover:bg-gray-100",
+                  };
+                  return (
+                    <button
+                      key={level}
+                      onClick={() => {
+                        if (!isActive) {
+                          updateContact.mutate({ id, input: { priority_level: level } });
+                          if (level === "archived") {
+                            router.push("/contacts");
+                          }
+                        }
+                      }}
+                      className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md border transition-colors capitalize ${colors[level]}`}
+                    >
+                      {({ high: "🔥 High", medium: "⚡ Medium", low: "💤 Low", archived: "📦 Archive" } as Record<string, string>)[level]}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -531,6 +611,13 @@ export default function ContactDetailPage() {
                   onSave={(v) => saveField("title", v)}
                   placeholder="Add job title..."
                   icon={<Briefcase className="w-4 h-4" />}
+                />
+                <EditableField
+                  label="Birthday"
+                  value={contact.birthday}
+                  onSave={(v) => saveField("birthday", v)}
+                  placeholder="Add birthday..."
+                  icon={<Calendar className="w-4 h-4" />}
                 />
               </div>
             </div>
@@ -654,22 +741,74 @@ export default function ContactDetailPage() {
                   placeholder="e.g. telegram, twitter, manual"
                   icon={<AtSign className="w-4 h-4" />}
                 />
-                {contact.priority_level && (
-                  <div className="py-2.5 px-3 -mx-3">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-0.5">
-                      Priority
-                    </p>
-                    <span className="text-sm text-gray-900 capitalize">
-                      {contact.priority_level}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
           </div>
 
-          {/* Right column: Meetings + Notifications + Interactions timeline */}
+          {/* Right column: Suggestion + Meetings + Notifications + Interactions timeline */}
           <div className="lg:col-span-2 space-y-4">
+            {suggestion && (
+              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-indigo-200 p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className="text-sm font-semibold text-indigo-800">
+                    Suggested Follow-up
+                  </h2>
+                  <span className="text-xs text-indigo-500">
+                    {suggestion.trigger_type === "time_based"
+                      ? "No interaction in 90+ days"
+                      : suggestion.trigger_type === "scheduled"
+                        ? "Scheduled follow-up"
+                        : "New event detected"}
+                  </span>
+                </div>
+                {suggestionSent && (
+                  <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2 mb-3">
+                    {suggestionSent}
+                  </div>
+                )}
+                {suggestionError && (
+                  <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">
+                    {suggestionError}
+                  </div>
+                )}
+                <MessageEditor
+                  suggestionId={suggestion.id}
+                  initialMessage={suggestion.suggested_message}
+                  initialChannel={suggestion.suggested_channel}
+                  onSend={async (message, channel) => {
+                    setSuggestionError(null);
+                    if (channel === "telegram" && contact?.telegram_username) {
+                      try {
+                        await sendMessageMutation.mutateAsync({
+                          contactId: id,
+                          message,
+                          channel,
+                        });
+                        updateSuggestion.mutate({
+                          id: suggestion.id,
+                          input: { status: "sent", suggested_message: message, suggested_channel: channel },
+                        });
+                        setSuggestionSent("Message sent via Telegram!");
+                        setTimeout(() => setSuggestionSent(null), 4000);
+                      } catch (err) {
+                        setSuggestionError(
+                          err instanceof Error ? err.message : "Failed to send"
+                        );
+                      }
+                    } else {
+                      void navigator.clipboard.writeText(message).catch(() => {});
+                      updateSuggestion.mutate({
+                        id: suggestion.id,
+                        input: { status: "sent", suggested_message: message, suggested_channel: channel },
+                      });
+                      setSuggestionSent("Message copied to clipboard");
+                      setTimeout(() => setSuggestionSent(null), 4000);
+                    }
+                  }}
+                />
+              </div>
+            )}
+
             {meetings.length > 0 && (
               <div className="bg-white rounded-lg border border-gray-200 p-5">
                 <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
@@ -762,6 +901,7 @@ export default function ContactDetailPage() {
               <Timeline
                 interactions={interactions}
                 onAddNote={(content) => addNoteMutation.mutate(content)}
+                contactName={contact?.full_name || contact?.given_name || "Contact"}
               />
             </div>
           </div>

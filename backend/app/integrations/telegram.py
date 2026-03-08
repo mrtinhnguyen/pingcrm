@@ -50,7 +50,42 @@ async def _ensure_connected(client: TelegramClient) -> None:
 make_client = _make_client
 ensure_connected = _ensure_connected
 
-AVATARS_DIR = Path(os.environ.get("AVATARS_DIR", "static/avatars"))
+AVATARS_DIR = Path(os.environ.get(
+    "AVATARS_DIR",
+    str(Path(__file__).resolve().parent.parent.parent / "static" / "avatars"),
+))
+
+import re as _re
+
+_TWITTER_URL_RE = _re.compile(
+    r"(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/(@?[\w]{1,15})\b",
+    _re.IGNORECASE,
+)
+_TWITTER_MENTION_RE = _re.compile(r"@([\w]{1,15})\b")
+
+
+def _extract_twitter_handle(bio: str) -> str | None:
+    """Extract a Twitter/X handle from a bio string.
+
+    Looks for twitter.com/handle or x.com/handle URLs first,
+    then falls back to @handle mentions near twitter/X keywords.
+    """
+    # Direct URL match
+    m = _TWITTER_URL_RE.search(bio)
+    if m:
+        handle = m.group(1).lstrip("@")
+        if handle.lower() not in {"home", "search", "explore", "settings", "i"}:
+            return handle
+
+    # @handle near twitter/X keyword
+    bio_lower = bio.lower()
+    if any(kw in bio_lower for kw in ("twitter", "tw:", "𝕏", " x:", "x.com")):
+        mentions = _TWITTER_MENTION_RE.findall(bio)
+        for handle in mentions:
+            if handle.lower() not in {"telegram", "email", "phone"}:
+                return handle
+
+    return None
 
 
 async def _download_avatar(
@@ -69,6 +104,28 @@ async def _download_avatar(
     except Exception:
         logger.debug("Failed to download avatar for entity %s", entity.id)
     return None
+
+
+async def send_telegram_message(
+    user: User,
+    username: str,
+    message: str,
+) -> dict:
+    """Send a Telegram message to *username* using the user's session.
+
+    Returns dict with ``message_id`` and ``sent`` status.
+    """
+    if not user.telegram_session:
+        raise RuntimeError("No Telegram session. Please connect your account first.")
+
+    client = _make_client(user.telegram_session)
+    await _ensure_connected(client)
+    try:
+        entity = await client.get_input_entity(username)
+        result = await client.send_message(entity, message)
+        return {"sent": True, "message_id": result.id}
+    finally:
+        await client.disconnect()
 
 
 async def connect_telegram(user: User, phone: str, db: AsyncSession) -> str:
@@ -517,13 +574,19 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
                         ).limit(1)
                     )
                     if has_interactions.scalar_one_or_none() is not None:
-                        continue  # skip — already has direct conversations
+                        pass  # skip tagging — already has direct conversations
+                    else:
+                        current_tags = list(contact.tags or [])
+                        if tag_label not in current_tags:
+                            current_tags.append(tag_label)
+                            contact.tags = current_tags
+                            updated_contacts += 1
 
-                    current_tags = list(contact.tags or [])
-                    if tag_label not in current_tags:
-                        current_tags.append(tag_label)
-                        contact.tags = current_tags
-                        updated_contacts += 1
+                # Download avatar if missing
+                if not contact.avatar_url:
+                    avatar_path = await _download_avatar(client, member, contact.id)
+                    if avatar_path:
+                        contact.avatar_url = avatar_path
 
     finally:
         await client.disconnect()
@@ -615,6 +678,9 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
         select(Contact).where(
             Contact.user_id == user.id,
             Contact.telegram_username.isnot(None),
+        ).order_by(
+            # Prioritize contacts missing avatars
+            Contact.avatar_url.isnot(None).asc(),
         ).limit(MAX_BIO_SYNC_CONTACTS)
     )
     contacts: list[Contact] = list(result.scalars().all())
@@ -635,6 +701,31 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
             except Exception:
                 logger.debug("sync_telegram_bios: failed to fetch bio for @%s", username)
                 continue
+
+            # Download avatar if missing
+            if not contact.avatar_url:
+                avatar_path = await _download_avatar(client, input_user, contact.id)
+                if avatar_path:
+                    contact.avatar_url = avatar_path
+
+            # Extract birthday if available and not already set
+            if not contact.birthday:
+                bday = getattr(full.full_user, "birthday", None)
+                if bday:
+                    day = getattr(bday, "day", None)
+                    month = getattr(bday, "month", None)
+                    year = getattr(bday, "year", None)
+                    if day and month:
+                        contact.birthday = (
+                            f"{year}-{month:02d}-{day:02d}" if year
+                            else f"{month:02d}-{day:02d}"
+                        )
+
+            # Extract Twitter handle from bio if not already set
+            if not contact.twitter_handle and current_bio:
+                twitter_handle = _extract_twitter_handle(current_bio)
+                if twitter_handle:
+                    contact.twitter_handle = twitter_handle
 
             if not current_bio:
                 continue

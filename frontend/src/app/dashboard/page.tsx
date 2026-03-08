@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Bell, TrendingUp, Clock, Users, Sparkles, GitMerge, Mail, MessageCircle, Twitter } from "lucide-react";
 import { ScoreBadge } from "@/components/score-badge";
+import { ContactAvatar } from "@/components/contact-avatar";
 import { formatDistanceToNow } from "date-fns";
 import { useDashboardStats } from "@/hooks/use-dashboard";
 
@@ -114,25 +115,35 @@ export default function DashboardPage() {
                 </Link>
               </p>
             ) : (
-              <ul className="space-y-2">
-                {topSuggestions.map((s) => (
-                  <li
-                    key={s.id}
-                    className="flex items-start gap-3 p-3 rounded-md bg-indigo-50 border border-indigo-100"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-gray-800 truncate">
-                        {s.contact?.full_name ?? ([s.contact?.given_name, s.contact?.family_name].filter(Boolean).join(" ") || "Contact")}
-                      </p>
-                      <p className="text-xs text-gray-500 truncate">
-                        {s.trigger_type === "time_based" ? "No interaction in 90+ days" : s.trigger_type === "event_based" ? "New event detected" : "Scheduled follow-up"}
-                      </p>
-                    </div>
-                    <span className="flex-shrink-0 text-gray-400">
-                      {channelIcons[s.suggested_channel]}
-                    </span>
-                  </li>
-                ))}
+              <ul className="space-y-1">
+                {topSuggestions.map((s) => {
+                  const name = s.contact?.full_name ?? ([s.contact?.given_name, s.contact?.family_name].filter(Boolean).join(" ") || "Contact");
+                  return (
+                    <li key={s.id}>
+                      <Link
+                        href={`/contacts/${s.contact_id}`}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 transition-colors"
+                      >
+                        <ContactAvatar
+                          avatarUrl={s.contact?.avatar_url}
+                          name={name}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-gray-800 truncate">
+                            {name}
+                          </p>
+                          <p className="text-xs text-gray-400 truncate">
+                            {s.trigger_type === "time_based" ? "No interaction in 90+ days" : s.trigger_type === "event_based" ? "New event detected" : "Scheduled follow-up"}
+                          </p>
+                        </div>
+                        <span className="flex-shrink-0 text-gray-400">
+                          {channelIcons[s.suggested_channel]}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </div>
@@ -180,9 +191,14 @@ export default function DashboardPage() {
                     <li key={contact.id}>
                       <Link
                         href={`/contacts/${contact.id}`}
-                        className="flex items-center justify-between p-2 rounded-md hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 transition-colors"
                       >
-                        <div className="min-w-0">
+                        <ContactAvatar
+                          avatarUrl={contact.avatar_url}
+                          name={name}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-800 truncate">
                             {name}
                           </p>

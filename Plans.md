@@ -57,12 +57,12 @@
 
 ### 9.2 Missing Tests: auto_tagger.py (Medium)
 
-- [ ] `cc:TODO` Unit tests for merge_tags (case-insensitive dedup, append-only)
-- [ ] `cc:TODO` Unit tests for _build_contact_summary (sanitization, length caps)
-- [ ] `cc:TODO` Unit tests for _parse_json_response (bare JSON, code fences, invalid)
-- [ ] `cc:TODO` Unit tests for discover_taxonomy (mocked LLM, batching, error propagation)
-- [ ] `cc:TODO` Unit tests for assign_tags (taxonomy validation, case matching)
+- [x] `cc:完了` Unit tests for merge_tags (case-insensitive dedup, append-only)
+- [x] `cc:完了` Unit tests for _build_contact_summary (sanitization, length caps)
+- [x] `cc:完了` Unit tests for _parse_json_response (bare JSON, code fences, invalid)
+- [x] `cc:完了` Unit tests for discover_taxonomy (mocked LLM, batching, error propagation)
+- [x] `cc:完了` Unit tests for assign_tags (taxonomy validation, case matching)
 
 ### 9.3 Login Endpoint Envelope Consistency (Low)
 
-- [ ] `cc:TODO` Wrap /login response in Envelope[TokenData] to match all other endpoints
+- [x] `cc:完了` Wrap /login response in Envelope[TokenData] to match all other endpoints

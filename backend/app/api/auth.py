@@ -66,11 +66,11 @@ async def register(
     return {"data": UserResponse.model_validate(user).model_dump(), "error": None}
 
 
-@router.post("/login", response_model=Token)
+@router.post("/login", response_model=Envelope[TokenData])
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_db),
-) -> Token:
+) -> Envelope[TokenData]:
     result = await db.execute(select(User).where(User.email == form_data.username))
     user = result.scalar_one_or_none()
 
@@ -85,7 +85,7 @@ async def login(
         data={"sub": str(user.id)},
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
-    return Token(access_token=access_token, token_type="bearer")
+    return Envelope(data=TokenData(access_token=access_token, token_type="bearer"))
 
 
 @router.get("/me", response_model=Envelope[UserWithAccountsData])

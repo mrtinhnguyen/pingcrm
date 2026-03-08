@@ -52,7 +52,11 @@ export function useAuth() {
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
     });
     if (!data) throw new Error("Login failed");
-    localStorage.setItem("access_token", (data as { access_token: string }).access_token);
+    // Login returns Envelope[TokenData]: { data: { access_token, token_type } }
+    const envelope = data as { data?: { access_token: string }; access_token?: string };
+    const token = envelope.data?.access_token ?? envelope.access_token;
+    if (!token) throw new Error("Login failed");
+    localStorage.setItem("access_token", token);
 
     const { data: meData } = await client.GET("/api/v1/auth/me");
     if (meData?.data) {

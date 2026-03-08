@@ -4,7 +4,7 @@ import { useCallback, useRef, useState } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Search, Plus, X, Filter, Tag, Archive, CheckSquare } from "lucide-react";
+import { Search, Plus, X, Filter, Tag, Archive, CheckSquare, GitMerge, ArrowUp, ArrowDown } from "lucide-react";
 import { useContacts } from "@/hooks/use-contacts";
 import { ScoreBadge } from "@/components/score-badge";
 import { ContactAvatar } from "@/components/contact-avatar";
@@ -34,6 +34,7 @@ function BulkActionBar({
   onAddTag,
   onRemoveTag,
   onSetPriority,
+  onMerge,
   onClear,
   isPending,
 }: {
@@ -42,6 +43,7 @@ function BulkActionBar({
   onAddTag: (tag: string) => void;
   onRemoveTag: (tag: string) => void;
   onSetPriority: (level: string) => void;
+  onMerge: () => void;
   onClear: () => void;
   isPending: boolean;
 }) {
@@ -54,27 +56,28 @@ function BulkActionBar({
   );
 
   return (
-    <div className="sticky top-14 z-30 bg-blue-600 text-white px-4 py-2.5 rounded-lg mb-4 flex items-center gap-3 shadow-lg">
+    <div className="sticky top-14 z-30 bg-teal-600 text-white px-4 py-2.5 rounded-lg mb-4 flex items-center gap-3 shadow-lg">
       <div className="flex items-center gap-2 flex-shrink-0">
         <CheckSquare className="w-4 h-4" />
-        <span className="text-sm font-medium">{selectedCount} selected</span>
+        <span className="text-sm font-medium font-mono-data">{selectedCount}</span>
+        <span className="text-sm">selected</span>
       </div>
 
-      <div className="h-5 w-px bg-blue-400" />
+      <div className="h-5 w-px bg-teal-400" />
 
       {/* Tag actions */}
       <div className="relative">
         <div className="flex items-center gap-1">
           <button
             onClick={() => { setTagMode("add"); setShowTagDropdown((v) => !v); }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors"
           >
             <Tag className="w-3 h-3" />
             Add Tag
           </button>
           <button
             onClick={() => { setTagMode("remove"); setShowTagDropdown((v) => !v); }}
-            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 transition-colors"
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors"
           >
             <X className="w-3 h-3" />
             Remove Tag
@@ -82,7 +85,7 @@ function BulkActionBar({
         </div>
 
         {showTagDropdown && (
-          <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-lg border border-gray-200 shadow-lg z-50 p-2">
+          <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-lg border border-stone-200 shadow-lg z-50 p-2">
             <input
               type="text"
               placeholder={tagMode === "add" ? "Type tag name..." : "Select tag to remove..."}
@@ -95,7 +98,7 @@ function BulkActionBar({
                   setShowTagDropdown(false);
                 }
               }}
-              className="w-full px-2.5 py-1.5 text-sm text-gray-900 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 mb-1"
+              className="w-full px-2.5 py-1.5 text-sm text-stone-900 rounded-md border border-stone-300 focus:outline-none focus:ring-2 focus:ring-teal-400 mb-1"
               autoFocus
             />
             <div className="max-h-32 overflow-y-auto">
@@ -108,7 +111,7 @@ function BulkActionBar({
                     setTagInput("");
                     setShowTagDropdown(false);
                   }}
-                  className="w-full text-left px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                  className="w-full text-left px-2.5 py-1.5 text-sm text-stone-700 hover:bg-stone-100 rounded-md"
                 >
                   {tagMode === "add" ? "+" : "-"} {tag}
                 </button>
@@ -120,7 +123,7 @@ function BulkActionBar({
                     setTagInput("");
                     setShowTagDropdown(false);
                   }}
-                  className="w-full text-left px-2.5 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-md font-medium"
+                  className="w-full text-left px-2.5 py-1.5 text-sm text-teal-600 hover:bg-teal-50 rounded-md font-medium"
                 >
                   + Create &quot;{tagInput.trim()}&quot;
                 </button>
@@ -130,23 +133,37 @@ function BulkActionBar({
         )}
       </div>
 
-      <div className="h-5 w-px bg-blue-400" />
+      <div className="h-5 w-px bg-teal-400" />
 
       {/* Priority actions */}
       <button
         onClick={() => onSetPriority("archived")}
         disabled={isPending}
-        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 transition-colors disabled:opacity-50"
+        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors disabled:opacity-50"
       >
         <Archive className="w-3 h-3" />
         Archive All
       </button>
 
+      {selectedCount >= 2 && (
+        <>
+          <div className="h-5 w-px bg-teal-400" />
+          <button
+            onClick={onMerge}
+            disabled={isPending}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-teal-500 hover:bg-teal-400 transition-colors disabled:opacity-50"
+          >
+            <GitMerge className="w-3 h-3" />
+            Merge
+          </button>
+        </>
+      )}
+
       <div className="flex-1" />
 
       <button
         onClick={onClear}
-        className="text-xs text-blue-200 hover:text-white underline"
+        className="text-xs text-teal-200 hover:text-white underline"
       >
         Clear selection
       </button>
@@ -170,6 +187,7 @@ export default function ContactsPage() {
   const sourceFilter = searchParams.get("source") ?? "";
   const dateFrom = searchParams.get("date_from") ?? "";
   const dateTo = searchParams.get("date_to") ?? "";
+  const sortParam = searchParams.get("sort") ?? "score";
   const showFilters = searchParams.get("filters") === "1";
 
   // Multi-select state
@@ -214,6 +232,7 @@ export default function ContactsPage() {
     source: sourceFilter || undefined,
     date_from: dateFrom || undefined,
     date_to: dateTo || undefined,
+    sort: sortParam,
   });
 
   const contacts = data?.data ?? [];
@@ -240,6 +259,22 @@ export default function ContactsPage() {
     },
   });
 
+  // Merge mutation: chain-merge all selected into the first one
+  const mergeMutation = useMutation({
+    mutationFn: async (contactIds: string[]) => {
+      const [primaryId, ...otherIds] = contactIds;
+      for (const otherId of otherIds) {
+        await client.POST("/api/v1/contacts/{contact_id}/merge/{other_id}" as any, {
+          params: { path: { contact_id: primaryId, other_id: otherId } },
+        });
+      }
+    },
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
       const next = new Set(prev);
@@ -260,20 +295,20 @@ export default function ContactsPage() {
   const selectedArray = Array.from(selectedIds);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-stone-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900">Contacts</h1>
+            <h1 className="text-2xl font-display font-bold text-stone-900">Contacts</h1>
             {meta && (
-              <p className="text-sm text-gray-500 mt-0.5">
-                {meta.total} total contacts
+              <p className="text-sm text-stone-500 mt-0.5">
+                <span className="font-mono-data">{meta.total}</span> total contacts
               </p>
             )}
           </div>
           <Link
             href="/contacts/new"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 transition-colors btn-press"
           >
             <Plus className="w-4 h-4" />
             Add Contact
@@ -282,7 +317,7 @@ export default function ContactsPage() {
 
         <div className="flex gap-2 mb-4">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
             <input
               type="text"
               placeholder="Search by name, company, or email..."
@@ -295,21 +330,21 @@ export default function ContactsPage() {
                   setParams({ q: value || undefined });
                 }, 300);
               }}
-              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+              className="w-full pl-9 pr-4 py-2.5 rounded-lg border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
             />
           </div>
           <button
             onClick={() => setParams({ filters: showFilters ? undefined : "1", page: String(page) })}
             className={`inline-flex items-center gap-1.5 px-3 py-2.5 rounded-lg border text-sm font-medium transition-colors ${
               showFilters || activeFilterCount > 0
-                ? "bg-blue-50 border-blue-300 text-blue-700"
-                : "bg-white border-gray-300 text-gray-600 hover:bg-gray-50"
+                ? "bg-teal-50 border-teal-300 text-teal-700"
+                : "bg-white border-stone-300 text-stone-600 hover:bg-stone-50"
             }`}
           >
             <Filter className="w-4 h-4" />
             Filters
             {activeFilterCount > 0 && (
-              <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-blue-600 text-white">
+              <span className="ml-0.5 inline-flex items-center justify-center w-5 h-5 text-xs rounded-full bg-teal-600 text-white font-mono-data">
                 {activeFilterCount}
               </span>
             )}
@@ -317,14 +352,14 @@ export default function ContactsPage() {
         </div>
 
         {showFilters && (
-          <div className="mb-4 p-4 bg-white rounded-lg border border-gray-200 grid grid-cols-2 md:grid-cols-4 gap-3">
+          <div className="mb-4 p-4 bg-white rounded-lg border border-stone-200 grid grid-cols-2 md:grid-cols-4 gap-3">
             <div>
-              <label htmlFor="filter-tag" className="block text-xs font-medium text-gray-500 mb-1">Tag</label>
+              <label htmlFor="filter-tag" className="block text-xs font-medium text-stone-500 mb-1">Tag</label>
               <select
                 id="filter-tag"
                 value={tagFilter}
                 onChange={(e) => setParams({ tag: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
               >
                 <option value="">All tags</option>
                 {allTags.map((t) => (
@@ -333,12 +368,12 @@ export default function ContactsPage() {
               </select>
             </div>
             <div>
-              <label htmlFor="filter-source" className="block text-xs font-medium text-gray-500 mb-1">Source</label>
+              <label htmlFor="filter-source" className="block text-xs font-medium text-stone-500 mb-1">Source</label>
               <select
                 id="filter-source"
                 value={sourceFilter}
                 onChange={(e) => setParams({ source: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
               >
                 <option value="">All sources</option>
                 {Object.entries(sourceLabels).map(([value, label]) => (
@@ -347,23 +382,23 @@ export default function ContactsPage() {
               </select>
             </div>
             <div>
-              <label htmlFor="filter-from" className="block text-xs font-medium text-gray-500 mb-1">From</label>
+              <label htmlFor="filter-from" className="block text-xs font-medium text-stone-500 mb-1">From</label>
               <input
                 id="filter-from"
                 type="date"
                 value={dateFrom}
                 onChange={(e) => setParams({ date_from: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
               />
             </div>
             <div>
-              <label htmlFor="filter-to" className="block text-xs font-medium text-gray-500 mb-1">To</label>
+              <label htmlFor="filter-to" className="block text-xs font-medium text-stone-500 mb-1">To</label>
               <input
                 id="filter-to"
                 type="date"
                 value={dateTo}
                 onChange={(e) => setParams({ date_to: e.target.value || undefined })}
-                className="w-full px-2.5 py-2 rounded-md border border-gray-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                className="w-full px-2.5 py-2 rounded-md border border-stone-300 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-teal-400"
               />
             </div>
           </div>
@@ -372,25 +407,25 @@ export default function ContactsPage() {
         {activeFilterCount > 0 && (
           <div className="flex flex-wrap items-center gap-2 mb-4">
             {scoreFilter && scoreTierLabels[scoreFilter] && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-blue-50 text-blue-700 border border-blue-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-teal-50 text-teal-700 border border-teal-200">
                 Score: {scoreTierLabels[scoreFilter]}
-                <button onClick={() => setParams({ score: undefined })} className="ml-0.5 hover:text-blue-900">
+                <button onClick={() => setParams({ score: undefined })} className="ml-0.5 hover:text-teal-900">
                   <X className="w-3 h-3" />
                 </button>
               </span>
             )}
             {tagFilter && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-green-50 text-green-700 border border-green-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
                 Tag: {tagFilter}
-                <button onClick={() => setParams({ tag: undefined })} className="ml-0.5 hover:text-green-900">
+                <button onClick={() => setParams({ tag: undefined })} className="ml-0.5 hover:text-emerald-900">
                   <X className="w-3 h-3" />
                 </button>
               </span>
             )}
             {sourceFilter && (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-purple-50 text-purple-700 border border-purple-200">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-full bg-violet-50 text-violet-700 border border-violet-200">
                 Source: {sourceLabels[sourceFilter] ?? sourceFilter}
-                <button onClick={() => setParams({ source: undefined })} className="ml-0.5 hover:text-purple-900">
+                <button onClick={() => setParams({ source: undefined })} className="ml-0.5 hover:text-violet-900">
                   <X className="w-3 h-3" />
                 </button>
               </span>
@@ -407,7 +442,7 @@ export default function ContactsPage() {
               onClick={() => {
                 router.replace("/contacts", { scroll: false });
               }}
-              className="text-xs text-gray-500 hover:text-gray-700 underline"
+              className="text-xs text-stone-500 hover:text-stone-700 underline"
             >
               Clear all
             </button>
@@ -419,7 +454,7 @@ export default function ContactsPage() {
           <BulkActionBar
             selectedCount={selectedIds.size}
             allTags={allTags}
-            isPending={bulkUpdate.isPending}
+            isPending={bulkUpdate.isPending || mergeMutation.isPending}
             onAddTag={(tag) =>
               bulkUpdate.mutate({ contact_ids: selectedArray, add_tags: [tag] })
             }
@@ -429,12 +464,17 @@ export default function ContactsPage() {
             onSetPriority={(level) =>
               bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: level })
             }
+            onMerge={() => {
+              if (selectedArray.length >= 2 && confirm(`Merge ${selectedArray.length} contacts into one? This cannot be undone.`)) {
+                mergeMutation.mutate(selectedArray);
+              }
+            }}
             onClear={() => setSelectedIds(new Set())}
           />
         )}
 
         {isLoading && (
-          <div className="text-center py-12 text-gray-400">Loading contacts...</div>
+          <div className="text-center py-12 text-stone-400">Loading contacts...</div>
         )}
 
         {isError && (
@@ -444,32 +484,56 @@ export default function ContactsPage() {
         )}
 
         {!isLoading && !isError && contacts.length === 0 && (
-          <div className="text-center py-12 text-gray-400">
+          <div className="text-center py-12 text-stone-400">
             No contacts found.
           </div>
         )}
 
         {contacts.length > 0 && (
-          <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+          <div className="bg-white rounded-lg border border-stone-200 overflow-hidden">
             <table className="w-full text-sm">
               <thead>
-                <tr className="bg-gray-50 border-b border-gray-200">
+                <tr className="bg-stone-50 border-b border-stone-200">
                   <th className="w-10 px-4 py-3">
                     <input
                       type="checkbox"
                       checked={contacts.length > 0 && selectedIds.size === contacts.length}
                       onChange={toggleSelectAll}
-                      className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      className="w-4 h-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
                       aria-label="Select all contacts"
                     />
                   </th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Name</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Company</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Score</th>
-                  <th className="text-left px-4 py-3 font-medium text-gray-600">Last Interaction</th>
+                  <th
+                    className="text-left px-4 py-3 font-medium text-stone-600 cursor-pointer select-none hover:text-stone-900"
+                    onClick={() => setParams({ sort: sortParam === "created" ? "score" : "created" })}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      Name
+                      {sortParam === "created" && <ArrowDown className="w-3 h-3 text-teal-600" />}
+                    </span>
+                  </th>
+                  <th className="text-left px-4 py-3 font-medium text-stone-600">Company</th>
+                  <th
+                    className="text-left px-4 py-3 font-medium text-stone-600 cursor-pointer select-none hover:text-stone-900"
+                    onClick={() => setParams({ sort: sortParam === "score" ? "created" : "score" })}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      Score
+                      {sortParam === "score" && <ArrowDown className="w-3 h-3 text-teal-600" />}
+                    </span>
+                  </th>
+                  <th
+                    className="text-left px-4 py-3 font-medium text-stone-600 cursor-pointer select-none hover:text-stone-900"
+                    onClick={() => setParams({ sort: sortParam === "interaction" ? "score" : "interaction" })}
+                  >
+                    <span className="inline-flex items-center gap-1">
+                      Last Interaction
+                      {sortParam === "interaction" && <ArrowDown className="w-3 h-3 text-teal-600" />}
+                    </span>
+                  </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-100">
+              <tbody className="divide-y divide-stone-100">
                 {contacts.map((contact) => {
                   const name =
                     contact.full_name ??
@@ -479,21 +543,21 @@ export default function ContactsPage() {
                   return (
                     <tr
                       key={contact.id}
-                      className={`hover:bg-gray-50 ${isSelected ? "bg-blue-50" : ""}`}
+                      className={`transition-colors ${isSelected ? "bg-teal-50" : "hover:bg-stone-50"}`}
                     >
                       <td className="w-10 px-4 py-3">
                         <input
                           type="checkbox"
                           checked={isSelected}
                           onChange={() => toggleSelect(contact.id)}
-                          className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="w-4 h-4 rounded border-stone-300 text-teal-600 focus:ring-teal-500"
                           aria-label={`Select ${name}`}
                         />
                       </td>
                       <td className="px-4 py-3">
                         <Link
                           href={`/contacts/${contact.id}`}
-                          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+                          className="flex items-center gap-2 text-teal-700 hover:text-teal-900 font-medium"
                         >
                           <ContactAvatar
                             avatarUrl={contact.avatar_url}
@@ -503,13 +567,13 @@ export default function ContactsPage() {
                           {name}
                         </Link>
                       </td>
-                      <td className="px-4 py-3 text-gray-600">
+                      <td className="px-4 py-3 text-stone-600">
                         {contact.company ?? "-"}
                       </td>
                       <td className="px-4 py-3">
                         <ScoreBadge score={contact.relationship_score} />
                       </td>
-                      <td className="px-4 py-3 text-gray-500">
+                      <td className="px-4 py-3 text-stone-500">
                         {contact.last_interaction_at
                           ? formatDistanceToNow(new Date(contact.last_interaction_at), {
                               addSuffix: true,
@@ -529,17 +593,17 @@ export default function ContactsPage() {
             <button
               disabled={page <= 1}
               onClick={() => setParams({ page: String(page - 1) })}
-              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 disabled:opacity-40 hover:bg-gray-100"
+              className="px-3 py-1.5 text-sm rounded-md border border-stone-300 disabled:opacity-40 hover:bg-stone-100 btn-press"
             >
               Previous
             </button>
-            <span className="text-sm text-gray-500">
-              Page {page} of {meta.total_pages}
+            <span className="text-sm text-stone-500">
+              Page <span className="font-mono-data">{page}</span> of <span className="font-mono-data">{meta.total_pages}</span>
             </span>
             <button
               disabled={page >= meta.total_pages}
               onClick={() => setParams({ page: String(page + 1) })}
-              className="px-3 py-1.5 text-sm rounded-md border border-gray-300 disabled:opacity-40 hover:bg-gray-100"
+              className="px-3 py-1.5 text-sm rounded-md border border-stone-300 disabled:opacity-40 hover:bg-stone-100 btn-press"
             >
               Next
             </button>

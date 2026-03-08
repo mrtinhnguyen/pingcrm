@@ -59,6 +59,7 @@ async def list_contacts(
     score: str | None = Query(None, description="Filter by score tier: strong (8-10), active (4-7), dormant (0-3)"),
     date_from: str | None = Query(None, description="Filter contacts created on or after this date (YYYY-MM-DD)"),
     date_to: str | None = Query(None, description="Filter contacts created on or before this date (YYYY-MM-DD)"),
+    sort: str = Query("score", pattern="^(score|created|interaction)$"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> ContactListResponse:
@@ -75,6 +76,7 @@ async def list_contacts(
         score=score,
         date_from=date_from,
         date_to=date_to,
+        sort_by=sort,
     )
 
 
@@ -427,6 +429,51 @@ async def contact_stats(
         },
         "error": None,
     }
+
+
+@router.get("/birthdays")
+async def get_upcoming_birthdays(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Return contacts with birthdays in the next 7 days."""
+    from datetime import UTC, datetime, timedelta
+
+    now = datetime.now(UTC)
+    today = now.date()
+    upcoming_mmdd = [(today + timedelta(days=d)).strftime("%m-%d") for d in range(7)]
+    upcoming_set = set(upcoming_mmdd)
+
+    result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == current_user.id,
+            Contact.priority_level != "archived",
+            Contact.birthday.isnot(None),
+        )
+    )
+    contacts = result.scalars().all()
+
+    matches = []
+    for contact in contacts:
+        bday = contact.birthday.strip()
+        mmdd = bday[-5:]  # supports "MM-DD" and "YYYY-MM-DD"
+        if mmdd not in upcoming_set:
+            continue
+        days_away = upcoming_mmdd.index(mmdd)
+        matches.append((days_away, contact))
+
+    matches.sort(key=lambda x: x[0])
+    matches = matches[:10]
+
+    return envelope(
+        [
+            {
+                **ContactResponse.model_validate(c).model_dump(),
+                "days_until_birthday": days,
+            }
+            for days, c in matches
+        ]
+    )
 
 
 @router.post("", response_model=Envelope[ContactResponse], status_code=status.HTTP_201_CREATED)
@@ -830,15 +877,19 @@ async def enrich_contact(
     if not contact:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
 
-    if not contact.emails:
+    if not contact.emails and not contact.linkedin_url:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Contact has no email addresses. An email is required for enrichment.",
+            detail="Contact has no email or LinkedIn URL. At least one is required for enrichment.",
         )
 
     from app.integrations.apollo import enrich_person
 
-    enriched = await enrich_person(contact.emails[0])
+    # Prefer email over LinkedIn URL for higher match quality
+    enriched = await enrich_person(
+        email=contact.emails[0] if contact.emails else None,
+        linkedin_url=contact.linkedin_url if not contact.emails else None,
+    )
     if not enriched:
         return envelope({"fields_updated": [], "source": "apollo"})
 

@@ -67,6 +67,7 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
     time_based: "No interaction in 90+ days",
     event_based: "New event detected",
     scheduled: "Scheduled follow-up",
+    birthday: "🎂 Birthday coming up",
   };
   const triggerReason = triggerLabels[suggestion.trigger_type] ?? suggestion.trigger_type;
 

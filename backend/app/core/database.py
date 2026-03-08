@@ -18,8 +18,8 @@ from app.core.config import settings
 #   - On any exception              → session.rollback()
 #   This keeps transaction boundaries at the HTTP request level.
 #
-# Celery tasks manage their own sessions independently (AsyncSessionLocal()
-# context manager) and are responsible for their own commit/rollback.
+# Celery tasks use task_session() (see below) which creates an isolated
+# engine per task invocation.  They are responsible for their own commit/rollback.
 #
 # Reference: Phase 5.2 in Plans-archive.md
 # ---------------------------------------------------------------------------
@@ -37,6 +37,50 @@ AsyncSessionLocal = async_sessionmaker(
 )
 
 Base = declarative_base()
+
+
+# ---------------------------------------------------------------------------
+# Task-scoped session for Celery workers
+# ---------------------------------------------------------------------------
+# asyncio.run() creates a new event loop per task. Reusing the module-level
+# engine across event loops can cause "another operation is in progress"
+# errors because asyncpg connections are tied to a single event loop.
+#
+# task_session() creates a short-lived engine + session scoped to one task
+# invocation, then disposes the engine when done. This guarantees connection
+# isolation between concurrent Celery tasks.
+# ---------------------------------------------------------------------------
+
+from contextlib import asynccontextmanager
+
+
+@asynccontextmanager
+async def task_session() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an isolated async session for a Celery task.
+
+    Creates a dedicated engine (with a small pool) per task invocation so
+    that concurrent Celery tasks never share asyncpg connections across
+    event loops.
+    """
+    task_engine = create_async_engine(
+        settings.DATABASE_URL,
+        echo=False,
+        future=True,
+        pool_size=2,
+        max_overflow=0,
+        pool_pre_ping=True,
+    )
+    factory = async_sessionmaker(
+        bind=task_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+    async with factory() as session:
+        try:
+            yield session
+        finally:
+            await session.close()
+    await task_engine.dispose()
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:

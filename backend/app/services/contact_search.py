@@ -114,6 +114,7 @@ async def list_contacts_paginated(
     score: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
+    sort_by: str = "score",
 ) -> ContactListResponse:
     """Execute a filtered, paginated contact query and return the response model."""
     base_query = build_contact_filter_query(
@@ -129,11 +130,16 @@ async def list_contacts_paginated(
     count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
     total = count_result.scalar_one()
 
+    if sort_by == "created":
+        order_clause = [Contact.created_at.desc()]
+    elif sort_by == "interaction":
+        order_clause = [Contact.last_interaction_at.desc().nullslast()]
+    else:
+        order_clause = [Contact.relationship_score.desc(), Contact.created_at.desc()]
+
     offset = (page - 1) * page_size
     result = await db.execute(
-        base_query.order_by(
-            Contact.relationship_score.desc(), Contact.created_at.desc()
-        ).offset(offset).limit(page_size)
+        base_query.order_by(*order_clause).offset(offset).limit(page_size)
     )
     contacts = result.scalars().all()
 

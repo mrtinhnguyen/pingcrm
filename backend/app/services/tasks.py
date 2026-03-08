@@ -9,7 +9,7 @@ from celery import shared_task
 from sqlalchemy import select
 
 from app.core.celery_app import celery_app  # noqa: F401 — registers the app
-from app.core.database import AsyncSessionLocal
+from app.core.database import task_session
 from app.models.contact import Contact
 from app.models.user import User
 
@@ -25,7 +25,7 @@ async def _notify_sync_failure(user_id: uuid.UUID, platform: str, error: str) ->
     """Create a notification when a background sync exhausts retries."""
     from app.models.notification import Notification
 
-    async with AsyncSessionLocal() as db:
+    async with task_session() as db:
         db.add(Notification(
             user_id=user_id,
             notification_type="sync",
@@ -55,7 +55,7 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.gmail import sync_gmail_for_user as _gmail_sync
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
@@ -90,7 +90,7 @@ def sync_gmail_all() -> dict:
         A dict with ``queued`` count.
     """
     async def _get_user_ids() -> list[str]:
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(
                 select(User.id).where(User.google_refresh_token.isnot(None))
             )
@@ -125,7 +125,7 @@ def sync_telegram_for_user(self, user_id: str) -> dict:
         from app.models.notification import Notification
         from app.services.scoring import calculate_score
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
@@ -209,7 +209,7 @@ def sync_telegram_all() -> dict:
         A dict with ``queued`` count.
     """
     async def _get_user_ids() -> list[str]:
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(
                 select(User.id).where(User.telegram_session.isnot(None))
             )
@@ -242,14 +242,15 @@ def generate_weekly_suggestions(self, user_id: str) -> dict:
         from app.services.followup_engine import generate_suggestions
         from app.services.notifications import notify_new_suggestions
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
                 logger.warning("generate_weekly_suggestions: user %s not found.", uid)
                 return {"status": "user_not_found", "generated": 0}
 
-            suggestions = await generate_suggestions(uid, db)
+            ps = user.priority_settings
+            suggestions = await generate_suggestions(uid, db, priority_settings=ps)
             if suggestions:
                 await notify_new_suggestions(uid, len(suggestions), db)
             await db.commit()
@@ -282,7 +283,7 @@ def send_weekly_digests() -> dict:
         sent = 0
         errors = 0
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User.id))
             user_ids = result.scalars().all()
 
@@ -299,6 +300,44 @@ def send_weekly_digests() -> dict:
     result = _run(_send_all())
     logger.info(
         "send_weekly_digests: sent=%d errors=%d", result["sent"], result["errors"]
+    )
+    return result
+
+
+@shared_task(name="app.services.tasks.generate_suggestions_all")
+def generate_suggestions_all() -> dict:
+    """Daily task: generate follow-up suggestions (incl. birthday) for all users."""
+    async def _generate_all() -> dict:
+        from app.services.followup_engine import generate_suggestions
+        from app.services.notifications import notify_new_suggestions
+
+        generated = 0
+        errors = 0
+
+        async with task_session() as db:
+            result = await db.execute(select(User))
+            users = result.scalars().all()
+
+            for user in users:
+                try:
+                    suggestions = await generate_suggestions(
+                        user.id, db, priority_settings=user.priority_settings,
+                    )
+                    if suggestions:
+                        await notify_new_suggestions(user.id, len(suggestions), db)
+                    generated += len(suggestions)
+                except Exception:
+                    logger.exception("generate_suggestions_all: failed for user %s.", user.id)
+                    errors += 1
+
+            await db.commit()
+
+        return {"generated": generated, "errors": errors}
+
+    result = _run(_generate_all())
+    logger.info(
+        "generate_suggestions_all: generated=%d errors=%d",
+        result["generated"], result["errors"],
     )
     return result
 
@@ -322,7 +361,7 @@ def update_relationship_scores() -> dict:
         updated = 0
         errors = 0
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(Contact.id))
             contact_ids = result.scalars().all()
 
@@ -374,7 +413,7 @@ def poll_twitter_activity(self, user_id: str) -> dict:
         from app.services.event_classifier import process_contact_activity
         from app.services.notifications import notify_detected_event
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
@@ -436,20 +475,19 @@ def poll_twitter_activity(self, user_id: str) -> dict:
 
 @shared_task(name="app.services.tasks.sync_twitter_dms_for_user", bind=True, max_retries=3)
 def sync_twitter_dms_for_user(self, user_id: str) -> dict:
-    """Full Twitter sync: DMs + mentions + bios + scores + notification."""
+    """Twitter sync: DMs + mentions + replies + scores + notification."""
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.twitter import (
             sync_twitter_dms,
             sync_twitter_mentions,
             sync_twitter_replies,
-            sync_twitter_bios,
             _user_bearer_headers,
             _build_twitter_id_to_contact_map,
         )
         from app.models.notification import Notification
         from app.services.scoring import calculate_score
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
@@ -465,12 +503,7 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
             dm_interactions = dm_result["new_interactions"] if isinstance(dm_result, dict) else dm_result
             new_contacts = dm_result.get("new_contacts", 0) if isinstance(dm_result, dict) else 0
 
-            # Sync bios
-            bio_result = {"bios_updated": 0, "bio_changes": 0}
-            try:
-                bio_result = await sync_twitter_bios(user, db)
-            except Exception:
-                logger.warning("sync_twitter: bio sync failed for %s", uid)
+            # Bio sync handled by poll_twitter_activity (runs in same beat cycle)
 
             # Recalculate scores
             try:
@@ -492,8 +525,6 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
                 parts.append(f"{replies} replies")
             if new_contacts:
                 parts.append(f"{new_contacts} new contacts")
-            if bio_result.get("bio_changes"):
-                parts.append(f"{bio_result['bio_changes']} bio changes")
             db.add(Notification(
                 user_id=uid,
                 notification_type="sync",
@@ -521,7 +552,7 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
 
 @shared_task(name="app.services.tasks.poll_twitter_all")
 def poll_twitter_all() -> dict:
-    """Beat-scheduled task: enqueue poll_twitter_activity + DM sync for every user
+    """Beat-scheduled task (daily): enqueue poll_twitter_activity + DM sync for every user
     that has a twitter_refresh_token set.
 
     Only users with Twitter connected (twitter_refresh_token IS NOT NULL) are
@@ -531,7 +562,7 @@ def poll_twitter_all() -> dict:
         A dict with ``queued`` count.
     """
     async def _get_user_ids() -> list[str]:
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(
                 select(User.id).where(User.twitter_refresh_token.isnot(None))
             )
@@ -560,7 +591,7 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
         from app.models.google_account import GoogleAccount
         from app.models.notification import Notification
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
@@ -577,7 +608,9 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
 
             created_count = 0
             updated_count = 0
+            archived_count = 0
             errors: list[str] = []
+            seen_resource_names: set[str] = set()
 
             for account_email, token in refresh_tokens:
                 try:
@@ -589,6 +622,10 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
 
                 for fields in google_contacts:
                     try:
+                        resource_name = fields.get("resource_name")
+                        if resource_name:
+                            seen_resource_names.add(resource_name)
+
                         raw_name = fields.get("full_name")
                         # Parse "Name | Company" patterns
                         if raw_name and not fields.get("company"):
@@ -601,7 +638,19 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
 
                         emails = fields.get("emails") or []
                         existing = None
-                        if emails:
+
+                        # Match by google_resource_name first
+                        if resource_name:
+                            r = await db.execute(
+                                select(Contact).where(
+                                    Contact.user_id == uid,
+                                    Contact.google_resource_name == resource_name,
+                                ).limit(1)
+                            )
+                            existing = r.scalar_one_or_none()
+
+                        # Fall back to email matching
+                        if not existing and emails:
                             for email in emails:
                                 r = await db.execute(
                                     select(Contact).where(
@@ -627,6 +676,9 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                             new_phones = [p for p in fields.get("phones", []) if p not in (existing.phones or [])]
                             if new_phones:
                                 existing.phones = list(existing.phones or []) + new_phones
+                            # Stamp resource_name on existing contacts
+                            if resource_name and not existing.google_resource_name:
+                                existing.google_resource_name = resource_name
                             updated_count += 1
                         else:
                             contact = Contact(
@@ -639,6 +691,7 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                                 company=fields.get("company"),
                                 title=fields.get("title"),
                                 source="google",
+                                google_resource_name=resource_name,
                             )
                             db.add(contact)
                             created_count += 1
@@ -646,11 +699,32 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                         name_hint = fields.get("full_name") or ", ".join(fields.get("emails", [])[:1]) or "unknown"
                         errors.append(f"{name_hint}: {exc}")
 
+            # Archive contacts deleted from Google
+            if seen_resource_names:
+                stale_result = await db.execute(
+                    select(Contact).where(
+                        Contact.user_id == uid,
+                        Contact.google_resource_name.isnot(None),
+                        Contact.google_resource_name.notin_(seen_resource_names),
+                        Contact.priority_level != "archived",
+                    )
+                )
+                for stale in stale_result.scalars().all():
+                    stale.priority_level = "archived"
+                    archived_count += 1
+                if archived_count:
+                    logger.info(
+                        "sync_google_contacts: archived %d contact(s) deleted from Google for user %s",
+                        archived_count, uid,
+                    )
+
             parts = []
             if created_count:
                 parts.append(f"{created_count} new")
             if updated_count:
                 parts.append(f"{updated_count} updated")
+            if archived_count:
+                parts.append(f"{archived_count} archived")
             if errors:
                 parts.append(f"{len(errors)} errors")
             body = ", ".join(parts) if parts else "No changes"
@@ -689,7 +763,7 @@ def sync_google_calendar_for_user(self, user_id: str) -> dict:
         from app.models.google_account import GoogleAccount
         from app.models.notification import Notification
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
@@ -764,7 +838,7 @@ def reactivate_snoozed_suggestions() -> dict:
         from app.models.follow_up import FollowUpSuggestion
         from sqlalchemy import update
 
-        async with AsyncSessionLocal() as db:
+        async with task_session() as db:
             now = datetime.now(UTC)
             result = await db.execute(
                 update(FollowUpSuggestion)
@@ -782,3 +856,111 @@ def reactivate_snoozed_suggestions() -> dict:
     count = _run(_reactivate())
     logger.info("reactivate_snoozed_suggestions: reactivated %d suggestion(s).", count)
     return {"reactivated": count}
+
+
+# ---------------------------------------------------------------------------
+# Auto-tagging task
+# ---------------------------------------------------------------------------
+
+
+@shared_task(name="app.services.tasks.apply_tags_to_contacts", bind=True, max_retries=2)
+def apply_tags_to_contacts(self, user_id: str, contact_ids: list[str] | None = None) -> dict:
+    """Apply approved taxonomy tags to contacts in bulk.
+
+    Args:
+        user_id: String representation of the user's UUID.
+        contact_ids: Optional list of contact ID strings. If None, tags all non-archived contacts.
+
+    Returns:
+        A dict with ``tagged_count`` and ``status``.
+    """
+    async def _apply(uid: uuid.UUID) -> dict:
+        from app.models.interaction import Interaction
+        from app.models.notification import Notification
+        from app.models.tag_taxonomy import TagTaxonomy
+        from app.services.auto_tagger import assign_tags, merge_tags
+
+        async with task_session() as db:
+            # Load taxonomy
+            tax_result = await db.execute(
+                select(TagTaxonomy).where(
+                    TagTaxonomy.user_id == uid,
+                    TagTaxonomy.status == "approved",
+                )
+            )
+            taxonomy = tax_result.scalar_one_or_none()
+            if not taxonomy:
+                return {"status": "no_taxonomy", "tagged_count": 0}
+
+            # Load contacts
+            if contact_ids:
+                cid_uuids = [uuid.UUID(c) for c in contact_ids]
+                result = await db.execute(
+                    select(Contact).where(
+                        Contact.id.in_(cid_uuids),
+                        Contact.user_id == uid,
+                    )
+                )
+            else:
+                result = await db.execute(
+                    select(Contact).where(
+                        Contact.user_id == uid,
+                        Contact.priority_level != "archived",
+                    )
+                )
+            contacts = list(result.scalars().all())
+
+            tagged = 0
+            for contact in contacts:
+                try:
+                    # Get interaction topics
+                    int_result = await db.execute(
+                        select(Interaction.content_preview).where(
+                            Interaction.contact_id == contact.id,
+                            Interaction.content_preview.isnot(None),
+                        ).order_by(Interaction.occurred_at.desc()).limit(10)
+                    )
+                    topics = [row[0][:100] for row in int_result.all() if row[0]]
+
+                    contact_data = {
+                        "full_name": contact.full_name,
+                        "title": contact.title,
+                        "company": contact.company,
+                        "twitter_bio": contact.twitter_bio,
+                        "telegram_bio": contact.telegram_bio,
+                        "notes": contact.notes,
+                        "tags": contact.tags,
+                        "location": contact.location,
+                        "interaction_topics": topics,
+                    }
+                    new_tags = await assign_tags(contact_data, taxonomy.categories)
+                    if new_tags:
+                        contact.tags = merge_tags(contact.tags, new_tags)
+                        tagged += 1
+                except Exception:
+                    logger.warning(
+                        "apply_tags_to_contacts: failed for contact %s", contact.id
+                    )
+
+            # Notification
+            db.add(Notification(
+                user_id=uid,
+                notification_type="tagging",
+                title="Auto-tagging completed",
+                body=f"Tagged {tagged} of {len(contacts)} contacts",
+                link="/contacts/tags",
+            ))
+            await db.commit()
+
+        return {"status": "ok", "tagged_count": tagged}
+
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return {"status": "invalid_user_id", "tagged_count": 0}
+
+    try:
+        return _run(_apply(uid))
+    except Exception as exc:
+        logger.exception("apply_tags_to_contacts failed for %s, retrying.", user_id)
+        raise self.retry(exc=exc, countdown=30) from exc

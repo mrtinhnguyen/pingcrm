@@ -58,6 +58,7 @@ class Contact(Base):
 
     priority_level: Mapped[str] = mapped_column(String, default="medium", nullable=False)
     source: Mapped[str | None] = mapped_column(String, nullable=True)
+    google_resource_name: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

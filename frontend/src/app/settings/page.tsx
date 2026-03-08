@@ -1,8 +1,8 @@
 "use client";
 
 import { Suspense, useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "next/navigation";
-import { Mail, MessageCircle, Twitter, RefreshCw, Check, AlertCircle, CheckCircle2, X, Clock, Calendar } from "lucide-react";
+import { useSearchParams, useRouter } from "next/navigation";
+import { Mail, MessageCircle, Twitter, RefreshCw, Check, AlertCircle, CheckCircle2, X, Clock, Calendar, Save } from "lucide-react";
 import { Upload } from "lucide-react";
 import { client } from "@/lib/api-client";
 import { CsvImport } from "@/components/csv-import";
@@ -366,6 +366,119 @@ function LinkedInMessagesImport() {
   );
 }
 
+interface PrioritySettings {
+  high: number;
+  medium: number;
+  low: number;
+}
+
+function PriorityTab() {
+  const [settings, setSettings] = useState<PrioritySettings>({ high: 30, medium: 60, low: 180 });
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
+  const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await client.GET("/api/v1/settings/priority" as any, {});
+        const ps = (data as any)?.data;
+        if (ps) setSettings({ high: ps.high, medium: ps.medium, low: ps.low });
+      } catch {
+        // use defaults
+      } finally {
+        setIsLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    setFeedback(null);
+    try {
+      const { data, error } = await client.PUT("/api/v1/settings/priority" as any, {
+        body: settings,
+      });
+      if (error) {
+        setFeedback({ type: "error", message: (error as any)?.detail ?? "Failed to save" });
+      } else {
+        const ps = (data as any)?.data;
+        if (ps) setSettings({ high: ps.high, medium: ps.medium, low: ps.low });
+        setFeedback({ type: "success", message: "Priority settings saved" });
+      }
+    } catch {
+      setFeedback({ type: "error", message: "Failed to save" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const clamp = (v: number) => Math.max(7, Math.min(365, v));
+
+  const levels: { key: keyof PrioritySettings; label: string; color: string; bg: string }[] = [
+    { key: "high", label: "High", color: "text-red-700", bg: "bg-red-50 border-red-200" },
+    { key: "medium", label: "Medium", color: "text-yellow-700", bg: "bg-yellow-50 border-yellow-200" },
+    { key: "low", label: "Low", color: "text-gray-600", bg: "bg-gray-50 border-gray-200" },
+  ];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 text-sm text-gray-400 mt-8 justify-center">
+        <RefreshCw className="w-4 h-4 animate-spin" />
+        Loading settings...
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-lg border border-gray-200 p-5">
+      <h3 className="text-sm font-semibold text-gray-900 mb-1">Follow-up Intervals</h3>
+      <p className="text-xs text-gray-500 mb-5">
+        Configure how often you&apos;d like to be reminded to follow up with contacts based on their priority level.
+      </p>
+
+      <div className="space-y-4">
+        {levels.map(({ key, label, color, bg }) => (
+          <div key={key} className="flex items-center gap-3">
+            <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${bg} ${color} w-20 justify-center`}>
+              {label}
+            </span>
+            <div className="flex items-center gap-2 flex-1">
+              <span className="text-sm text-gray-600">Every</span>
+              <input
+                type="number"
+                min={7}
+                max={365}
+                value={settings[key]}
+                onChange={(e) => setSettings((s) => ({ ...s, [key]: clamp(Number(e.target.value) || 7) }))}
+                className="w-20 px-2 py-1.5 rounded-lg border border-gray-300 text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <span className="text-sm text-gray-500">days</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-5 flex items-center gap-3">
+        <button
+          onClick={handleSave}
+          disabled={isSaving}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
+        >
+          {isSaving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+          Save
+        </button>
+        {feedback && (
+          <p className={`text-xs flex items-center gap-1 ${feedback.type === "error" ? "text-red-500" : "text-green-600"}`}>
+            {feedback.type === "error" ? <AlertCircle className="w-3 h-3" /> : <Check className="w-3 h-3" />}
+            {feedback.message}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const defaultState: SyncState = { status: "idle", message: "" };
 
 function SettingsPageInner() {
@@ -391,14 +504,22 @@ function SettingsPageInner() {
   const [telegramStep, setTelegramStep] = useState<"phone" | "code" | "password" | "done">("phone");
   const [showTelegramModal, setShowTelegramModal] = useState(false);
 
-  // Detect OAuth redirect (e.g. ?connected=twitter)
+  // Tab state from URL
   const searchParams = useSearchParams();
+  const router = useRouter();
+  const activeTab = searchParams.get("tab") || "sync";
+
+  const setTab = (tab: string) => {
+    router.replace(`/settings?tab=${tab}`, { scroll: false });
+  };
+
+  // Detect OAuth redirect (e.g. ?connected=twitter)
   useEffect(() => {
     const platform = searchParams.get("connected");
     if (platform) {
       const label = platform.charAt(0).toUpperCase() + platform.slice(1);
       setSuccessPlatform(label);
-      window.history.replaceState({}, "", "/settings");
+      window.history.replaceState({}, "", "/settings?tab=sync");
     }
   }, [searchParams]);
 
@@ -688,8 +809,36 @@ function SettingsPageInner() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-1">Settings</h1>
-        <p className="text-sm text-gray-500 mb-8">Manage connected accounts and sync your contacts.</p>
+        <p className="text-sm text-gray-500 mb-6">Manage connected accounts and sync your contacts.</p>
 
+        {/* Tabs */}
+        <div className="flex gap-1 border-b border-gray-200 mb-6">
+          <button
+            onClick={() => setTab("sync")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "sync"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Connect + Sync
+          </button>
+          <button
+            onClick={() => setTab("priority")}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === "priority"
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Priority
+          </button>
+        </div>
+
+        {activeTab === "priority" ? (
+          <PriorityTab />
+        ) : (
+        <>
         <h2 className="text-sm font-semibold text-gray-700 uppercase tracking-wide mb-3">Connected Accounts</h2>
 
         <div className="space-y-4">
@@ -862,6 +1011,8 @@ function SettingsPageInner() {
             <CsvImport />
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {/* Success modal */}

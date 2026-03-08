@@ -36,3 +36,33 @@
 
 - [x] `cc:完了` Add inline docstring to `get_db()` explaining the auto-commit policy
 - [x] `cc:完了` Add `# TRANSACTION POLICY` comment block at top of `database.py`
+
+---
+
+## Phase 9: AI Auto-Tagging + Maintenance
+
+作成日: 2026-03-08
+
+### 9.1 AI Auto-Tagging Feature (Done)
+
+- [x] `cc:完了` TagTaxonomy model + migration (tag_taxonomies table)
+- [x] `cc:完了` auto_tagger.py service (discover_taxonomy, assign_tags, merge_tags)
+- [x] `cc:完了` API endpoints: /tags/discover, /tags/taxonomy GET/PUT, /tags/apply, /{id}/auto-tag
+- [x] `cc:完了` Celery task: apply_tags_to_contacts for bulk tagging
+- [x] `cc:完了` Frontend: Tags taxonomy page with discover/edit/approve/apply flow
+- [x] `cc:完了` Frontend: Auto-tag kebab menu on contact detail page
+- [x] `cc:完了` Nav: Tags link with correct isActive logic
+- [x] `cc:完了` Review fixes: route ordering, N+1 queries, prompt injection sanitization, status validation
+- [x] `cc:完了` Fix deprecated Haiku model ID (claude-3-5-haiku → claude-haiku-4-5)
+
+### 9.2 Missing Tests: auto_tagger.py (Medium)
+
+- [ ] `cc:TODO` Unit tests for merge_tags (case-insensitive dedup, append-only)
+- [ ] `cc:TODO` Unit tests for _build_contact_summary (sanitization, length caps)
+- [ ] `cc:TODO` Unit tests for _parse_json_response (bare JSON, code fences, invalid)
+- [ ] `cc:TODO` Unit tests for discover_taxonomy (mocked LLM, batching, error propagation)
+- [ ] `cc:TODO` Unit tests for assign_tags (taxonomy validation, case matching)
+
+### 9.3 Login Endpoint Envelope Consistency (Low)
+
+- [ ] `cc:TODO` Wrap /login response in Envelope[TokenData] to match all other endpoints

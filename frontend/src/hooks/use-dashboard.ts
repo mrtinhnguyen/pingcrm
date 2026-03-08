@@ -10,9 +10,15 @@ interface ContactStats {
   dormant: number;
 }
 
+export interface BirthdayContact extends Contact {
+  days_until_birthday: number;
+}
+
 export interface DashboardStats {
   suggestions: Suggestion[];
   recentContacts: Contact[];
+  newContacts: Contact[];
+  upcomingBirthdays: BirthdayContact[];
   totalContacts: number;
   relationshipHealth: {
     strong: number;
@@ -40,6 +46,26 @@ export function useDashboardStats() {
     },
   });
 
+  const newContactsQuery = useQuery({
+    queryKey: ["contacts", { page: 1, page_size: 5, sort: "created" }],
+    queryFn: async () => {
+      const { data } = await client.GET("/api/v1/contacts", {
+        params: { query: { page: 1, page_size: 5, sort: "created" } as Record<string, unknown> },
+      });
+      return data;
+    },
+  });
+
+  const birthdaysQuery = useQuery({
+    queryKey: ["contacts", "birthdays"],
+    queryFn: async () => {
+      const res = await fetch("/api/v1/contacts/birthdays", {
+        credentials: "include",
+      });
+      return res.json();
+    },
+  });
+
   const statsQuery = useQuery({
     queryKey: ["contacts", "stats"],
     queryFn: async () => {
@@ -50,6 +76,8 @@ export function useDashboardStats() {
 
   const suggestions = (suggestionsQuery.data?.data ?? []) as Suggestion[];
   const allContacts = (contactsQuery.data?.data ?? []) as Contact[];
+  const newContacts = (newContactsQuery.data?.data ?? []) as Contact[];
+  const upcomingBirthdays = (birthdaysQuery.data?.data ?? []) as BirthdayContact[];
   const stats = statsQuery.data?.data as ContactStats | undefined;
   const totalContacts =
     stats?.total ?? (contactsQuery.data?.meta as { total?: number } | undefined)?.total ?? 0;
@@ -71,7 +99,11 @@ export function useDashboardStats() {
     : { strong: 0, active: 0, dormant: 0 };
 
   const isLoading =
-    suggestionsQuery.isLoading || contactsQuery.isLoading || statsQuery.isLoading;
+    suggestionsQuery.isLoading ||
+    contactsQuery.isLoading ||
+    newContactsQuery.isLoading ||
+    birthdaysQuery.isLoading ||
+    statsQuery.isLoading;
   const isError =
     suggestionsQuery.isError || contactsQuery.isError || statsQuery.isError;
 
@@ -79,6 +111,8 @@ export function useDashboardStats() {
     data: {
       suggestions,
       recentContacts,
+      newContacts,
+      upcomingBirthdays,
       totalContacts,
       relationshipHealth,
     } satisfies DashboardStats,

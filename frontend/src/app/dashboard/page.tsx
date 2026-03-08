@@ -2,11 +2,11 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
-import { Bell, TrendingUp, Clock, Users, Sparkles, GitMerge, Mail, MessageCircle, Twitter } from "lucide-react";
+import { Bell, TrendingUp, Clock, Users, Sparkles, GitMerge, Mail, MessageCircle, Twitter, UserPlus, Cake } from "lucide-react";
 import { ScoreBadge } from "@/components/score-badge";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { formatDistanceToNow } from "date-fns";
-import { useDashboardStats } from "@/hooks/use-dashboard";
+import { useDashboardStats, type BirthdayContact } from "@/hooks/use-dashboard";
 
 type Channel = "email" | "telegram" | "twitter";
 
@@ -16,84 +16,134 @@ const channelIcons: Record<Channel, ReactNode> = {
   twitter: <Twitter className="w-3 h-3" />,
 };
 
+function RelationshipBar({ strong, active, dormant }: { strong: number; active: number; dormant: number }) {
+  const total = strong + active + dormant;
+  if (total === 0) return null;
+  const strongPct = (strong / total) * 100;
+  const activePct = (active / total) * 100;
+  const dormantPct = (dormant / total) * 100;
+
+  return (
+    <div className="space-y-2">
+      <div className="h-3 rounded-full overflow-hidden flex bg-stone-100">
+        {strongPct > 0 && (
+          <div
+            className="bg-emerald-500 transition-all duration-500"
+            style={{ width: `${strongPct}%` }}
+            title={`Strong: ${strong}`}
+          />
+        )}
+        {activePct > 0 && (
+          <div
+            className="bg-amber-400 transition-all duration-500"
+            style={{ width: `${activePct}%` }}
+            title={`Active: ${active}`}
+          />
+        )}
+        {dormantPct > 0 && (
+          <div
+            className="bg-red-400 transition-all duration-500"
+            style={{ width: `${dormantPct}%` }}
+            title={`Dormant: ${dormant}`}
+          />
+        )}
+      </div>
+      <div className="flex justify-between text-xs">
+        <Link href="/contacts?score=strong" className="flex items-center gap-1.5 text-emerald-700 hover:underline">
+          <span className="w-2 h-2 rounded-full bg-emerald-500" />
+          Strong <span className="font-mono-data">{strong}</span>
+        </Link>
+        <Link href="/contacts?score=active" className="flex items-center gap-1.5 text-amber-700 hover:underline">
+          <span className="w-2 h-2 rounded-full bg-amber-400" />
+          Warm <span className="font-mono-data">{active}</span>
+        </Link>
+        <Link href="/contacts?score=dormant" className="flex items-center gap-1.5 text-red-600 hover:underline">
+          <span className="w-2 h-2 rounded-full bg-red-400" />
+          Cold <span className="font-mono-data">{dormant}</span>
+        </Link>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const { data, isLoading } = useDashboardStats();
 
-  const { suggestions, recentContacts, totalContacts, relationshipHealth } = data;
+  const { suggestions, recentContacts, newContacts, upcomingBirthdays, totalContacts, relationshipHealth } = data;
 
   const topSuggestions = suggestions.filter((s) => s.status === "pending").slice(0, 3);
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-stone-50">
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Page header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-sm text-gray-500 mt-1">Your networking overview</p>
+          <h1 className="text-2xl font-display font-bold text-stone-900">Dashboard</h1>
+          <p className="text-sm text-stone-500 mt-1">Your networking overview</p>
         </div>
 
         {/* Top stats */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-          <div className="bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-md bg-blue-50">
-              <Users className="w-5 h-5 text-blue-600" />
+          <div className="bg-white rounded-lg border border-stone-200 p-4 flex items-center gap-3 card-hover animate-fade-in-up">
+            <div className="p-2 rounded-md bg-teal-50">
+              <Users className="w-5 h-5 text-teal-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-3xl font-bold text-stone-900 font-mono-data">
                 {isLoading ? (
-                  <span className="inline-block w-8 h-6 bg-gray-100 rounded animate-pulse" />
+                  <span className="inline-block w-10 h-8 bg-stone-100 rounded animate-pulse" />
                 ) : (
                   totalContacts
                 )}
               </p>
-              <p className="text-xs text-gray-500">Total Contacts</p>
+              <p className="text-xs text-stone-500">Total Contacts</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-md bg-yellow-50">
-              <Bell className="w-5 h-5 text-yellow-600" />
+          <div className="bg-white rounded-lg border border-stone-200 p-4 flex items-center gap-3 card-hover animate-fade-in-up" style={{ animationDelay: "60ms" }}>
+            <div className="p-2 rounded-md bg-amber-50">
+              <Bell className="w-5 h-5 text-amber-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-3xl font-bold text-stone-900 font-mono-data">
                 {isLoading ? (
-                  <span className="inline-block w-8 h-6 bg-gray-100 rounded animate-pulse" />
+                  <span className="inline-block w-10 h-8 bg-stone-100 rounded animate-pulse" />
                 ) : (
                   suggestions.filter((s) => s.status === "pending").length
                 )}
               </p>
-              <p className="text-xs text-gray-500">Pending Follow-ups</p>
+              <p className="text-xs text-stone-500">Pending Follow-ups</p>
             </div>
           </div>
 
-          <div className="bg-white rounded-lg border border-gray-200 p-4 flex items-center gap-3">
-            <div className="p-2 rounded-md bg-green-50">
-              <TrendingUp className="w-5 h-5 text-green-600" />
+          <div className="bg-white rounded-lg border border-stone-200 p-4 flex items-center gap-3 card-hover animate-fade-in-up" style={{ animationDelay: "120ms" }}>
+            <div className="p-2 rounded-md bg-emerald-50">
+              <TrendingUp className="w-5 h-5 text-emerald-600" />
             </div>
             <div>
-              <p className="text-2xl font-bold text-gray-900">
+              <p className="text-3xl font-bold text-stone-900 font-mono-data">
                 {isLoading ? (
-                  <span className="inline-block w-8 h-6 bg-gray-100 rounded animate-pulse" />
+                  <span className="inline-block w-10 h-8 bg-stone-100 rounded animate-pulse" />
                 ) : (
                   relationshipHealth.strong
                 )}
               </p>
-              <p className="text-xs text-gray-500">Strong Relationships</p>
+              <p className="text-xs text-stone-500">Strong Relationships</p>
             </div>
           </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Reach out this week */}
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <div className="bg-white rounded-lg border border-stone-200 p-5 card-hover">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Sparkles className="w-4 h-4 text-indigo-500" />
+              <h2 className="font-display font-semibold text-stone-900 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-teal-500" />
                 Reach out this week
               </h2>
               <Link
                 href="/suggestions"
-                className="text-xs text-blue-600 hover:underline"
+                className="text-xs text-teal-600 hover:underline"
               >
                 View all
               </Link>
@@ -103,17 +153,20 @@ export default function DashboardPage() {
                 {[1, 2, 3].map((n) => (
                   <div
                     key={n}
-                    className="h-14 rounded-md bg-gray-100 animate-pulse"
+                    className="h-14 rounded-md bg-stone-100 animate-pulse"
                   />
                 ))}
               </div>
             ) : topSuggestions.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">
-                No follow-up suggestions yet.{" "}
-                <Link href="/suggestions" className="text-indigo-600 hover:underline">
-                  Generate suggestions
-                </Link>
-              </p>
+              <div className="text-center py-6">
+                <Sparkles className="w-8 h-8 text-stone-200 mx-auto mb-2 animate-float" />
+                <p className="text-sm text-stone-400">
+                  No follow-up suggestions yet.{" "}
+                  <Link href="/suggestions" className="text-teal-600 hover:underline">
+                    Generate suggestions
+                  </Link>
+                </p>
+              </div>
             ) : (
               <ul className="space-y-1">
                 {topSuggestions.map((s) => {
@@ -122,7 +175,7 @@ export default function DashboardPage() {
                     <li key={s.id}>
                       <Link
                         href={`/contacts/${s.contact_id}`}
-                        className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-stone-50 transition-colors"
                       >
                         <ContactAvatar
                           avatarUrl={s.contact?.avatar_url}
@@ -130,14 +183,14 @@ export default function DashboardPage() {
                           size="sm"
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-800 truncate">
+                          <p className="text-sm font-medium text-stone-800 truncate">
                             {name}
                           </p>
-                          <p className="text-xs text-gray-400 truncate">
-                            {s.trigger_type === "time_based" ? "No interaction in 90+ days" : s.trigger_type === "event_based" ? "New event detected" : "Scheduled follow-up"}
+                          <p className="text-xs text-stone-400 truncate">
+                            {s.trigger_type === "birthday" ? "🎂 Birthday coming up" : s.trigger_type === "time_based" ? "No interaction in 90+ days" : s.trigger_type === "event_based" ? "New event detected" : "Scheduled follow-up"}
                           </p>
                         </div>
-                        <span className="flex-shrink-0 text-gray-400">
+                        <span className="flex-shrink-0 text-stone-400">
                           {channelIcons[s.suggested_channel]}
                         </span>
                       </Link>
@@ -149,15 +202,15 @@ export default function DashboardPage() {
           </div>
 
           {/* Recently contacted */}
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
+          <div className="bg-white rounded-lg border border-stone-200 p-5 card-hover">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <Clock className="w-4 h-4 text-blue-500" />
+              <h2 className="font-display font-semibold text-stone-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-teal-500" />
                 Recently contacted
               </h2>
               <Link
                 href="/contacts"
-                className="text-xs text-blue-600 hover:underline"
+                className="text-xs text-teal-600 hover:underline"
               >
                 View all
               </Link>
@@ -167,17 +220,20 @@ export default function DashboardPage() {
                 {[1, 2, 3, 4, 5].map((n) => (
                   <div
                     key={n}
-                    className="h-10 rounded-md bg-gray-100 animate-pulse"
+                    className="h-10 rounded-md bg-stone-100 animate-pulse"
                   />
                 ))}
               </div>
             ) : recentContacts.length === 0 ? (
-              <p className="text-sm text-gray-400 py-4 text-center">
-                No contacts yet.{" "}
-                <Link href="/contacts" className="text-blue-600 hover:underline">
-                  Add your first contact
-                </Link>
-              </p>
+              <div className="text-center py-6">
+                <Users className="w-8 h-8 text-stone-200 mx-auto mb-2 animate-float" />
+                <p className="text-sm text-stone-400">
+                  No contacts yet.{" "}
+                  <Link href="/contacts" className="text-teal-600 hover:underline">
+                    Add your first contact
+                  </Link>
+                </p>
+              </div>
             ) : (
               <ul className="space-y-1">
                 {recentContacts.map((contact) => {
@@ -191,19 +247,20 @@ export default function DashboardPage() {
                     <li key={contact.id}>
                       <Link
                         href={`/contacts/${contact.id}`}
-                        className="flex items-center gap-3 p-2 rounded-md hover:bg-gray-50 transition-colors"
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-stone-50 transition-colors"
                       >
                         <ContactAvatar
                           avatarUrl={contact.avatar_url}
                           name={name}
                           size="sm"
+                          score={contact.relationship_score}
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-gray-800 truncate">
+                          <p className="text-sm font-medium text-stone-800 truncate">
                             {name}
                           </p>
                           {contact.last_interaction_at && (
-                            <p className="text-xs text-gray-400">
+                            <p className="text-xs text-stone-400">
                               {formatDistanceToNow(
                                 new Date(contact.last_interaction_at),
                                 { addSuffix: true }
@@ -223,62 +280,30 @@ export default function DashboardPage() {
             )}
           </div>
 
-          {/* Relationship health */}
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <TrendingUp className="w-4 h-4 text-green-500" />
+          {/* Relationship health — stacked bar */}
+          <div className="bg-white rounded-lg border border-stone-200 p-5 card-hover">
+            <h2 className="font-display font-semibold text-stone-900 flex items-center gap-2 mb-4">
+              <TrendingUp className="w-4 h-4 text-emerald-500" />
               Relationship health
             </h2>
-            <div className="grid grid-cols-3 gap-3 text-center">
-              <Link
-                href="/contacts?score=strong"
-                className="p-3 rounded-lg bg-green-50 border border-green-100 hover:bg-green-100 transition-colors cursor-pointer"
-              >
-                <p className="text-3xl font-bold text-green-700">
-                  {isLoading ? (
-                    <span className="inline-block w-8 h-8 bg-green-100 rounded animate-pulse" />
-                  ) : (
-                    relationshipHealth.strong
-                  )}
-                </p>
-                <p className="text-xs text-green-600 mt-1">Active (8+)</p>
-              </Link>
-              <Link
-                href="/contacts?score=active"
-                className="p-3 rounded-lg bg-yellow-50 border border-yellow-100 hover:bg-yellow-100 transition-colors cursor-pointer"
-              >
-                <p className="text-3xl font-bold text-yellow-700">
-                  {isLoading ? (
-                    <span className="inline-block w-8 h-8 bg-yellow-100 rounded animate-pulse" />
-                  ) : (
-                    relationshipHealth.active
-                  )}
-                </p>
-                <p className="text-xs text-yellow-600 mt-1">Warm (4-7)</p>
-              </Link>
-              <Link
-                href="/contacts?score=dormant"
-                className="p-3 rounded-lg bg-red-50 border border-red-100 hover:bg-red-100 transition-colors cursor-pointer"
-              >
-                <p className="text-3xl font-bold text-red-700">
-                  {isLoading ? (
-                    <span className="inline-block w-8 h-8 bg-red-100 rounded animate-pulse" />
-                  ) : (
-                    relationshipHealth.dormant
-                  )}
-                </p>
-                <p className="text-xs text-red-600 mt-1">Cold (0-3)</p>
-              </Link>
-            </div>
+            {isLoading ? (
+              <div className="h-20 bg-stone-100 rounded-lg animate-pulse" />
+            ) : (
+              <RelationshipBar
+                strong={relationshipHealth.strong}
+                active={relationshipHealth.active}
+                dormant={relationshipHealth.dormant}
+              />
+            )}
           </div>
 
-          {/* Identity resolution quick link */}
-          <div className="bg-white rounded-lg border border-gray-200 p-5">
-            <h2 className="font-semibold text-gray-900 flex items-center gap-2 mb-4">
-              <GitMerge className="w-4 h-4 text-purple-500" />
-              Recent activity
+          {/* Quick links */}
+          <div className="bg-white rounded-lg border border-stone-200 p-5 card-hover">
+            <h2 className="font-display font-semibold text-stone-900 flex items-center gap-2 mb-4">
+              <GitMerge className="w-4 h-4 text-violet-500" />
+              Quick actions
             </h2>
-            <div className="text-sm text-gray-500 space-y-3">
+            <div className="text-sm text-stone-500 space-y-3">
               <p>
                 Keep your network clean by resolving duplicate contacts and
                 reviewing AI-suggested follow-ups.
@@ -286,20 +311,185 @@ export default function DashboardPage() {
               <div className="flex gap-2">
                 <Link
                   href="/identity"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-purple-200 text-purple-700 bg-purple-50 hover:bg-purple-100 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100 transition-colors btn-press"
                 >
                   <GitMerge className="w-3.5 h-3.5" />
                   Identity resolution
                 </Link>
                 <Link
                   href="/suggestions"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-200 text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-teal-200 text-teal-700 bg-teal-50 hover:bg-teal-100 transition-colors btn-press"
                 >
                   <Sparkles className="w-3.5 h-3.5" />
                   Suggestions digest
                 </Link>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* New contacts + Birthdays row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+          {/* New contacts */}
+          <div className="bg-white rounded-lg border border-stone-200 p-5 card-hover">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-semibold text-stone-900 flex items-center gap-2">
+                <UserPlus className="w-4 h-4 text-teal-500" />
+                New contacts
+              </h2>
+              <Link
+                href="/contacts?sort=created"
+                className="text-xs text-teal-600 hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            {isLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((n) => (
+                  <div
+                    key={n}
+                    className="h-12 rounded-md bg-stone-100 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : newContacts.length === 0 ? (
+              <div className="text-center py-6">
+                <UserPlus className="w-8 h-8 text-stone-200 mx-auto mb-2 animate-float" />
+                <p className="text-sm text-stone-400">
+                  No contacts yet.{" "}
+                  <Link href="/contacts" className="text-teal-600 hover:underline">
+                    Add your first contact
+                  </Link>
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {newContacts.map((contact) => {
+                  const name =
+                    contact.full_name ??
+                    ([contact.given_name, contact.family_name]
+                      .filter(Boolean)
+                      .join(" ") ||
+                    "Unnamed");
+                  return (
+                    <li key={contact.id}>
+                      <Link
+                        href={`/contacts/${contact.id}`}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-stone-50 transition-colors"
+                      >
+                        <ContactAvatar
+                          avatarUrl={contact.avatar_url}
+                          name={name}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-stone-800 truncate">
+                            {name}
+                          </p>
+                          <p className="text-xs text-stone-400 truncate">
+                            {[contact.title, contact.company].filter(Boolean).join(" at ") || contact.source || ""}
+                            {contact.created_at && (
+                              <span>
+                                {(contact.title || contact.company || contact.source) ? " \u00b7 " : ""}
+                                Added {formatDistanceToNow(new Date(contact.created_at), { addSuffix: true })}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                        {contact.source && (
+                          <span className="flex-shrink-0 text-[10px] font-medium px-1.5 py-0.5 rounded bg-stone-100 text-stone-500">
+                            {contact.source}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+          </div>
+
+          {/* Birthdays this week */}
+          <div className="bg-white rounded-lg border border-stone-200 p-5 card-hover">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-display font-semibold text-stone-900 flex items-center gap-2">
+                <Cake className="w-4 h-4 text-rose-500" />
+                Birthdays this week
+              </h2>
+              <Link
+                href="/contacts"
+                className="text-xs text-teal-600 hover:underline"
+              >
+                View all
+              </Link>
+            </div>
+            {isLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((n) => (
+                  <div
+                    key={n}
+                    className="h-12 rounded-md bg-stone-100 animate-pulse"
+                  />
+                ))}
+              </div>
+            ) : upcomingBirthdays.length === 0 ? (
+              <div className="text-center py-6">
+                <Cake className="w-8 h-8 text-stone-200 mx-auto mb-2 animate-float" />
+                <p className="text-sm text-stone-400">
+                  No birthdays this week
+                </p>
+              </div>
+            ) : (
+              <ul className="space-y-1">
+                {upcomingBirthdays.map((contact: BirthdayContact) => {
+                  const name =
+                    contact.full_name ??
+                    ([contact.given_name, contact.family_name]
+                      .filter(Boolean)
+                      .join(" ") ||
+                    "Unnamed");
+                  const days = contact.days_until_birthday;
+                  const label =
+                    days === 0
+                      ? "Today!"
+                      : days === 1
+                        ? "Tomorrow"
+                        : `In ${days} days`;
+                  return (
+                    <li key={contact.id}>
+                      <Link
+                        href={`/contacts/${contact.id}`}
+                        className="flex items-center gap-3 p-2 rounded-md hover:bg-stone-50 transition-colors"
+                      >
+                        <ContactAvatar
+                          avatarUrl={contact.avatar_url}
+                          name={name}
+                          size="sm"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-stone-800 truncate">
+                            {name}
+                          </p>
+                          <p className="text-xs text-stone-400">
+                            {contact.birthday}
+                          </p>
+                        </div>
+                        <span className={`flex-shrink-0 text-xs font-medium px-2 py-0.5 rounded-full ${
+                          days === 0
+                            ? "bg-rose-100 text-rose-700"
+                            : days === 1
+                              ? "bg-amber-100 text-amber-700"
+                              : "bg-stone-100 text-stone-600"
+                        }`}>
+                          {label}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         </div>
       </div>

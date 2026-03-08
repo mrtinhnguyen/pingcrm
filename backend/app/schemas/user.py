@@ -28,11 +28,14 @@ class UserResponse(BaseModel):
     telegram_username: str | None = None
     twitter_connected: bool = False
     twitter_username: str | None = None
+    priority_settings: dict | None = None
 
     model_config = {"from_attributes": True}
 
     @classmethod
     def from_user(cls, user: "User") -> "UserResponse":
+        from app.api.settings import get_priority_settings
+
         return cls(
             id=user.id,
             email=user.email,
@@ -44,6 +47,7 @@ class UserResponse(BaseModel):
             telegram_username=getattr(user, "telegram_username", None),
             twitter_connected=bool(user.twitter_access_token),
             twitter_username=getattr(user, "twitter_username", None),
+            priority_settings=get_priority_settings(user),
         )
 
 

@@ -4,11 +4,11 @@ Verifies that only users with twitter_refresh_token set are enqueued,
 matching the pattern used by sync_gmail_all().
 
 poll_twitter_all() is a synchronous Celery task that internally calls
-asyncio.run() with an AsyncSessionLocal query.  Because the task is
+asyncio.run() with a task_session query.  Because the task is
 synchronous (not an async def), we test it by:
 
   1. Calling it directly (no event loop active — plain pytest, not pytest-asyncio).
-  2. Mocking AsyncSessionLocal so the DB query is fully controlled without
+  2. Mocking task_session so the DB query is fully controlled without
      real database access, avoiding cross-loop asyncpg issues.
 """
 from __future__ import annotations
@@ -27,7 +27,7 @@ from app.services.tasks import poll_twitter_all
 
 
 def _make_mock_session(user_ids: list[str]):
-    """Return a mocked AsyncSessionLocal context manager that yields user IDs."""
+    """Return a mocked task_session context manager that yields user IDs."""
     scalars_mock = MagicMock()
     scalars_mock.all.return_value = user_ids
 
@@ -57,7 +57,7 @@ def test_poll_twitter_all_only_queues_connected_users():
     mock_session = _make_mock_session([uid_with])
 
     with (
-        patch("app.services.tasks.AsyncSessionLocal", return_value=mock_session),
+        patch("app.services.tasks.task_session", return_value=mock_session),
         patch("app.services.tasks.poll_twitter_activity") as mock_activity,
         patch("app.services.tasks.sync_twitter_dms_for_user") as mock_dms,
     ):
@@ -76,7 +76,7 @@ def test_poll_twitter_all_no_connected_users():
     mock_session = _make_mock_session([])
 
     with (
-        patch("app.services.tasks.AsyncSessionLocal", return_value=mock_session),
+        patch("app.services.tasks.task_session", return_value=mock_session),
         patch("app.services.tasks.poll_twitter_activity") as mock_activity,
         patch("app.services.tasks.sync_twitter_dms_for_user") as mock_dms,
     ):
@@ -96,7 +96,7 @@ def test_poll_twitter_all_queues_all_connected_users():
     mock_session = _make_mock_session(uids)
 
     with (
-        patch("app.services.tasks.AsyncSessionLocal", return_value=mock_session),
+        patch("app.services.tasks.task_session", return_value=mock_session),
         patch("app.services.tasks.poll_twitter_activity") as mock_activity,
         patch("app.services.tasks.sync_twitter_dms_for_user") as mock_dms,
     ):
@@ -129,7 +129,7 @@ def test_poll_twitter_all_query_filters_by_refresh_token():
     mock_session.__aenter__.return_value.execute = capture_execute
 
     with (
-        patch("app.services.tasks.AsyncSessionLocal", return_value=mock_session),
+        patch("app.services.tasks.task_session", return_value=mock_session),
         patch("app.services.tasks.poll_twitter_activity"),
         patch("app.services.tasks.sync_twitter_dms_for_user"),
     ):

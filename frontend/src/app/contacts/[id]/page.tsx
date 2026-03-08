@@ -23,6 +23,7 @@ import {
   Sparkles,
   Trash2,
   Users,
+  Wand2,
   X,
 } from "lucide-react";
 import Link from "next/link";
@@ -95,15 +96,15 @@ function DuplicatesModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-900">
+        <div className="flex items-center justify-between p-5 border-b border-stone-200">
+          <h3 className="text-lg font-display font-semibold text-stone-900">
             Possible duplicates of {contactName}
           </h3>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
+            className="p-1.5 rounded-md hover:bg-stone-100 transition-colors"
           >
-            <X className="w-5 h-5 text-gray-500" />
+            <X className="w-5 h-5 text-stone-500" />
           </button>
         </div>
         <div className="overflow-y-auto flex-1 p-5">
@@ -129,7 +130,7 @@ function DuplicatesModal({
                 return (
                   <div
                     key={dup.id}
-                    className="flex items-center gap-3 p-3 rounded-lg border border-gray-200 hover:border-blue-300 hover:bg-blue-50/50 transition-colors"
+                    className="flex items-center gap-3 p-3 rounded-lg border border-stone-200 hover:border-teal-300 hover:bg-teal-50/50 transition-colors"
                   >
                     <Link
                       href={`/contacts/${dup.id}`}
@@ -157,7 +158,7 @@ function DuplicatesModal({
                             .join(" · ")}
                         </p>
                       </div>
-                      <span className="text-sm font-semibold text-blue-600 flex-shrink-0">
+                      <span className="text-sm font-semibold text-teal-600 font-mono-data flex-shrink-0">
                         {Math.round(dup.score * 100)}%
                       </span>
                     </Link>
@@ -211,6 +212,8 @@ export default function ContactDetailPage() {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEnriching, setIsEnriching] = useState(false);
+  const [isAutoTagging, setIsAutoTagging] = useState(false);
+  const [autoTagResult, setAutoTagResult] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu on outside click
@@ -370,6 +373,40 @@ export default function ContactDetailPage() {
     }
   };
 
+  const handleAutoTag = async () => {
+    if (!id || isAutoTagging) return;
+    setIsAutoTagging(true);
+    setAutoTagResult(null);
+    try {
+      const res = await fetch(`/api/v1/contacts/${id}/auto-tag`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        setAutoTagResult(json.detail || "Auto-tagging failed");
+      } else {
+        const tagsAdded = json.data?.tags_added ?? [];
+        setAutoTagResult(
+          tagsAdded.length > 0
+            ? `Added: ${tagsAdded.join(", ")}`
+            : "No new tags to add"
+        );
+        void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+        void queryClient.invalidateQueries({ queryKey: ["tags"] });
+      }
+      setTimeout(() => setAutoTagResult(null), 5000);
+    } catch {
+      setAutoTagResult("Auto-tagging failed");
+      setTimeout(() => setAutoTagResult(null), 5000);
+    } finally {
+      setIsAutoTagging(false);
+    }
+  };
+
   const allInteractions = (interactionsData?.data ?? []) as InteractionResponse[];
   const meetings = allInteractions.filter((i) => i.platform === "meeting");
   const interactions: TimelineEntry[] = allInteractions.map((i) => ({
@@ -419,18 +456,18 @@ export default function ContactDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-400">Loading contact...</p>
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <p className="text-stone-400">Loading contact...</p>
       </div>
     );
   }
 
   if (isError || !contact) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 mb-4">Contact not found.</p>
-          <Link href="/contacts" className="text-blue-600 hover:underline">
+          <Link href="/contacts" className="text-teal-600 hover:underline">
             Back to contacts
           </Link>
         </div>
@@ -444,18 +481,18 @@ export default function ContactDetailPage() {
     "Unnamed Contact";
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-stone-50">
       <div className="max-w-5xl mx-auto px-4 py-8">
         {/* Breadcrumb + Menu */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <button
               onClick={() => router.back()}
-              className="p-1.5 rounded-md hover:bg-gray-200 transition-colors"
+              className="p-1.5 rounded-md hover:bg-stone-200 transition-colors"
             >
-              <ArrowLeft className="w-5 h-5 text-gray-600" />
+              <ArrowLeft className="w-5 h-5 text-stone-600" />
             </button>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-stone-500">
               <Link href="/contacts" className="hover:underline">
                 Contacts
               </Link>{" "}
@@ -467,22 +504,22 @@ export default function ContactDetailPage() {
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setMenuOpen((v) => !v)}
-              className="p-2 rounded-md hover:bg-gray-200 transition-colors"
+              className="p-2 rounded-md hover:bg-stone-200 transition-colors"
               aria-label="Contact actions"
             >
-              <MoreVertical className="w-5 h-5 text-gray-600" />
+              <MoreVertical className="w-5 h-5 text-stone-600" />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-20">
+              <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-20">
                 <button
                   onClick={() => {
                     setMenuOpen(false);
                     handleRefreshDetails();
                   }}
                   disabled={isRefreshing}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 disabled:opacity-50"
+                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 disabled:opacity-50"
                 >
-                  <RefreshCw className={`w-4 h-4 text-gray-400 ${isRefreshing ? "animate-spin" : ""}`} />
+                  <RefreshCw className={`w-4 h-4 text-stone-400 ${isRefreshing ? "animate-spin" : ""}`} />
                   {isRefreshing ? "Refreshing..." : "Refresh details"}
                 </button>
                 <button
@@ -490,20 +527,31 @@ export default function ContactDetailPage() {
                     setMenuOpen(false);
                     handleEnrich();
                   }}
-                  disabled={isEnriching || !contact?.emails?.length}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 disabled:opacity-50"
+                  disabled={isEnriching || (!contact?.emails?.length && !contact?.linkedin_url)}
+                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 disabled:opacity-50"
                 >
-                  <Sparkles className={`w-4 h-4 text-gray-400 ${isEnriching ? "animate-spin" : ""}`} />
+                  <Sparkles className={`w-4 h-4 text-amber-500 ${isEnriching ? "animate-spin" : ""}`} />
                   {isEnriching ? "Enriching..." : "Enrich with Apollo"}
+                </button>
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleAutoTag();
+                  }}
+                  disabled={isAutoTagging}
+                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 disabled:opacity-50"
+                >
+                  <Wand2 className={`w-4 h-4 text-violet-500 ${isAutoTagging ? "animate-spin" : ""}`} />
+                  {isAutoTagging ? "Tagging..." : "Auto-tag with AI"}
                 </button>
                 <button
                   onClick={() => {
                     setMenuOpen(false);
                     setShowDuplicates(true);
                   }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5"
+                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5"
                 >
-                  <Users className="w-4 h-4 text-gray-400" />
+                  <Users className="w-4 h-4 text-stone-400" />
                   Show possible duplicates
                 </button>
                 <button
@@ -553,23 +601,32 @@ export default function ContactDetailPage() {
           <DuplicatesModal contactId={id} contactName={displayName} onClose={() => setShowDuplicates(false)} />
         )}
 
+        {/* Auto-tag result toast */}
+        {autoTagResult && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-violet-50 border border-violet-200 text-sm text-violet-700 flex items-center gap-2">
+            <Wand2 className="w-4 h-4 flex-shrink-0" />
+            {autoTagResult}
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left column: Contact properties */}
           <div className="lg:col-span-1 space-y-4">
             {/* Header card with name + score */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
+            <div className="bg-white rounded-lg border border-stone-200 p-5">
               <div className="flex items-center gap-3 mb-3">
                 <ContactAvatar
                   avatarUrl={contact.avatar_url}
                   name={displayName}
                   size="lg"
+                  score={contact.relationship_score}
                 />
                 <div className="min-w-0">
-                  <h1 className="text-lg font-bold text-gray-900 truncate">
+                  <h1 className="text-lg font-display font-bold text-stone-900 truncate">
                     {displayName}
                   </h1>
                   {(contact.title || contact.company) && (
-                    <p className="text-sm text-gray-500 truncate">
+                    <p className="text-sm text-stone-500 truncate">
                       {[contact.title, contact.company]
                         .filter(Boolean)
                         .join(" at ")}
@@ -577,13 +634,13 @@ export default function ContactDetailPage() {
                   )}
                 </div>
               </div>
-              <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+              <div className="flex items-center justify-between pt-2 border-t border-stone-100">
                 <ScoreBadge
                   score={contact.relationship_score}
                   className="text-sm"
                 />
                 {contact.last_interaction_at && (
-                  <span className="text-xs text-gray-400">
+                  <span className="text-xs text-stone-400">
                     Last contact{" "}
                     {formatDistanceToNow(
                       new Date(contact.last_interaction_at),
@@ -595,18 +652,18 @@ export default function ContactDetailPage() {
             </div>
 
             {/* Priority panel */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2.5">
+            <div className="bg-white rounded-lg border border-stone-200 p-4">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2.5">
                 Priority
               </p>
               <div className="flex gap-2">
                 {(["high", "medium", "low", "archived"] as const).map((level) => {
                   const isActive = contact.priority_level === level;
                   const colors: Record<string, string> = {
-                    high: isActive ? "bg-red-100 text-red-700 border-red-300" : "text-gray-600 border-gray-200 hover:bg-red-50 hover:text-red-600",
-                    medium: isActive ? "bg-amber-100 text-amber-700 border-amber-300" : "text-gray-600 border-gray-200 hover:bg-amber-50 hover:text-amber-600",
-                    low: isActive ? "bg-blue-100 text-blue-700 border-blue-300" : "text-gray-600 border-gray-200 hover:bg-blue-50 hover:text-blue-600",
-                    archived: isActive ? "bg-gray-200 text-gray-700 border-gray-400" : "text-gray-600 border-gray-200 hover:bg-gray-100",
+                    high: isActive ? "bg-red-100 text-red-700 border-red-300" : "text-stone-600 border-stone-200 hover:bg-red-50 hover:text-red-600",
+                    medium: isActive ? "bg-amber-100 text-amber-700 border-amber-300" : "text-stone-600 border-stone-200 hover:bg-amber-50 hover:text-amber-600",
+                    low: isActive ? "bg-teal-100 text-teal-700 border-teal-300" : "text-stone-600 border-stone-200 hover:bg-teal-50 hover:text-teal-600",
+                    archived: isActive ? "bg-stone-200 text-stone-700 border-stone-400" : "text-stone-600 border-stone-200 hover:bg-stone-100",
                   };
                   return (
                     <button
@@ -629,11 +686,11 @@ export default function ContactDetailPage() {
             </div>
 
             {/* Editable properties card */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <div className="bg-white rounded-lg border border-stone-200 p-5">
+              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2 pl-3 border-l-[3px] border-teal-500">
                 Contact Details
               </h2>
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-stone-100">
                 <EditableField
                   label="First name"
                   value={contact.given_name}
@@ -696,11 +753,11 @@ export default function ContactDetailPage() {
             </div>
 
             {/* Social & Messaging */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <div className="bg-stone-50 rounded-lg border border-stone-200 p-5">
+              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2 pl-3 border-l-[3px] border-teal-500">
                 Social & Messaging
               </h2>
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-stone-100">
                 <EditableField
                   label="Twitter"
                   value={contact.twitter_handle}
@@ -787,11 +844,11 @@ export default function ContactDetailPage() {
             </div>
 
             {/* Labels & Notes */}
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
-              <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+            <div className="bg-white rounded-lg border border-stone-200 p-5">
+              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2 pl-3 border-l-[3px] border-teal-500">
                 Other
               </h2>
-              <div className="divide-y divide-gray-100">
+              <div className="divide-y divide-stone-100">
                 <EditableTagsField
                   label="Labels"
                   values={contact.tags ?? []}
@@ -821,17 +878,19 @@ export default function ContactDetailPage() {
           {/* Right column: Suggestion + Meetings + Notifications + Interactions timeline */}
           <div className="lg:col-span-2 space-y-4">
             {suggestion && (
-              <div className="bg-gradient-to-r from-indigo-50 to-blue-50 rounded-lg border border-indigo-200 p-5">
+              <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg border border-teal-200 p-5 shadow-sm">
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-indigo-800">
+                  <h2 className="text-sm font-display font-semibold text-teal-800">
                     Suggested Follow-up
                   </h2>
-                  <span className="text-xs text-indigo-500">
-                    {suggestion.trigger_type === "time_based"
-                      ? "No interaction in 90+ days"
-                      : suggestion.trigger_type === "scheduled"
-                        ? "Scheduled follow-up"
-                        : "New event detected"}
+                  <span className="text-xs text-teal-500">
+                    {suggestion.trigger_type === "birthday"
+                      ? "🎂 Birthday coming up"
+                      : suggestion.trigger_type === "time_based"
+                        ? "No interaction in 90+ days"
+                        : suggestion.trigger_type === "scheduled"
+                          ? "Scheduled follow-up"
+                          : "New event detected"}
                   </span>
                 </div>
                 {suggestionSent && (
@@ -888,8 +947,8 @@ export default function ContactDetailPage() {
             )}
 
             {meetings.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200 p-5">
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              <div className="bg-white rounded-lg border border-stone-200 p-5">
+                <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">
                   Meetings ({meetings.length})
                 </h2>
                 <div className="space-y-2">
@@ -931,8 +990,8 @@ export default function ContactDetailPage() {
             )}
 
             {contactNotifications.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200 p-5">
-                <h2 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
+              <div className="bg-white rounded-lg border border-stone-200 p-5">
+                <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">
                   Activity Alerts
                 </h2>
                 <div className="space-y-2">
@@ -975,7 +1034,7 @@ export default function ContactDetailPage() {
               </div>
             )}
 
-            <div className="bg-white rounded-lg border border-gray-200 p-5">
+            <div className="bg-white rounded-lg border border-stone-200 p-5">
               <Timeline
                 interactions={interactions}
                 onAddNote={(content) => addNoteMutation.mutate(content)}

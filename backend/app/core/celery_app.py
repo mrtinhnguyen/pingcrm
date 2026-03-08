@@ -42,10 +42,15 @@ celery_app.conf.update(
             "task": "app.services.tasks.send_weekly_digests",
             "schedule": crontab(minute=0, hour=9, day_of_week=1),
         },
-        # Poll Twitter/X activity for all users every 12 hours
-        "poll-twitter-all-every-12h": {
+        # Poll Twitter/X activity for all users once daily at 04:00 UTC
+        "poll-twitter-all-daily": {
             "task": "app.services.tasks.poll_twitter_all",
-            "schedule": crontab(minute=0, hour="*/12"),
+            "schedule": crontab(minute=0, hour=4),
+        },
+        # Generate follow-up suggestions (incl. birthday) daily at 08:00 UTC
+        "generate-suggestions-daily": {
+            "task": "app.services.tasks.generate_suggestions_all",
+            "schedule": crontab(minute=0, hour=8),
         },
         # Reactivate snoozed suggestions every hour
         "reactivate-snoozed-suggestions-hourly": {

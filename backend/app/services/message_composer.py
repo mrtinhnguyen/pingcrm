@@ -228,7 +228,10 @@ async def compose_followup_message(
     # ------------------------------------------------------------------
     # Build prompt
     # ------------------------------------------------------------------
-    if trigger_type == "event_based" and event_summary:
+    if trigger_type == "birthday":
+        reason = "This contact's birthday is today or in the next few days. Send a warm, personal birthday message."
+        example = "Example: 'Happy birthday! Hope you have a great one. Let's catch up soon.'"
+    elif trigger_type == "event_based" and event_summary:
         reason = f"You noticed a recent event about this contact: {event_summary}"
         example = (
             "Example: 'Saw your tweet about the seed round, congrats! How are things feeling now?'"

@@ -115,15 +115,29 @@ async def _get_best_channel(contact_id: uuid.UUID, db: AsyncSession) -> str:
     return "email"
 
 
-async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[FollowUpSuggestion]:
+DEFAULT_PRIORITY_SETTINGS = {"high": 30, "medium": 60, "low": 180}
+
+
+def _get_interval(priority_settings: dict | None, level: str) -> int:
+    """Return the follow-up interval in days for a given priority level."""
+    settings = priority_settings or DEFAULT_PRIORITY_SETTINGS
+    return settings.get(level, DEFAULT_PRIORITY_SETTINGS.get(level, TIME_BASED_INACTIVITY_DAYS))
+
+
+async def generate_suggestions(
+    user_id: uuid.UUID,
+    db: AsyncSession,
+    priority_settings: dict | None = None,
+) -> list[FollowUpSuggestion]:
     """Main follow-up engine entry point.
 
-    Collects candidates from all 3 trigger types, scores them by priority,
+    Collects candidates from all 4 trigger types, scores them by priority,
     and creates FollowUpSuggestion records for the top MAX_SUGGESTIONS_PER_RUN.
 
     Args:
         user_id: The user for whom suggestions are generated.
         db: Async database session (caller is responsible for commit).
+        priority_settings: Per-priority follow-up intervals (e.g. {"high": 30, "medium": 60, "low": 180}).
 
     Returns:
         List of newly created FollowUpSuggestion objects.
@@ -143,29 +157,32 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
     candidates: dict[uuid.UUID, _Candidate] = {}
 
     # ------------------------------------------------------------------
-    # Trigger 1: Time-based — no interaction in 90+ days AND score < 4
+    # Trigger 1: Time-based — no interaction in N+ days (per priority level) AND score < 4
     # ------------------------------------------------------------------
-    cutoff_time = now - timedelta(days=TIME_BASED_INACTIVITY_DAYS)
-    time_based_result = await db.execute(
-        select(Contact).where(
-            Contact.user_id == user_id,
-            _not_2nd_tier,
-            _has_channel,
-            _has_interactions,
-            _not_archived,
-            Contact.relationship_score < TIME_BASED_MAX_SCORE,
-            Contact.last_interaction_at < cutoff_time,
-        )
-    )
-    for contact in time_based_result.scalars().all():
-        if contact.id in queued_contact_ids:
-            continue
-        days_since = _days_since(contact.last_interaction_at, now)
-        priority = compute_priority(contact.interaction_count, days_since, False)
-        if contact.id not in candidates or priority > candidates[contact.id].priority:
-            candidates[contact.id] = _Candidate(
-                contact=contact, trigger_type="time_based", priority=priority,
+    for level in ("high", "medium", "low"):
+        interval_days = _get_interval(priority_settings, level)
+        cutoff_time = now - timedelta(days=interval_days)
+        time_based_result = await db.execute(
+            select(Contact).where(
+                Contact.user_id == user_id,
+                _not_2nd_tier,
+                _has_channel,
+                _has_interactions,
+                _not_archived,
+                Contact.priority_level == level,
+                Contact.relationship_score < TIME_BASED_MAX_SCORE,
+                Contact.last_interaction_at < cutoff_time,
             )
+        )
+        for contact in time_based_result.scalars().all():
+            if contact.id in queued_contact_ids:
+                continue
+            days_since = _days_since(contact.last_interaction_at, now)
+            priority_score = compute_priority(contact.interaction_count, days_since, False)
+            if contact.id not in candidates or priority_score > candidates[contact.id].priority:
+                candidates[contact.id] = _Candidate(
+                    contact=contact, trigger_type="time_based", priority=priority_score,
+                )
 
     # ------------------------------------------------------------------
     # Trigger 2: Event-based — DetectedEvents in last 7 days, confidence > 0.7
@@ -196,28 +213,59 @@ async def generate_suggestions(user_id: uuid.UUID, db: AsyncSession) -> list[Fol
             )
 
     # ------------------------------------------------------------------
-    # Trigger 3: Scheduled — last_followup_at > 30 days ago
+    # Trigger 3: Scheduled — last_followup_at > N days ago (per priority level)
     # ------------------------------------------------------------------
-    scheduled_cutoff = now - timedelta(days=30)
-    scheduled_result = await db.execute(
+    for level in ("high", "medium", "low"):
+        interval_days = _get_interval(priority_settings, level)
+        scheduled_cutoff = now - timedelta(days=interval_days)
+        scheduled_result = await db.execute(
+            select(Contact).where(
+                Contact.user_id == user_id,
+                _not_2nd_tier,
+                _has_channel,
+                _has_interactions,
+                _not_archived,
+                Contact.priority_level == level,
+                Contact.last_followup_at.isnot(None),
+                Contact.last_followup_at < scheduled_cutoff,
+            )
+        )
+        for contact in scheduled_result.scalars().all():
+            if contact.id in queued_contact_ids:
+                continue
+            days_since = _days_since(contact.last_interaction_at, now)
+            priority_score = compute_priority(contact.interaction_count, days_since, False)
+            if contact.id not in candidates or priority_score > candidates[contact.id].priority:
+                candidates[contact.id] = _Candidate(
+                    contact=contact, trigger_type="scheduled", priority=priority_score,
+                )
+
+    # ------------------------------------------------------------------
+    # Trigger 4: Birthday — birthday within next 3 days
+    # ------------------------------------------------------------------
+    today = now.date()
+    upcoming_mmdd = {(today + timedelta(days=d)).strftime("%m-%d") for d in range(4)}
+    birthday_result = await db.execute(
         select(Contact).where(
             Contact.user_id == user_id,
             _not_2nd_tier,
             _has_channel,
-            _has_interactions,
             _not_archived,
-            Contact.last_followup_at.isnot(None),
-            Contact.last_followup_at < scheduled_cutoff,
+            Contact.birthday.isnot(None),
         )
     )
-    for contact in scheduled_result.scalars().all():
+    for contact in birthday_result.scalars().all():
         if contact.id in queued_contact_ids:
             continue
-        days_since = _days_since(contact.last_interaction_at, now)
-        priority = compute_priority(contact.interaction_count, days_since, False)
-        if contact.id not in candidates or priority > candidates[contact.id].priority:
+        # Extract MM-DD from birthday (supports "MM-DD" and "YYYY-MM-DD")
+        bday = contact.birthday.strip()
+        mmdd = bday[-5:]  # last 5 chars = "MM-DD"
+        if mmdd not in upcoming_mmdd:
+            continue
+        # Birthday suggestions get highest priority (1500)
+        if contact.id not in candidates or 1500.0 > candidates[contact.id].priority:
             candidates[contact.id] = _Candidate(
-                contact=contact, trigger_type="scheduled", priority=priority,
+                contact=contact, trigger_type="birthday", priority=1500.0,
             )
 
     # Phase 2: Sort by priority descending, take top N

@@ -90,6 +90,7 @@ def _extract_contact_fields(person: dict[str, Any]) -> dict[str, Any]:
         "company": company,
         "title": title,
         "source": "google",
+        "resource_name": person.get("resourceName"),
     }
 
 

@@ -11,14 +11,30 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def enrich_person(email: str) -> dict[str, Any]:
+async def enrich_person(
+    email: str | None = None,
+    linkedin_url: str | None = None,
+) -> dict[str, Any]:
     """Call Apollo People Match API and return normalized contact fields.
 
+    Accepts either an email or a LinkedIn URL as the lookup identifier.
+    When both are provided, email takes priority (higher match quality).
     Returns an empty dict on any failure (best-effort enrichment).
     """
     if not settings.APOLLO_API_KEY:
         logger.warning("APOLLO_API_KEY not configured, skipping enrichment")
         return {}
+
+    if not email and not linkedin_url:
+        return {}
+
+    payload: dict[str, Any] = {"reveal_personal_emails": True}
+    if email:
+        payload["email"] = email
+    else:
+        payload["linkedin_url"] = linkedin_url
+
+    identifier = email or linkedin_url
 
     try:
         async with httpx.AsyncClient(timeout=30) as client:
@@ -28,12 +44,12 @@ async def enrich_person(email: str) -> dict[str, Any]:
                     "x-api-key": settings.APOLLO_API_KEY,
                     "Content-Type": "application/json",
                 },
-                json={"email": email, "reveal_personal_emails": True},
+                json=payload,
             )
             resp.raise_for_status()
             data = resp.json()
     except Exception:
-        logger.warning("Apollo enrichment failed for %s", email, exc_info=True)
+        logger.warning("Apollo enrichment failed for %s", identifier, exc_info=True)
         return {}
 
     person = data.get("person") or {}

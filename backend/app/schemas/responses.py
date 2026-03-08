@@ -120,6 +120,27 @@ class EnrichData(BaseModel):
 
 
 # ---------------------------------------------------------------------------
+# Auto-tagging payload types
+# ---------------------------------------------------------------------------
+
+
+class TaxonomyResult(BaseModel):
+    categories: dict[str, list[str]]
+    total_tags: int
+    status: str  # "draft" | "approved"
+
+
+class AutoTagResult(BaseModel):
+    tags_added: list[str]
+    all_tags: list[str]
+
+
+class ApplyTagsResult(BaseModel):
+    tagged_count: int
+    task_id: str | None = None
+
+
+# ---------------------------------------------------------------------------
 # suggestions.py payload types
 # ---------------------------------------------------------------------------
 

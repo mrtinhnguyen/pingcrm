@@ -62,6 +62,9 @@ def _make_contact(
     title: str | None = "CTO",
     relationship_score: int = 7,
     last_interaction_at: datetime | None = None,
+    twitter_handle: str | None = None,
+    twitter_bio: str | None = None,
+    telegram_bio: str | None = None,
 ) -> MagicMock:
     """Build a MagicMock Contact."""
     c = MagicMock(spec=Contact)
@@ -72,6 +75,9 @@ def _make_contact(
     c.title = title
     c.relationship_score = relationship_score
     c.last_interaction_at = last_interaction_at or datetime.now(UTC) - timedelta(days=90)
+    c.twitter_handle = twitter_handle
+    c.twitter_bio = twitter_bio
+    c.telegram_bio = telegram_bio
     return c
 
 
@@ -211,7 +217,7 @@ async def test_compose_followup_success_returns_stripped_text(mock_db: AsyncMock
 
 @pytest.mark.asyncio
 async def test_compose_followup_uses_correct_model_and_token_limit(mock_db: AsyncMock):
-    """Anthropic messages.create must use claude-3-5-haiku-20241022 with max_tokens=200."""
+    """Anthropic messages.create must use claude-sonnet-4-20250514 with max_tokens=200."""
     contact = _make_contact()
     _configure_db(mock_db, contact, [])
 
@@ -230,7 +236,7 @@ async def test_compose_followup_uses_correct_model_and_token_limit(mock_db: Asyn
         )
 
     kwargs = mock_client.messages.create.call_args.kwargs
-    assert kwargs["model"] == "claude-3-5-haiku-20241022"
+    assert kwargs["model"] == "claude-sonnet-4-20250514"
     assert kwargs["max_tokens"] == 200
 
 
@@ -549,3 +555,198 @@ def test_tone_single_formal_interaction():
     """A single formal interaction (0% < 0.4) returns 'formal'."""
     interactions = [_make_interaction("Please find the report enclosed.")]
     assert analyze_conversation_tone(interactions) == "formal"
+
+
+# ---------------------------------------------------------------------------
+# Twitter context enrichment
+# ---------------------------------------------------------------------------
+
+_FAKE_TWEETS = [
+    {"text": "Excited to launch our new AI product!", "createdAt": "Sat Mar 01 12:00:00 +0000 2026"},
+    {"text": "Great panel at TechConf today", "createdAt": "Fri Feb 28 09:00:00 +0000 2026"},
+    {"text": "Hiring engineers — DM me", "createdAt": "Tue Feb 25 15:00:00 +0000 2026"},
+]
+
+
+@pytest.mark.asyncio
+async def test_twitter_context_included_for_time_based(mock_db: AsyncMock):
+    """For time_based triggers, recent tweets are fetched and included in the prompt."""
+    contact = _make_contact(twitter_handle="janesmith", twitter_bio="CTO at Acme")
+    _configure_db(mock_db, contact, [])
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey Jane!"))
+
+    with patch("app.services.message_composer.settings") as mock_settings, \
+         patch("anthropic.AsyncAnthropic", return_value=mock_client), \
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock, return_value=_FAKE_TWEETS):
+        mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
+
+        await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="time_based",
+            event_summary=None,
+            db=mock_db,
+        )
+
+    prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "RECENT TWITTER ACTIVITY" in prompt
+    assert "Excited to launch our new AI product!" in prompt
+    assert "CTO at Acme" in prompt
+
+
+@pytest.mark.asyncio
+async def test_twitter_context_skipped_for_event_based(mock_db: AsyncMock):
+    """For event_based triggers, _get_cached_tweets is NOT called."""
+    contact = _make_contact(twitter_handle="janesmith")
+    _configure_db(mock_db, contact, [])
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Congrats!"))
+
+    with patch("app.services.message_composer.settings") as mock_settings, \
+         patch("anthropic.AsyncAnthropic", return_value=mock_client), \
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock) as mock_fetch:
+        mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
+
+        await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="event_based",
+            event_summary="Jane raised a Series A.",
+            db=mock_db,
+        )
+
+    mock_fetch.assert_not_called()
+    prompt = mock_client.messages.create.call_args.kwargs["messages"][0]["content"]
+    assert "RECENT TWITTER ACTIVITY" not in prompt
+
+
+@pytest.mark.asyncio
+async def test_twitter_context_skipped_no_handle(mock_db: AsyncMock):
+    """Contact without twitter_handle — no Twitter API call made."""
+    contact = _make_contact(twitter_handle=None)
+    _configure_db(mock_db, contact, [])
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey Jane!"))
+
+    with patch("app.services.message_composer.settings") as mock_settings, \
+         patch("anthropic.AsyncAnthropic", return_value=mock_client), \
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock) as mock_fetch:
+        mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
+
+        await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="time_based",
+            event_summary=None,
+            db=mock_db,
+        )
+
+    mock_fetch.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_twitter_fetch_failure_doesnt_block(mock_db: AsyncMock):
+    """When _get_cached_tweets raises, message is still generated."""
+    contact = _make_contact(twitter_handle="janesmith")
+    _configure_db(mock_db, contact, [])
+
+    mock_client = MagicMock()
+    mock_client.messages.create = AsyncMock(return_value=_mock_anthropic_response("Hey Jane!"))
+
+    with patch("app.services.message_composer.settings") as mock_settings, \
+         patch("anthropic.AsyncAnthropic", return_value=mock_client), \
+         patch("app.services.message_composer._get_cached_tweets", new_callable=AsyncMock, side_effect=RuntimeError("CLI failed")):
+        mock_settings.ANTHROPIC_API_KEY = "sk-ant-test-key"
+
+        result = await compose_followup_message(
+            contact_id=contact.id,
+            trigger_type="time_based",
+            event_summary=None,
+            db=mock_db,
+        )
+
+    assert result == "Hey Jane!"
+
+
+# ---------------------------------------------------------------------------
+# _get_cached_tweets — Redis caching + bird CLI
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_get_cached_tweets_returns_from_redis_cache():
+    """When Redis has cached tweets, bird CLI is not called."""
+    import json
+    from app.services.message_composer import _get_cached_tweets
+
+    contact = _make_contact(twitter_handle="janesmith")
+
+    mock_redis = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=json.dumps(_FAKE_TWEETS))
+
+    with patch("app.core.redis.get_redis", return_value=mock_redis), \
+         patch("app.integrations.bird.fetch_user_tweets_bird", new_callable=AsyncMock) as mock_bird:
+
+        result = await _get_cached_tweets(contact)
+
+    assert result == _FAKE_TWEETS
+    mock_bird.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_get_cached_tweets_calls_bird_and_caches():
+    """On cache miss, fetches via bird CLI and caches result in Redis."""
+    import json
+    from app.services.message_composer import _get_cached_tweets, _TWEET_CACHE_TTL
+
+    contact = _make_contact(twitter_handle="janesmith")
+
+    mock_redis = AsyncMock()
+    mock_redis.get = AsyncMock(return_value=None)  # cache miss
+    mock_redis.set = AsyncMock()
+
+    with patch("app.core.redis.get_redis", return_value=mock_redis), \
+         patch("app.integrations.bird.fetch_user_tweets_bird", new_callable=AsyncMock, return_value=_FAKE_TWEETS):
+
+        result = await _get_cached_tweets(contact)
+
+    assert result == _FAKE_TWEETS
+    mock_redis.set.assert_called_once_with(
+        "twitter_tweets:janesmith", json.dumps(_FAKE_TWEETS), ex=_TWEET_CACHE_TTL,
+    )
+
+
+@pytest.mark.asyncio
+async def test_fetch_user_tweets_bird_parses_json():
+    """bird CLI stdout is parsed correctly."""
+    import json
+    from app.integrations.bird import fetch_user_tweets_bird
+
+    fake_output = json.dumps(_FAKE_TWEETS)
+
+    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value=_FAKE_TWEETS):
+        result = await fetch_user_tweets_bird("janesmith")
+
+    assert result == _FAKE_TWEETS
+
+
+@pytest.mark.asyncio
+async def test_fetch_user_tweets_bird_handles_dict_response():
+    """bird CLI may return { tweets: [...], nextCursor: ... }."""
+    from app.integrations.bird import fetch_user_tweets_bird
+
+    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value={"tweets": _FAKE_TWEETS, "nextCursor": "abc"}):
+        result = await fetch_user_tweets_bird("janesmith")
+
+    assert result == _FAKE_TWEETS
+
+
+@pytest.mark.asyncio
+async def test_fetch_user_tweets_bird_not_installed():
+    """When bird CLI is not on PATH, returns empty list."""
+    from app.integrations.bird import fetch_user_tweets_bird
+
+    with patch("app.integrations.bird._run_bird", new_callable=AsyncMock, return_value=None):
+        result = await fetch_user_tweets_bird("janesmith")
+
+    assert result == []

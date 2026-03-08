@@ -41,6 +41,7 @@ interface MessageEditorProps {
   initialChannel: Channel;
   onSend?: (message: string, channel: Channel) => void;
   className?: string;
+  disabledChannels?: Partial<Record<Channel, string>>;
 }
 
 export function MessageEditor({
@@ -49,11 +50,18 @@ export function MessageEditor({
   initialChannel,
   onSend,
   className,
+  disabledChannels = {},
 }: MessageEditorProps) {
   const [message, setMessage] = useState(initialMessage);
-  const [channel, setChannel] = useState<Channel>(
-    initialChannel in channelConfig ? initialChannel : "email"
+  const availableChannels = (Object.keys(channelConfig) as Channel[]).filter(
+    (ch) => !disabledChannels[ch]
   );
+  const [channel, setChannel] = useState<Channel>(() => {
+    if (initialChannel in channelConfig && !disabledChannels[initialChannel]) {
+      return initialChannel;
+    }
+    return availableChannels[0] ?? "email";
+  });
   const [isRegenerating, setIsRegenerating] = useState(false);
 
   const config = channelConfig[channel] ?? channelConfig.email;
@@ -93,15 +101,21 @@ export function MessageEditor({
         {(Object.keys(channelConfig) as Channel[]).map((ch) => {
           const cfg = channelConfig[ch];
           const isSelected = channel === ch;
+          const disabledReason = disabledChannels[ch];
+          const isDisabled = Boolean(disabledReason);
           return (
             <button
               key={ch}
-              onClick={() => setChannel(ch)}
+              onClick={() => !isDisabled && setChannel(ch)}
+              disabled={isDisabled}
+              title={disabledReason ?? cfg.label}
               className={cn(
                 "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium border transition-colors",
-                isSelected
-                  ? cfg.color
-                  : "text-gray-500 bg-white border-gray-200 hover:bg-gray-50"
+                isDisabled
+                  ? "text-gray-300 bg-gray-50 border-gray-100 cursor-not-allowed"
+                  : isSelected
+                    ? cfg.color
+                    : "text-gray-500 bg-white border-gray-200 hover:bg-gray-50"
               )}
             >
               {cfg.icon}

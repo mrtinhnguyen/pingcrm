@@ -16,6 +16,7 @@ class ContactBase(BaseModel):
     twitter_bio: str | None = None
     telegram_username: str | None = None
     telegram_bio: str | None = None
+    location: str | None = None
     linkedin_url: str | None = None
     avatar_url: str | None = None
     birthday: str | None = None
@@ -40,6 +41,7 @@ class ContactUpdate(BaseModel):
     twitter_handle: str | None = None
     twitter_bio: str | None = None
     telegram_username: str | None = None
+    location: str | None = None
     linkedin_url: str | None = None
     birthday: str | None = None
     tags: list[str] | None = None

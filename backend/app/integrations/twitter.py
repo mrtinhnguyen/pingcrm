@@ -222,6 +222,54 @@ async def fetch_user_tweets(
         return []
 
 
+async def fetch_user_tweets_oauth(
+    twitter_handle: str,
+    headers: dict[str, str],
+    max_results: int = 5,
+) -> list[dict[str, Any]]:
+    """Fetch recent tweets using user OAuth headers (not app-only bearer).
+
+    This avoids consuming app-level API credits and uses the authenticated
+    user's own rate-limit budget instead.
+    """
+    twitter_handle = twitter_handle.lstrip("@").strip()
+    if not twitter_handle:
+        return []
+
+    params: dict[str, str] = {
+        "max_results": str(max(5, min(max_results, 100))),
+        "tweet.fields": "created_at,text",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=15.0) as client:
+            user_resp = await client.get(
+                f"{_TWITTER_API_BASE}/users/by/username/{twitter_handle}",
+                headers=headers,
+            )
+            user_resp.raise_for_status()
+            user_id = user_resp.json().get("data", {}).get("id")
+            if not user_id:
+                return []
+
+            tweets_resp = await client.get(
+                f"{_TWITTER_API_BASE}/users/{user_id}/tweets",
+                headers=headers,
+                params=params,
+            )
+            tweets_resp.raise_for_status()
+            return tweets_resp.json().get("data", [])
+    except httpx.HTTPStatusError as exc:
+        logger.warning(
+            "fetch_user_tweets_oauth: HTTP %s for @%s",
+            exc.response.status_code, twitter_handle,
+        )
+        return []
+    except Exception:
+        logger.exception("fetch_user_tweets_oauth: unexpected error for @%s.", twitter_handle)
+        return []
+
+
 async def fetch_user_profile(twitter_handle: str) -> dict[str, Any]:
     """Fetch Twitter profile for *twitter_handle* including bio (description).
 
@@ -313,18 +361,25 @@ async def poll_contacts_activity(
 
     activity_records: list[dict[str, Any]] = []
 
+    from app.integrations.bird import fetch_user_tweets_bird, fetch_user_profile_bird
+
     for contact in contacts:
         handle = (contact.twitter_handle or "").lstrip("@").strip()
         if not handle:
             continue
 
-        tweets = await fetch_user_tweets(handle)
-        profile = await fetch_user_profile(handle)
+        tweets = await fetch_user_tweets_bird(handle)
+        profile = await fetch_user_profile_bird(handle)
         current_bio = profile.get("description", "")
+
+        # Update location from Twitter profile
+        twitter_location = profile.get("location", "")
+        if twitter_location and not contact.location:
+            contact.location = twitter_location
 
         # Download Twitter avatar if the contact doesn't have one yet
         if not contact.avatar_url:
-            image_url = profile.get("profile_image_url")
+            image_url = profile.get("profileImageUrl") or profile.get("profile_image_url")
             if image_url:
                 avatar_path = await download_twitter_avatar(image_url, contact.id)
                 if avatar_path:
@@ -387,8 +442,15 @@ async def sync_twitter_bios(user: User, db: AsyncSession) -> dict[str, int]:
         if not handle:
             continue
 
-        profile = await fetch_user_profile(handle)
+        from app.integrations.bird import fetch_user_profile_bird
+        profile = await fetch_user_profile_bird(handle)
         current_bio = profile.get("description", "")
+
+        # Update location from Twitter profile
+        twitter_location = profile.get("location", "")
+        if twitter_location and not contact.location:
+            contact.location = twitter_location
+
         if not current_bio:
             continue
 

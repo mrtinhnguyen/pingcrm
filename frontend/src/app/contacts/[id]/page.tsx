@@ -17,7 +17,9 @@ import {
   FileText,
   AtSign,
   Calendar,
+  MapPin,
   MoreVertical,
+  RefreshCw,
   Trash2,
   Users,
   X,
@@ -206,6 +208,7 @@ export default function ContactDetailPage() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showDuplicates, setShowDuplicates] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu on outside click
@@ -326,6 +329,32 @@ export default function ContactDetailPage() {
     retry: false,
   });
 
+  // Manual "Refresh Details" — force-refreshes bios, avatar, emails, and common groups
+  const handleRefreshDetails = async () => {
+    if (!id || isRefreshing) return;
+    setIsRefreshing(true);
+    try {
+      await Promise.allSettled([
+        client.POST("/api/v1/contacts/{contact_id}/refresh-bios", {
+          params: { path: { contact_id: id }, query: { force: true } },
+        } as any),
+        client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, {
+          params: { path: { contact_id: id }, query: { force: true } },
+        }),
+        ...(contactEmails?.length
+          ? [client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, {
+              params: { path: { contact_id: id }, query: { force: true } },
+            })]
+          : []),
+      ]);
+      void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+      void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
+      void queryClient.invalidateQueries({ queryKey: ["telegram-common-groups", id] });
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
   const allInteractions = (interactionsData?.data ?? []) as InteractionResponse[];
   const meetings = allInteractions.filter((i) => i.platform === "meeting");
   const interactions: TimelineEntry[] = allInteractions.map((i) => ({
@@ -430,6 +459,17 @@ export default function ContactDetailPage() {
             </button>
             {menuOpen && (
               <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-gray-200 shadow-lg py-1 z-20">
+                <button
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleRefreshDetails();
+                  }}
+                  disabled={isRefreshing}
+                  className="w-full text-left px-4 py-2.5 text-sm text-gray-700 hover:bg-gray-50 flex items-center gap-2.5 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-4 h-4 text-gray-400 ${isRefreshing ? "animate-spin" : ""}`} />
+                  {isRefreshing ? "Refreshing..." : "Refresh details"}
+                </button>
                 <button
                   onClick={() => {
                     setMenuOpen(false);
@@ -613,6 +653,13 @@ export default function ContactDetailPage() {
                   icon={<Briefcase className="w-4 h-4" />}
                 />
                 <EditableField
+                  label="Location"
+                  value={contact.location}
+                  onSave={(v) => saveField("location", v)}
+                  placeholder="Add location..."
+                  icon={<MapPin className="w-4 h-4" />}
+                />
+                <EditableField
                   label="Birthday"
                   value={contact.birthday}
                   onSave={(v) => saveField("birthday", v)}
@@ -775,6 +822,11 @@ export default function ContactDetailPage() {
                   suggestionId={suggestion.id}
                   initialMessage={suggestion.suggested_message}
                   initialChannel={suggestion.suggested_channel}
+                  disabledChannels={{
+                    ...(!contact.emails?.length ? { email: "No email address" } : {}),
+                    ...(!contact.telegram_username ? { telegram: "No Telegram username" } : {}),
+                    ...(!contact.twitter_handle ? { twitter: "No Twitter handle" } : {}),
+                  }}
                   onSend={async (message, channel) => {
                     setSuggestionError(null);
                     if (channel === "telegram" && contact?.telegram_username) {

@@ -2,8 +2,8 @@
 
 import { useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
-import { Search, Building2, ChevronDown, ChevronRight } from "lucide-react";
+import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
+import { Search, Building2, ChevronDown, ChevronRight, CheckSquare, Tag, X, Archive } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
@@ -27,15 +27,141 @@ interface Organization {
   contacts: OrgContact[];
 }
 
+function BulkActionBar({
+  selectedCount,
+  allTags,
+  onAddTag,
+  onRemoveTag,
+  onSetPriority,
+  onClear,
+  isPending,
+}: {
+  selectedCount: number;
+  allTags: string[];
+  onAddTag: (tag: string) => void;
+  onRemoveTag: (tag: string) => void;
+  onSetPriority: (level: string) => void;
+  onClear: () => void;
+  isPending: boolean;
+}) {
+  const [tagInput, setTagInput] = useState("");
+  const [showTagDropdown, setShowTagDropdown] = useState(false);
+  const [tagMode, setTagMode] = useState<"add" | "remove">("add");
+
+  const filteredTags = allTags.filter(
+    (t) => !tagInput || t.toLowerCase().includes(tagInput.toLowerCase())
+  );
+
+  return (
+    <div className="sticky top-14 z-30 bg-blue-600 text-white px-4 py-2.5 rounded-lg mb-4 flex items-center gap-3 shadow-lg">
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <CheckSquare className="w-4 h-4" />
+        <span className="text-sm font-medium">{selectedCount} selected</span>
+      </div>
+
+      <div className="h-5 w-px bg-blue-400" />
+
+      <div className="relative">
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => { setTagMode("add"); setShowTagDropdown((v) => !v); }}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 transition-colors"
+          >
+            <Tag className="w-3 h-3" />
+            Add Tag
+          </button>
+          <button
+            onClick={() => { setTagMode("remove"); setShowTagDropdown((v) => !v); }}
+            className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 transition-colors"
+          >
+            <X className="w-3 h-3" />
+            Remove Tag
+          </button>
+        </div>
+
+        {showTagDropdown && (
+          <div className="absolute left-0 top-full mt-1 w-56 bg-white rounded-lg border border-gray-200 shadow-lg z-50 p-2">
+            <input
+              type="text"
+              placeholder={tagMode === "add" ? "Type tag name..." : "Select tag to remove..."}
+              value={tagInput}
+              onChange={(e) => setTagInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && tagInput.trim() && tagMode === "add") {
+                  onAddTag(tagInput.trim());
+                  setTagInput("");
+                  setShowTagDropdown(false);
+                }
+              }}
+              className="w-full px-2.5 py-1.5 text-sm text-gray-900 rounded-md border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-400 mb-1"
+              autoFocus
+            />
+            <div className="max-h-32 overflow-y-auto">
+              {filteredTags.map((tag) => (
+                <button
+                  key={tag}
+                  onClick={() => {
+                    if (tagMode === "add") onAddTag(tag);
+                    else onRemoveTag(tag);
+                    setTagInput("");
+                    setShowTagDropdown(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 text-sm text-gray-700 hover:bg-gray-100 rounded-md"
+                >
+                  {tagMode === "add" ? "+" : "-"} {tag}
+                </button>
+              ))}
+              {tagMode === "add" && tagInput.trim() && !allTags.includes(tagInput.trim()) && (
+                <button
+                  onClick={() => {
+                    onAddTag(tagInput.trim());
+                    setTagInput("");
+                    setShowTagDropdown(false);
+                  }}
+                  className="w-full text-left px-2.5 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-md font-medium"
+                >
+                  + Create &quot;{tagInput.trim()}&quot;
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="h-5 w-px bg-blue-400" />
+
+      <button
+        onClick={() => onSetPriority("archived")}
+        disabled={isPending}
+        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 transition-colors disabled:opacity-50"
+      >
+        <Archive className="w-3 h-3" />
+        Archive All
+      </button>
+
+      <div className="flex-1" />
+
+      <button
+        onClick={onClear}
+        className="text-xs text-blue-200 hover:text-white underline"
+      >
+        Clear selection
+      </button>
+    </div>
+  );
+}
+
 export default function OrganizationsPage() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const searchFromUrl = searchParams.get("q") ?? "";
   const [searchInput, setSearchInput] = useState(searchFromUrl);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const page = Number(searchParams.get("page") ?? "1");
 
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
   const setParams = useCallback(
     (updates: Record<string, string | undefined>) => {
@@ -62,8 +188,42 @@ export default function OrganizationsPage() {
     },
   });
 
+  const { data: allTags = [] } = useQuery({
+    queryKey: ["tags"],
+    queryFn: async () => {
+      const { data } = await client.GET("/api/v1/contacts/tags");
+      return (data?.data as string[]) ?? [];
+    },
+  });
+
   const organizations = data?.data ?? [];
   const meta = data?.meta;
+
+  // Collect all visible contact IDs (from expanded orgs only)
+  const allVisibleContactIds = organizations
+    .filter((org) => expandedOrgs.has(org.company))
+    .flatMap((org) => org.contacts.map((c) => c.id));
+
+  const bulkUpdate = useMutation({
+    mutationFn: async (body: {
+      contact_ids: string[];
+      add_tags?: string[];
+      remove_tags?: string[];
+      priority_level?: string;
+    }) => {
+      const { data, error } = await client.POST("/api/v1/contacts/bulk-update" as any, {
+        body,
+      });
+      if (error) throw new Error((error as { detail?: string })?.detail ?? "Bulk update failed");
+      return data;
+    },
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      void queryClient.invalidateQueries({ queryKey: ["organizations"] });
+      void queryClient.invalidateQueries({ queryKey: ["contacts"] });
+      void queryClient.invalidateQueries({ queryKey: ["tags"] });
+    },
+  });
 
   const toggleOrg = (company: string) => {
     setExpandedOrgs((prev) => {
@@ -73,6 +233,31 @@ export default function OrganizationsPage() {
       return next;
     });
   };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectOrg = (org: Organization) => {
+    const orgContactIds = org.contacts.map((c) => c.id);
+    const allSelected = orgContactIds.every((id) => selectedIds.has(id));
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (allSelected) {
+        orgContactIds.forEach((id) => next.delete(id));
+      } else {
+        orgContactIds.forEach((id) => next.add(id));
+      }
+      return next;
+    });
+  };
+
+  const selectedArray = Array.from(selectedIds);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -108,6 +293,25 @@ export default function OrganizationsPage() {
           </div>
         </div>
 
+        {/* Bulk action bar */}
+        {selectedIds.size > 0 && (
+          <BulkActionBar
+            selectedCount={selectedIds.size}
+            allTags={allTags}
+            isPending={bulkUpdate.isPending}
+            onAddTag={(tag) =>
+              bulkUpdate.mutate({ contact_ids: selectedArray, add_tags: [tag] })
+            }
+            onRemoveTag={(tag) =>
+              bulkUpdate.mutate({ contact_ids: selectedArray, remove_tags: [tag] })
+            }
+            onSetPriority={(level) =>
+              bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: level })
+            }
+            onClear={() => setSelectedIds(new Set())}
+          />
+        )}
+
         {isLoading && (
           <div className="text-center py-12 text-gray-400">Loading organizations...</div>
         )}
@@ -128,27 +332,44 @@ export default function OrganizationsPage() {
           <div className="space-y-2">
             {organizations.map((org) => {
               const isExpanded = expandedOrgs.has(org.company);
+              const orgContactIds = org.contacts.map((c) => c.id);
+              const allOrgSelected = orgContactIds.length > 0 && orgContactIds.every((id) => selectedIds.has(id));
+              const someOrgSelected = orgContactIds.some((id) => selectedIds.has(id));
               return (
                 <div key={org.company} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                  <button
-                    onClick={() => toggleOrg(org.company)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors text-left"
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                  <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                    {isExpanded && (
+                      <input
+                        type="checkbox"
+                        checked={allOrgSelected}
+                        ref={(el) => {
+                          if (el) el.indeterminate = someOrgSelected && !allOrgSelected;
+                        }}
+                        onChange={() => toggleSelectOrg(org)}
+                        className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
+                        aria-label={`Select all contacts in ${org.company}`}
+                      />
                     )}
-                    <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
-                      <Building2 className="w-4 h-4 text-blue-600" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <span className="text-sm font-semibold text-gray-900">{org.company}</span>
-                    </div>
-                    <span className="text-xs text-gray-500 flex-shrink-0">
-                      {org.contact_count} {org.contact_count === 1 ? "person" : "people"}
-                    </span>
-                  </button>
+                    <button
+                      onClick={() => toggleOrg(org.company)}
+                      className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    >
+                      {isExpanded ? (
+                        <ChevronDown className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      )}
+                      <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-4 h-4 text-blue-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="text-sm font-semibold text-gray-900">{org.company}</span>
+                      </div>
+                      <span className="text-xs text-gray-500 flex-shrink-0">
+                        {org.contact_count} {org.contact_count === 1 ? "person" : "people"}
+                      </span>
+                    </button>
+                  </div>
 
                   {isExpanded && (
                     <div className="border-t border-gray-100">
@@ -159,9 +380,19 @@ export default function OrganizationsPage() {
                               contact.full_name ??
                               [contact.given_name, contact.family_name].filter(Boolean).join(" ") ??
                               "Unnamed";
+                            const isSelected = selectedIds.has(contact.id);
                             return (
-                              <tr key={contact.id} className="hover:bg-gray-50">
-                                <td className="px-4 py-2.5 pl-14">
+                              <tr key={contact.id} className={`hover:bg-gray-50 ${isSelected ? "bg-blue-50" : ""}`}>
+                                <td className="w-10 px-4 py-2.5 pl-14">
+                                  <input
+                                    type="checkbox"
+                                    checked={isSelected}
+                                    onChange={() => toggleSelect(contact.id)}
+                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    aria-label={`Select ${name}`}
+                                  />
+                                </td>
+                                <td className="px-4 py-2.5">
                                   <Link
                                     href={`/contacts/${contact.id}`}
                                     className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import random
 import uuid
@@ -58,6 +59,72 @@ async def _call_anthropic_with_retry(client: Any, **kwargs) -> Any:
             await asyncio.sleep(sleep_time)
 
     raise last_exc  # type: ignore[misc]
+
+
+_TWEET_CACHE_TTL = 12 * 60 * 60  # 12 hours
+
+
+async def _fetch_twitter_context(contact: Contact) -> str:
+    """Fetch recent tweets and bio for prompt enrichment. Best-effort.
+
+    Uses the ``bird`` CLI (cookie-based auth) to fetch tweets, with Redis
+    caching (12 h TTL) to avoid repeated calls for the same contact.
+    """
+    if not contact.twitter_handle:
+        return ""
+
+    lines: list[str] = []
+    if contact.twitter_bio:
+        lines.append(f"Bio: {contact.twitter_bio}")
+
+    try:
+        tweets = await _get_cached_tweets(contact)
+        if tweets:
+            lines.append("Recent tweets:")
+            for t in tweets:
+                text = t.get("text", "")[:200]
+                # bird uses "createdAt" (e.g. "Sat Mar 07 11:44:26 +0000 2026")
+                date = t.get("createdAt", "")[:16]
+                lines.append(f"  - {text} ({date})")
+    except Exception:
+        logger.warning("_fetch_twitter_context: failed for @%s", contact.twitter_handle)
+
+    if not lines:
+        return ""
+    return "RECENT TWITTER ACTIVITY:\n" + "\n".join(lines)
+
+
+async def _get_cached_tweets(contact: Contact) -> list[dict[str, Any]]:
+    """Return recent tweets, preferring a Redis cache hit.
+
+    On cache miss, fetches via the ``bird`` CLI and caches for 12 hours.
+    """
+    from app.core.redis import get_redis
+
+    handle = contact.twitter_handle
+    cache_key = f"twitter_tweets:{handle}"
+
+    # --- Check cache ---
+    redis = get_redis()
+    try:
+        cached = await redis.get(cache_key)
+        if cached:
+            return json.loads(cached)
+    except Exception:
+        logger.debug("_get_cached_tweets: Redis read failed for %s", cache_key)
+
+    # --- Fetch fresh tweets via bird CLI ---
+    from app.integrations.bird import fetch_user_tweets_bird
+    tweets = await fetch_user_tweets_bird(handle)
+
+    # --- Cache result (even if empty, to avoid hammering) ---
+    if tweets:
+        try:
+            await redis.set(cache_key, json.dumps(tweets), ex=_TWEET_CACHE_TTL)
+        except Exception:
+            logger.debug("_get_cached_tweets: Redis write failed for %s", cache_key)
+
+    return tweets
 
 
 def analyze_conversation_tone(interactions: list[Interaction]) -> str:
@@ -124,10 +191,16 @@ async def compose_followup_message(
     first_name = contact.given_name or (contact.full_name or "there").split()[0]
     company_info = f" at {contact.company}" if contact.company else ""
     title_info = f" ({contact.title})" if contact.title else ""
+    bio_lines = ""
+    if getattr(contact, "twitter_bio", None):
+        bio_lines += f"\nTwitter bio: {contact.twitter_bio}"
+    if getattr(contact, "telegram_bio", None):
+        bio_lines += f"\nTelegram bio: {contact.telegram_bio}"
     contact_context = (
         f"Name: {contact.full_name or first_name}{company_info}{title_info}\n"
         f"Relationship score: {contact.relationship_score}/10\n"
         f"Last interaction: {contact.last_interaction_at.date() if contact.last_interaction_at else 'unknown'}"
+        f"{bio_lines}"
     )
 
     # ------------------------------------------------------------------
@@ -161,7 +234,7 @@ async def compose_followup_message(
             "Example: 'Saw your tweet about the seed round, congrats! How are things feeling now?'"
         )
     elif trigger_type == "time_based":
-        reason = "It has been a while since your last interaction (90+ days)."
+        reason = "It has been a while since your last interaction (90+ days). Use their recent activity to make the message feel timely and relevant."
         example = (
             "Example: \"Hey Alex, it's been a minute. How's everything going with the new product?\""
         )
@@ -169,16 +242,30 @@ async def compose_followup_message(
         reason = "A scheduled follow-up is due."
         example = "Example: 'Hey, just checking in — how have things been going?'"
 
+    # ------------------------------------------------------------------
+    # Fetch Twitter context for time_based triggers
+    # ------------------------------------------------------------------
+    twitter_context = ""
+    if trigger_type == "time_based":
+        twitter_context = await _fetch_twitter_context(contact)
+
     preferred_channel = "email"
     if interactions:
         preferred_channel = interactions[0].platform
+
+    twitter_section = f"\n{twitter_context}\n" if twitter_context else ""
+    twitter_instruction = (
+        "\n- If the contact has recent Twitter activity, reference it naturally "
+        "(e.g., congratulate an achievement, ask about a project they tweeted about)"
+        if twitter_context else ""
+    )
 
     prompt = f"""You are a networking assistant helping a user maintain genuine professional relationships.
 Write a short, natural follow-up message for the contact below.
 
 CONTACT:
 {contact_context}
-
+{twitter_section}
 TONE: {tone} (match this tone in the message)
 PREFERRED CHANNEL: {preferred_channel}
 
@@ -191,7 +278,7 @@ LAST CONVERSATION EXCERPT:
 INSTRUCTIONS:
 - Write 2-3 sentences max
 - Be warm and genuine, not salesy
-- Reference the reason naturally
+- Reference the reason naturally{twitter_instruction}
 - Do NOT use placeholders like [Name] — use the actual first name: {first_name}
 - Output only the message text, no subject line, no explanation
 {example}
@@ -206,7 +293,7 @@ Message:"""
     try:
         message = await _call_anthropic_with_retry(
             client,
-            model="claude-3-5-haiku-20241022",
+            model="claude-sonnet-4-20250514",
             max_tokens=200,
             messages=[{"role": "user", "content": prompt}],
         )

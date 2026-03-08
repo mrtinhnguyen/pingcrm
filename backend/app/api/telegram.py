@@ -277,7 +277,16 @@ async def get_common_groups(
     if not contact.telegram_username and not contact.telegram_user_id:
         return {"data": [], "error": None}
 
+    # Rate-limit: skip Telegram API call if checked within 24h
+    from app.core.redis import get_redis
+    r = get_redis()
+    cache_key = f"tg_groups_check:{contact_id}"
+    if await r.exists(cache_key):
+        # Return DB-cached groups without hitting Telegram
+        return {"data": contact.telegram_common_groups or [], "error": None}
+
     from app.services.telegram_service import get_common_groups_cached
 
     groups = await get_common_groups_cached(contact, current_user, db)
+    await r.setex(cache_key, 86400, "1")  # 24h
     return {"data": groups, "error": None}

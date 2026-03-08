@@ -511,12 +511,13 @@ from app.core.redis import get_redis
 @router.post("/{contact_id}/refresh-bios", response_model=Envelope[BioRefreshData])
 async def refresh_contact_bios(
     contact_id: uuid.UUID,
+    force: bool = Query(False, description="Bypass 24h rate limit (for manual refresh)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[BioRefreshData]:
     """Check for bio updates on Twitter and Telegram for a single contact.
 
-    Rate-limited to once per 24 hours per contact.
+    Rate-limited to once per 24 hours per contact (unless force=true).
     """
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
@@ -527,7 +528,7 @@ async def refresh_contact_bios(
 
     r = get_redis()
     cache_key = f"bio_check:{contact_id}"
-    if await r.exists(cache_key):
+    if not force and await r.exists(cache_key):
         return envelope({"skipped": True, "reason": "checked_recently"})
 
     from app.services.bio_refresh import refresh_contact_bios as _refresh_bios, _BIO_CHECK_TTL
@@ -544,6 +545,7 @@ _AVATAR_CHECK_TTL = 86400  # 24 hours
 @router.post("/{contact_id}/refresh-avatar", response_model=Envelope[AvatarRefreshData])
 async def refresh_contact_avatar(
     contact_id: uuid.UUID,
+    force: bool = Query(False, description="Bypass 24h rate limit (for manual refresh)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[AvatarRefreshData]:
@@ -557,7 +559,7 @@ async def refresh_contact_avatar(
 
     r = get_redis()
     cache_key = f"avatar_check:{contact_id}"
-    if await r.exists(cache_key):
+    if not force and await r.exists(cache_key):
         return envelope({"avatar_url": contact.avatar_url, "skipped": True, "reason": "checked_recently"})
 
     old_avatar = contact.avatar_url
@@ -584,11 +586,12 @@ async def refresh_contact_avatar(
     # Try Twitter if still no avatar
     if not new_avatar and contact.twitter_handle:
         try:
-            from app.integrations.twitter import fetch_user_profile, download_twitter_avatar
+            from app.integrations.bird import fetch_user_profile_bird
+            from app.integrations.twitter import download_twitter_avatar
             handle = (contact.twitter_handle or "").lstrip("@").strip()
             if handle:
-                profile = await fetch_user_profile(handle)
-                image_url = profile.get("profile_image_url")
+                profile = await fetch_user_profile_bird(handle)
+                image_url = profile.get("profileImageUrl") or profile.get("profile_image_url")
                 if image_url:
                     avatar_path = await download_twitter_avatar(image_url, contact.id)
                     if avatar_path:
@@ -616,12 +619,13 @@ _EMAIL_SYNC_TTL = 3600  # 1 hour
 @router.post("/{contact_id}/sync-emails", response_model=Envelope[dict])
 async def sync_contact_emails(
     contact_id: uuid.UUID,
+    force: bool = Query(False, description="Bypass 1h rate limit (for manual refresh)"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[dict]:
     """Search Gmail for threads involving this contact's emails and save as interactions.
 
-    Rate-limited to once per hour per contact.
+    Rate-limited to once per hour per contact (unless force=true).
     """
     result = await db.execute(
         select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
@@ -638,7 +642,7 @@ async def sync_contact_emails(
 
     r = get_redis()
     cache_key = f"email_sync:{contact_id}"
-    if await r.exists(cache_key):
+    if not force and await r.exists(cache_key):
         return envelope({"new_interactions": 0, "skipped": True, "reason": "synced_recently"})
 
     from app.integrations.gmail import sync_contact_emails as _sync_emails

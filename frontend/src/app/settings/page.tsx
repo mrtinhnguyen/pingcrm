@@ -670,7 +670,7 @@ function SettingsPageInner() {
 
   const handleGmailSync = async () => {
     setGmailSync({ status: "loading", message: "" });
-    const { error } = await client.POST("/api/v1/contacts/sync/gmail" as any);
+    const { error } = await client.POST("/api/v1/contacts/sync/gmail" as any, {});
     if (error) {
       setGmailSync({
         status: "error",

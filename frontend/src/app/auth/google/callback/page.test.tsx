@@ -58,7 +58,7 @@ describe("GoogleCallbackPage", () => {
     });
 
     // Confirm the old wrong key is NOT used
-    const wrongKeyCall = mockSetItem.mock.calls.find(([key]: [string]) => key === "token");
+    const wrongKeyCall = mockSetItem.mock.calls.find((call) => call[0] === "token");
     expect(wrongKeyCall).toBeUndefined();
   });
 

@@ -15,6 +15,7 @@ export interface Contact {
   twitter_bio: string | null;
   telegram_username: string | null;
   telegram_bio: string | null;
+  location: string | null;
   birthday: string | null;
   linkedin_url: string | null;
   avatar_url: string | null;

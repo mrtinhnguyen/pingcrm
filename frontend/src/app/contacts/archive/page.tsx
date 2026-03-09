@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, Archive, ArrowLeft } from "lucide-react";
@@ -10,6 +10,14 @@ import { ScoreBadge } from "@/components/score-badge";
 import { formatDistanceToNow } from "date-fns";
 
 export default function ArchivedContactsPage() {
+  return (
+    <Suspense fallback={<div className="max-w-6xl mx-auto px-4 py-8"><div className="h-8 w-48 bg-stone-100 rounded animate-pulse" /></div>}>
+      <ArchivedContactsInner />
+    </Suspense>
+  );
+}
+
+function ArchivedContactsInner() {
   const searchParams = useSearchParams();
   const router = useRouter();
 

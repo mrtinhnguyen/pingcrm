@@ -27,7 +27,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useContact, useUpdateContact, useDeleteContact, useContactDuplicates, useMergeContacts } from "@/hooks/use-contacts";
+import { useContact, useUpdateContact, useDeleteContact, useContactDuplicates, useMergeContacts, type Contact } from "@/hooks/use-contacts";
 import { ScoreBadge } from "@/components/score-badge";
 import { Timeline, type TimelineEntry } from "@/components/timeline";
 import {
@@ -203,7 +203,7 @@ export default function ContactDetailPage() {
   const id = params.id as string;
 
   const { data: contactData, isLoading, isError } = useContact(id);
-  const contact = contactData?.data;
+  const contact = contactData?.data as Contact | undefined;
   const updateContact = useUpdateContact();
   const deleteContact = useDeleteContact();
 

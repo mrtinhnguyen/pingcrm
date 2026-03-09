@@ -124,65 +124,145 @@ def sync_gmail_all() -> dict:
 # ---------------------------------------------------------------------------
 
 
-@shared_task(name="app.services.tasks.sync_telegram_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
-def sync_telegram_for_user(self, user_id: str) -> dict:
-    """
-    Full Telegram sync for a single user: chats + group members + bios + scores.
-
-    Creates a notification on completion.
-    """
+@shared_task(name="app.services.tasks.sync_telegram_chats_for_user", bind=True, max_retries=3, soft_time_limit=300, time_limit=420)
+def sync_telegram_chats_for_user(self, user_id: str) -> dict:
+    """Sync Telegram DM chats for a single user."""
     async def _sync(uid: uuid.UUID) -> dict:
-        from app.integrations.telegram import (
-            sync_telegram_chats,
-            sync_telegram_group_members,
-            sync_telegram_bios,
-        )
-        from app.models.notification import Notification
+        from app.integrations.telegram import sync_telegram_chats
         from app.services.scoring import calculate_score
 
         async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
             user = result.scalar_one_or_none()
             if user is None:
-                logger.warning("sync_telegram_for_user: user %s not found.", uid)
                 return {"status": "user_not_found"}
 
-            # 1. Sync DM chats
             chat_result = await sync_telegram_chats(user, db)
-            chat_info = chat_result if isinstance(chat_result, dict) else {"new_interactions": chat_result, "new_contacts": 0, "affected_contact_ids": []}
+            chat_info = chat_result if isinstance(chat_result, dict) else {
+                "new_interactions": chat_result, "new_contacts": 0, "affected_contact_ids": [],
+            }
 
-            # 2. Sync group members
-            group_result = {"new_contacts": 0, "updated_contacts": 0, "groups_scanned": 0}
-            try:
-                group_result = await sync_telegram_group_members(user, db)
-            except Exception:
-                logger.warning("sync_telegram_for_user: group member sync failed for %s", uid)
-
-            # 3. Sync bios
-            try:
-                await sync_telegram_bios(user, db)
-            except Exception:
-                logger.warning("sync_telegram_for_user: bio sync failed for %s", uid)
-
-            # 4. Recalculate scores
-            try:
-                affected = set(chat_info.get("affected_contact_ids", []))
-                affected |= set(group_result.get("affected_contact_ids", []))
-                for cid in affected:
+            for cid in chat_info.get("affected_contact_ids", []):
+                try:
                     await calculate_score(cid, db)
-            except Exception:
-                logger.warning("sync_telegram_for_user: score recalc failed for %s", uid)
+                except Exception:
+                    logger.warning("telegram_chats: score recalc failed for contact %s", cid)
 
-            # 5. Notification
-            parts = []
-            if chat_info.get("new_interactions"):
-                parts.append(f"{chat_info['new_interactions']} messages")
-            if chat_info.get("new_contacts"):
-                parts.append(f"{chat_info['new_contacts']} new contacts from DMs")
-            if group_result.get("new_contacts"):
-                parts.append(f"{group_result['new_contacts']} new contacts from groups")
-            if group_result.get("groups_scanned"):
-                parts.append(f"{group_result['groups_scanned']} groups scanned")
+            await db.commit()
+
+        return {
+            "status": "ok",
+            "new_interactions": chat_info.get("new_interactions", 0),
+            "new_contacts": chat_info.get("new_contacts", 0),
+        }
+
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return {"status": "invalid_user_id"}
+
+    try:
+        return _run(_sync(uid))
+    except Exception as exc:
+        logger.exception("sync_telegram_chats failed for %s, retrying.", user_id)
+        if self.request.retries >= self.max_retries:
+            _run(_notify_sync_failure(uid, "Telegram chats", str(exc)))
+        raise self.retry(exc=exc, countdown=60) from exc
+
+
+@shared_task(name="app.services.tasks.sync_telegram_groups_for_user", bind=True, max_retries=3, soft_time_limit=300, time_limit=420)
+def sync_telegram_groups_for_user(self, user_id: str) -> dict:
+    """Sync Telegram group members for a single user."""
+    async def _sync(uid: uuid.UUID) -> dict:
+        from app.integrations.telegram import sync_telegram_group_members
+        from app.services.scoring import calculate_score
+
+        async with task_session() as db:
+            result = await db.execute(select(User).where(User.id == uid))
+            user = result.scalar_one_or_none()
+            if user is None:
+                return {"status": "user_not_found"}
+
+            group_result = await sync_telegram_group_members(user, db)
+
+            for cid in group_result.get("affected_contact_ids", []):
+                try:
+                    await calculate_score(cid, db)
+                except Exception:
+                    logger.warning("telegram_groups: score recalc failed for contact %s", cid)
+
+            await db.commit()
+
+        return {
+            "status": "ok",
+            "new_contacts": group_result.get("new_contacts", 0),
+            "groups_scanned": group_result.get("groups_scanned", 0),
+        }
+
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return {"status": "invalid_user_id"}
+
+    try:
+        return _run(_sync(uid))
+    except Exception as exc:
+        logger.exception("sync_telegram_groups failed for %s, retrying.", user_id)
+        if self.request.retries >= self.max_retries:
+            _run(_notify_sync_failure(uid, "Telegram groups", str(exc)))
+        raise self.retry(exc=exc, countdown=60) from exc
+
+
+@shared_task(name="app.services.tasks.sync_telegram_bios_for_user", bind=True, max_retries=3, soft_time_limit=300, time_limit=420)
+def sync_telegram_bios_for_user(self, user_id: str) -> dict:
+    """Sync Telegram bios (about text, birthdays, Twitter handles) for a single user."""
+    async def _sync(uid: uuid.UUID) -> dict:
+        from app.integrations.telegram import sync_telegram_bios
+
+        async with task_session() as db:
+            result = await db.execute(select(User).where(User.id == uid))
+            user = result.scalar_one_or_none()
+            if user is None:
+                return {"status": "user_not_found"}
+
+            await sync_telegram_bios(user, db)
+            await db.commit()
+
+        return {"status": "ok"}
+
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return {"status": "invalid_user_id"}
+
+    try:
+        return _run(_sync(uid))
+    except Exception as exc:
+        logger.exception("sync_telegram_bios failed for %s, retrying.", user_id)
+        if self.request.retries >= self.max_retries:
+            _run(_notify_sync_failure(uid, "Telegram bios", str(exc)))
+        raise self.retry(exc=exc, countdown=60) from exc
+
+
+@shared_task(name="app.services.tasks.sync_telegram_notify", ignore_result=True)
+def sync_telegram_notify(sub_results: list, user_id: str) -> dict:
+    """Send a summary notification after all Telegram sub-tasks complete."""
+    async def _notify(uid: uuid.UUID) -> None:
+        from app.models.notification import Notification
+
+        parts = []
+        for r in sub_results:
+            if not isinstance(r, dict) or r.get("status") != "ok":
+                continue
+            if r.get("new_interactions"):
+                parts.append(f"{r['new_interactions']} messages")
+            if r.get("new_contacts"):
+                dm_or_group = "from groups" if r.get("groups_scanned") else "from DMs"
+                parts.append(f"{r['new_contacts']} new contacts {dm_or_group}")
+            if r.get("groups_scanned"):
+                parts.append(f"{r['groups_scanned']} groups scanned")
+
+        async with task_session() as db:
             db.add(Notification(
                 user_id=uid,
                 notification_type="sync",
@@ -192,37 +272,37 @@ def sync_telegram_for_user(self, user_id: str) -> dict:
             ))
             await db.commit()
 
-        return {
-            "status": "ok",
-            "new_interactions": chat_info.get("new_interactions", 0),
-            "new_contacts": chat_info.get("new_contacts", 0),
-            "group_members": group_result,
-        }
-
     try:
         uid = uuid.UUID(user_id)
     except ValueError:
-        logger.error("sync_telegram_for_user: invalid user_id %r", user_id)
         return {"status": "invalid_user_id"}
 
-    try:
-        return _run(_sync(uid))
-    except Exception as exc:
-        logger.exception("sync_telegram_for_user failed for %s, retrying.", user_id)
-        if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Telegram", str(exc)))
-        raise self.retry(exc=exc, countdown=60) from exc
+    _run(_notify(uid))
+    return {"status": "ok"}
+
+
+def sync_telegram_for_user(user_id: str) -> None:
+    """Orchestrate Telegram sync as parallel sub-tasks with a summary notification.
+
+    This is NOT a Celery task itself — it dispatches a chord of 3 independent
+    sub-tasks (chats, groups, bios) that run in parallel, followed by a
+    callback that sends the summary notification.
+    """
+    from celery import chord
+
+    chord(
+        [
+            sync_telegram_chats_for_user.s(user_id),
+            sync_telegram_groups_for_user.s(user_id),
+            sync_telegram_bios_for_user.s(user_id),
+        ],
+        sync_telegram_notify.s(user_id),
+    ).apply_async()
 
 
 @shared_task(name="app.services.tasks.sync_telegram_all")
 def sync_telegram_all() -> dict:
-    """
-    Beat-scheduled task: enqueue a ``sync_telegram_for_user`` task for every
-    user that has a telegram_session set.
-
-    Returns:
-        A dict with ``queued`` count.
-    """
+    """Beat-scheduled task: enqueue Telegram sync for every connected user."""
     async def _get_user_ids() -> list[str]:
         async with task_session() as db:
             result = await db.execute(
@@ -232,7 +312,7 @@ def sync_telegram_all() -> dict:
 
     user_ids = _run(_get_user_ids())
     for uid in user_ids:
-        sync_telegram_for_user.delay(uid)
+        sync_telegram_for_user(uid)
 
     logger.info("sync_telegram_all: queued %d user(s).", len(user_ids))
     return {"queued": len(user_ids)}

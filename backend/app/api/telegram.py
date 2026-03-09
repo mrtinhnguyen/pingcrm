@@ -234,7 +234,7 @@ async def sync_telegram(
         )
 
     from app.services.tasks import sync_telegram_for_user
-    sync_telegram_for_user.delay(str(current_user.id))
+    sync_telegram_for_user(str(current_user.id))
 
     return {"data": {"status": "started"}, "error": None}
 

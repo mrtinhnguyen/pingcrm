@@ -1,68 +1,58 @@
 # Plans - Ping CRM
 
-> Phases 1-7 (101 tasks, all ✅) archived in [Plans-archive.md](Plans-archive.md)
-
-## Phase 8: Security & Correctness Fixes
-
-作成日: 2026-03-07
-
-### 8.1 Google OAuth State Enforcement (High)
-
-- [x] `cc:完了` Enforce state-bound user identity in Google callback: when `popped` value is a real user_id (not `__anonymous__`), verify it matches the current authenticated user before proceeding
-- [x] `cc:完了` Add tests: state with user_id mismatch returns 403, anonymous state allows normal signup/login flow
-
-### 8.2 Frontend Token Key Mismatch (High)
-
-- [x] `cc:完了` Fix Google callback page to store JWT under `access_token` key, matching `api-client.ts` and `use-auth.ts`
-- [x] `cc:完了` Add test for Google callback: verify token is stored under `access_token` key
-
-### 8.3 Exception Detail Redaction (High)
-
-- [x] `cc:完了` Replace raw `{exc}` in HTTPException details with generic user-facing messages; log the full exception server-side
-- [x] `cc:完了` Add tests: verify error responses do not contain exception class names or tracebacks
-
-### 8.4 Twitter Polling Filter (Medium)
-
-- [x] `cc:完了` Filter `poll_twitter_all()` query to only users with `twitter_refresh_token IS NOT NULL`
-- [x] `cc:完了` Add test: `poll_twitter_all` only enqueues tasks for Twitter-connected users
-
-### 8.5 ENCRYPTION_KEY Startup Validation (Medium)
-
-- [x] `cc:完了` Add startup validation for `ENCRYPTION_KEY` in `main.py` (warn in dev, error in production)
-- [x] `cc:完了` Add `ENCRYPTION_KEY` to `.env.example` with generation command comment
-- [x] `cc:完了` Add test: app startup raises when `ENCRYPTION_KEY` is empty and environment is production
-
-### 8.6 Transaction Auto-Commit Documentation (Medium)
-
-- [x] `cc:完了` Add inline docstring to `get_db()` explaining the auto-commit policy
-- [x] `cc:完了` Add `# TRANSACTION POLICY` comment block at top of `database.py`
+> Phases 1-7 (101 tasks, all done) archived in [Plans-archive.md](Plans-archive.md)
+> Phases 8-9 (all done) — Security fixes, AI auto-tagging, test coverage
 
 ---
 
-## Phase 9: AI Auto-Tagging + Maintenance
+## Phase 10: Maintenance & Polish
 
 作成日: 2026-03-08
 
-### 9.1 AI Auto-Tagging Feature (Done)
+### 10.1 Commit In-Progress Work (High)
 
-- [x] `cc:完了` TagTaxonomy model + migration (tag_taxonomies table)
-- [x] `cc:完了` auto_tagger.py service (discover_taxonomy, assign_tags, merge_tags)
-- [x] `cc:完了` API endpoints: /tags/discover, /tags/taxonomy GET/PUT, /tags/apply, /{id}/auto-tag
-- [x] `cc:完了` Celery task: apply_tags_to_contacts for bulk tagging
-- [x] `cc:完了` Frontend: Tags taxonomy page with discover/edit/approve/apply flow
-- [x] `cc:完了` Frontend: Auto-tag kebab menu on contact detail page
-- [x] `cc:完了` Nav: Tags link with correct isActive logic
-- [x] `cc:完了` Review fixes: route ordering, N+1 queries, prompt injection sanitization, status validation
-- [x] `cc:完了` Fix deprecated Haiku model ID (claude-3-5-haiku → claude-haiku-4-5)
+- [ ] `cc:WIP` Commit and push: Labels→Tags rename (#10), Contacts nav submenu with Archive page (#11)
+- [ ] `cc:TODO` Close GitHub issues #10 and #11
 
-### 9.2 Missing Tests: auto_tagger.py (Medium)
+### 10.2 Archive Page Suspense Wrapper (Medium)
 
-- [x] `cc:完了` Unit tests for merge_tags (case-insensitive dedup, append-only)
-- [x] `cc:完了` Unit tests for _build_contact_summary (sanitization, length caps)
-- [x] `cc:完了` Unit tests for _parse_json_response (bare JSON, code fences, invalid)
-- [x] `cc:完了` Unit tests for discover_taxonomy (mocked LLM, batching, error propagation)
-- [x] `cc:完了` Unit tests for assign_tags (taxonomy validation, case matching)
+- [ ] `cc:TODO` Wrap `/contacts/archive/page.tsx` in `<Suspense>` boundary (same pattern as contacts page) — required by Next.js App Router for `useSearchParams()`
 
-### 9.3 Login Endpoint Envelope Consistency (Low)
+### 10.3 TypeScript Errors Cleanup (Medium)
 
-- [x] `cc:完了` Wrap /login response in Envelope[TokenData] to match all other endpoints
+- [ ] `cc:TODO` Fix 4 pre-existing TS errors: `contacts/[id]/page.tsx` (2 errors — birthday field type), `settings/page.tsx` (1 error — POST call signature), `auth/google/callback/page.test.tsx` (1 error)
+
+### 10.4 Frontend Test Coverage Expansion (Medium)
+
+- [ ] `cc:TODO` Add tests for nav component (dropdown rendering, active state, submenu links)
+- [ ] `cc:TODO` Add tests for archive page (renders, search, unarchive button)
+- [ ] `cc:TODO` Add tests for identity page (scan, merge flow)
+
+### 10.5 PKCE Verifier Storage (Medium)
+
+- [ ] `cc:TODO` Move Twitter PKCE verifiers from in-memory dict to Redis (required for multi-worker production deployment)
+
+### 10.6 Celery Beat Schedule Review (Low)
+
+- [ ] `cc:TODO` Verify Telegram sync interval (12h) is appropriate post-split into 3 sub-tasks
+- [ ] `cc:TODO` Consider adding Google Calendar sync to beat schedule (currently manual-only)
+
+### 10.7 Docker Deployment (Low)
+
+- [ ] `cc:TODO` Create `docker-compose.yml` with PostgreSQL, Redis, backend, frontend, Celery worker, Celery beat
+- [ ] `cc:TODO` Create `Dockerfile` for backend and frontend
+
+### 10.8 OpenAPI Schema Regeneration (Low)
+
+- [ ] `cc:TODO` Regenerate `backend/openapi.json` and `frontend` openapi-fetch types to include new `archived_only` param and any other recent API changes
+
+---
+
+## Backlog: Feature Exploration (from GitHub Issues)
+
+| Issue | Title | Priority |
+|-------|-------|----------|
+| #7 | MCP Server integration | Explore |
+| #6 | Pre-meeting prep notifications | Explore |
+| #5 | Two-way device contact sync | Explore |
+| #4 | Sync with WhatsApp, iMessage | Explore |

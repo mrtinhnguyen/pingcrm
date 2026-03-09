@@ -3,17 +3,25 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, Users, Building2, Sparkles, GitMerge, Settings, Bell, LogOut, ChevronDown } from "lucide-react";
+import { LayoutDashboard, Users, Building2, Sparkles, GitMerge, Settings, Bell, LogOut, ChevronDown, Archive } from "lucide-react";
 import { useUnreadCount } from "@/hooks/use-notifications";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/contacts", label: "Contacts", icon: Users },
+  {
+    href: "/contacts",
+    label: "Contacts",
+    icon: Users,
+    children: [
+      { href: "/contacts", label: "All Contacts", icon: Users },
+      { href: "/contacts/archive", label: "Archive", icon: Archive },
+      { href: "/identity", label: "Resolve Duplicates", icon: GitMerge },
+    ],
+  },
   { href: "/organizations", label: "Orgs", icon: Building2 },
   { href: "/suggestions", label: "Suggestions", icon: Sparkles },
-  { href: "/identity", label: "Identity", icon: GitMerge },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
@@ -33,6 +41,75 @@ function NotificationBell() {
         </span>
       )}
     </Link>
+  );
+}
+
+function NavDropdown({
+  href,
+  label,
+  icon: Icon,
+  children,
+  pathname,
+}: {
+  href: string;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  children: { href: string; label: string; icon: React.ComponentType<{ className?: string }> }[];
+  pathname: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  const isActive = pathname === href || pathname.startsWith(href + "/") || pathname === "/identity";
+
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "relative flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors",
+          isActive ? "text-teal-700" : "text-stone-600 hover:bg-stone-100 hover:text-stone-900",
+        )}
+      >
+        <Icon className="w-4 h-4" />
+        {label}
+        <ChevronDown className={cn("w-3 h-3 transition-transform", open && "rotate-180")} />
+        {isActive && (
+          <span className="absolute bottom-[-9px] left-2 right-2 h-[2px] bg-teal-600 rounded-full" />
+        )}
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 w-48 bg-white rounded-lg border border-stone-200 shadow-md py-1 z-50">
+          {children.map((child) => {
+            const ChildIcon = child.icon;
+            const childActive = pathname === child.href || (child.href === "/identity" && pathname.startsWith("/identity"));
+            return (
+              <Link
+                key={child.href}
+                href={child.href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-2 px-3 py-2 text-sm transition-colors",
+                  childActive
+                    ? "text-teal-700 bg-teal-50"
+                    : "text-stone-600 hover:bg-stone-50 hover:text-stone-900",
+                )}
+              >
+                <ChildIcon className="w-4 h-4" />
+                {child.label}
+              </Link>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -71,12 +148,21 @@ export function Nav() {
 
         {/* Navigation links */}
         <div className="flex items-center gap-0.5">
-          {navLinks.map(({ href, label, icon: Icon }) => {
-            // Check if a more specific nav link matches first to avoid double-highlighting
-            const moreSpecificMatch = navLinks.some(
-              (other) => other.href !== href && other.href.startsWith(href + "/") && (pathname === other.href || pathname.startsWith(other.href + "/"))
-            );
-            const isActive = !moreSpecificMatch && (pathname === href || pathname.startsWith(href + "/"));
+          {navLinks.map((item) => {
+            if ("children" in item && item.children) {
+              return (
+                <NavDropdown
+                  key={item.href}
+                  href={item.href}
+                  label={item.label}
+                  icon={item.icon}
+                  children={item.children}
+                  pathname={pathname}
+                />
+              );
+            }
+            const { href, label, icon: Icon } = item;
+            const isActive = pathname === href || pathname.startsWith(href + "/");
             return (
               <Link
                 key={href}

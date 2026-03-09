@@ -370,7 +370,7 @@ export function EditableTagsField({
               onKeyDown={handleKeyDown}
               onBlur={handleClose}
               className="w-full text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              placeholder={selectedTags.length > 0 ? "Add more..." : "Type to add label..."}
+              placeholder={selectedTags.length > 0 ? "Add more..." : "Type to add tag..."}
             />
             {/* Suggestions dropdown */}
             {(suggestions.length > 0 || (inputValue.trim() && !allTags.includes(inputValue.trim()) && !selectedTags.includes(inputValue.trim()))) && (
@@ -418,7 +418,7 @@ export function EditableTagsField({
                 ))}
               </div>
             ) : (
-              <span className="text-sm text-gray-300 italic">Add labels...</span>
+              <span className="text-sm text-gray-300 italic">Add tags...</span>
             )}
             <Pencil className="w-3 h-3 text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
           </div>

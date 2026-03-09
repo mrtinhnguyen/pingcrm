@@ -876,7 +876,7 @@ export default function ContactDetailPage() {
               </h2>
               <div className="divide-y divide-stone-100">
                 <EditableTagsField
-                  label="Labels"
+                  label="Tags"
                   values={contact.tags ?? []}
                   onSave={(v) => saveField("tags", v)}
                   icon={<Tag className="w-4 h-4" />}

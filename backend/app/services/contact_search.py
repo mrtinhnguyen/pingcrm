@@ -24,6 +24,7 @@ def build_contact_filter_query(
     has_interactions: bool | None = None,
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
+    archived_only: bool = False,
 ) -> object:
     """Build a SQLAlchemy select query for contacts with optional filters.
 
@@ -41,10 +42,11 @@ def build_contact_filter_query(
     Returns:
         A SQLAlchemy select statement (not yet executed).
     """
-    base_query = select(Contact).where(
-        Contact.user_id == user_id,
-        Contact.priority_level != "archived",
-    )
+    base_query = select(Contact).where(Contact.user_id == user_id)
+    if archived_only:
+        base_query = base_query.where(Contact.priority_level == "archived")
+    else:
+        base_query = base_query.where(Contact.priority_level != "archived")
 
     if search:
         # Escape SQL LIKE wildcards to prevent wildcard injection
@@ -141,6 +143,7 @@ async def list_contacts_paginated(
     has_interactions: bool | None = None,
     interaction_days: int | None = None,
     has_birthday: bool | None = None,
+    archived_only: bool = False,
     sort_by: str = "score",
 ) -> ContactListResponse:
     """Execute a filtered, paginated contact query and return the response model."""
@@ -155,6 +158,7 @@ async def list_contacts_paginated(
         has_interactions=has_interactions,
         interaction_days=interaction_days,
         has_birthday=has_birthday,
+        archived_only=archived_only,
     )
 
     count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))

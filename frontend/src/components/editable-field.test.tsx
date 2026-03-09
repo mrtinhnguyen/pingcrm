@@ -175,7 +175,7 @@ describe("EditableListField", () => {
 describe("EditableTagsField", () => {
   it("renders tags as chips", () => {
     render(
-      <EditableTagsField label="Labels" values={["vip", "lead"]} onSave={vi.fn()} />
+      <EditableTagsField label="Tags" values={["vip", "lead"]} onSave={vi.fn()} />
     );
     expect(screen.getByText("vip")).toBeInTheDocument();
     expect(screen.getByText("lead")).toBeInTheDocument();
@@ -183,14 +183,14 @@ describe("EditableTagsField", () => {
 
   it("shows placeholder when no tags", () => {
     render(
-      <EditableTagsField label="Labels" values={[]} onSave={vi.fn()} />
+      <EditableTagsField label="Tags" values={[]} onSave={vi.fn()} />
     );
-    expect(screen.getByText("Add labels...")).toBeInTheDocument();
+    expect(screen.getByText("Add tags...")).toBeInTheDocument();
   });
 
   it("opens edit mode and shows selected tags as removable chips", () => {
     render(
-      <EditableTagsField label="Labels" values={["vip"]} onSave={vi.fn()} />
+      <EditableTagsField label="Tags" values={["vip"]} onSave={vi.fn()} />
     );
     fireEvent.click(screen.getByText("vip"));
     // In edit mode, should see the tag as a button with ×
@@ -200,13 +200,13 @@ describe("EditableTagsField", () => {
   it("shows suggestions from allTags", () => {
     render(
       <EditableTagsField
-        label="Labels"
+        label="Tags"
         values={[]}
         onSave={vi.fn()}
         allTags={["vip", "lead", "partner"]}
       />
     );
-    fireEvent.click(screen.getByText("Add labels..."));
+    fireEvent.click(screen.getByText("Add tags..."));
     // All suggestions should show since none are selected
     expect(screen.getByText("vip")).toBeInTheDocument();
     expect(screen.getByText("lead")).toBeInTheDocument();
@@ -216,14 +216,14 @@ describe("EditableTagsField", () => {
   it("filters suggestions as user types", () => {
     render(
       <EditableTagsField
-        label="Labels"
+        label="Tags"
         values={[]}
         onSave={vi.fn()}
         allTags={["vip", "lead", "partner"]}
       />
     );
-    fireEvent.click(screen.getByText("Add labels..."));
-    const input = screen.getByPlaceholderText("Type to add label...");
+    fireEvent.click(screen.getByText("Add tags..."));
+    const input = screen.getByPlaceholderText("Type to add tag...");
     fireEvent.change(input, { target: { value: "le" } });
     expect(screen.getByText("lead")).toBeInTheDocument();
     expect(screen.queryByText("partner")).not.toBeInTheDocument();
@@ -232,14 +232,14 @@ describe("EditableTagsField", () => {
   it("shows Create option for new tag", () => {
     render(
       <EditableTagsField
-        label="Labels"
+        label="Tags"
         values={[]}
         onSave={vi.fn()}
         allTags={["vip"]}
       />
     );
-    fireEvent.click(screen.getByText("Add labels..."));
-    const input = screen.getByPlaceholderText("Type to add label...");
+    fireEvent.click(screen.getByText("Add tags..."));
+    const input = screen.getByPlaceholderText("Type to add tag...");
     fireEvent.change(input, { target: { value: "newtag" } });
     expect(screen.getByText(/Create "newtag"/)).toBeInTheDocument();
   });
@@ -247,10 +247,10 @@ describe("EditableTagsField", () => {
   it("adds new tag on Enter", () => {
     const onSave = vi.fn();
     render(
-      <EditableTagsField label="Labels" values={[]} onSave={onSave} allTags={[]} />
+      <EditableTagsField label="Tags" values={[]} onSave={onSave} allTags={[]} />
     );
-    fireEvent.click(screen.getByText("Add labels..."));
-    const input = screen.getByPlaceholderText("Type to add label...");
+    fireEvent.click(screen.getByText("Add tags..."));
+    const input = screen.getByPlaceholderText("Type to add tag...");
     fireEvent.change(input, { target: { value: "newtag" } });
     fireEvent.keyDown(input, { key: "Enter" });
     // Tag should appear as chip
@@ -260,7 +260,7 @@ describe("EditableTagsField", () => {
   it("removes last tag on Backspace when input empty", () => {
     render(
       <EditableTagsField
-        label="Labels"
+        label="Tags"
         values={["vip", "lead"]}
         onSave={vi.fn()}
         allTags={[]}
@@ -281,7 +281,7 @@ describe("EditableTagsField", () => {
   it("excludes already-selected tags from suggestions", () => {
     render(
       <EditableTagsField
-        label="Labels"
+        label="Tags"
         values={["vip"]}
         onSave={vi.fn()}
         allTags={["vip", "lead"]}

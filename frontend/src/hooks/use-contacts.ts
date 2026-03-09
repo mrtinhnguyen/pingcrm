@@ -41,6 +41,7 @@ export interface ContactsParams {
   has_interactions?: boolean;
   interaction_days?: number;
   has_birthday?: boolean;
+  archived_only?: boolean;
   sort?: string;
 }
 

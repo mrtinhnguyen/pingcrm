@@ -289,6 +289,7 @@ export default function DashboardPage() {
                         </div>
                         <ScoreBadge
                           score={contact.relationship_score}
+                          lastInteractionAt={contact.last_interaction_at}
                           className="flex-shrink-0 text-xs"
                         />
                       </Link>

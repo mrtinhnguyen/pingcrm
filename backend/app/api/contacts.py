@@ -1344,3 +1344,49 @@ async def compose_message(
     )
 
     return envelope({"suggested_message": message, "suggested_channel": channel})
+
+
+@router.post("/reconcile-last-interaction", response_model=Envelope)
+async def reconcile_last_interaction(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope:
+    """Reconcile last_interaction_at for all contacts from actual interaction data.
+
+    Fixes stale values caused by sync bugs where last_interaction_at wasn't
+    updated when interactions were created or skipped as duplicates.
+    """
+    from app.models.interaction import Interaction
+
+    # Find the true max(occurred_at) per contact
+    max_occurred = (
+        select(
+            Interaction.contact_id,
+            func.max(Interaction.occurred_at).label("max_occurred"),
+        )
+        .where(Interaction.user_id == current_user.id)
+        .group_by(Interaction.contact_id)
+        .subquery()
+    )
+
+    # Get contacts where last_interaction_at is stale or null but interactions exist
+    result = await db.execute(
+        select(Contact, max_occurred.c.max_occurred)
+        .join(max_occurred, Contact.id == max_occurred.c.contact_id)
+        .where(
+            Contact.user_id == current_user.id,
+            (
+                (Contact.last_interaction_at.is_(None))
+                | (Contact.last_interaction_at < max_occurred.c.max_occurred)
+            ),
+        )
+    )
+
+    updated = 0
+    for contact, max_occurred_at in result.all():
+        contact.last_interaction_at = max_occurred_at
+        updated += 1
+
+    await db.flush()
+    logger.info("Reconciled last_interaction_at for %d contacts (user %s)", updated, current_user.id)
+    return envelope({"updated_count": updated})

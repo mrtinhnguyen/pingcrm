@@ -144,7 +144,7 @@ function ArchivedContactsInner() {
                   </td>
                   <td className="px-4 py-3 text-stone-600">{c.company || "—"}</td>
                   <td className="px-4 py-3">
-                    <ScoreBadge score={c.relationship_score} />
+                    <ScoreBadge score={c.relationship_score} lastInteractionAt={c.last_interaction_at} />
                   </td>
                   <td className="px-4 py-3 text-stone-500">
                     {c.last_interaction_at

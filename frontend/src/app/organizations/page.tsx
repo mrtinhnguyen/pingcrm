@@ -569,7 +569,7 @@ export default function OrganizationsPage() {
                                   {contact.title ?? "-"}
                                 </td>
                                 <td className="px-4 py-2.5">
-                                  <ScoreBadge score={contact.relationship_score} />
+                                  <ScoreBadge score={contact.relationship_score} lastInteractionAt={contact.last_interaction_at} />
                                 </td>
                                 <td className="px-4 py-2.5 text-gray-500 text-right">
                                   {contact.last_interaction_at

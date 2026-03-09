@@ -62,7 +62,8 @@ async def create_interaction(
     )
     db.add(interaction)
 
-    contact.last_interaction_at = interaction_in.occurred_at
+    if contact.last_interaction_at is None or contact.last_interaction_at < interaction_in.occurred_at:
+        contact.last_interaction_at = interaction_in.occurred_at
     await db.flush()
     await db.refresh(interaction)
     return envelope(InteractionResponse.model_validate(interaction).model_dump())

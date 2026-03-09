@@ -656,7 +656,7 @@ export default function ContactsPage() {
                         {contact.company || <span className="text-stone-300">&mdash;</span>}
                       </td>
                       <td className="px-4 py-3">
-                        <ScoreBadge score={contact.relationship_score} />
+                        <ScoreBadge score={contact.relationship_score} lastInteractionAt={contact.last_interaction_at} />
                       </td>
                       <td className="px-4 py-3 text-right font-mono-data text-stone-500">
                         {(contact as any).interaction_count ?? 0}

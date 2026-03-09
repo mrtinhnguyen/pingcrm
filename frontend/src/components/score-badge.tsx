@@ -2,10 +2,11 @@ import { cn } from "@/lib/utils";
 
 interface ScoreBadgeProps {
   score: number;
+  lastInteractionAt?: string | null;
   className?: string;
 }
 
-function getScoreVariant(score: number): {
+function getScoreVariant(score: number, lastInteractionAt?: string | null): {
   label: string;
   dotClass: string;
   textClass: string;
@@ -19,20 +20,31 @@ function getScoreVariant(score: number): {
   }
   if (score >= 4) {
     return {
-      label: "Active",
+      label: "Warm",
       dotClass: "bg-amber-400",
       textClass: "text-amber-700",
     };
   }
+  // Score 0-3: check recency before labeling "Cold"
+  if (lastInteractionAt) {
+    const daysSince = (Date.now() - new Date(lastInteractionAt).getTime()) / (1000 * 60 * 60 * 24);
+    if (daysSince <= 30) {
+      return {
+        label: "New",
+        dotClass: "bg-sky-400",
+        textClass: "text-sky-700",
+      };
+    }
+  }
   return {
-    label: "Dormant",
+    label: "Cold",
     dotClass: "bg-red-400",
     textClass: "text-red-600",
   };
 }
 
-export function ScoreBadge({ score, className }: ScoreBadgeProps) {
-  const { label, dotClass, textClass } = getScoreVariant(score);
+export function ScoreBadge({ score, lastInteractionAt, className }: ScoreBadgeProps) {
+  const { label, dotClass, textClass } = getScoreVariant(score, lastInteractionAt);
 
   return (
     <span

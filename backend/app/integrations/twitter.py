@@ -774,8 +774,14 @@ async def sync_twitter_dms(
         existing = await db.execute(
             select(Interaction).where(Interaction.raw_reference_id == f"twitter_dm:{event_id}")
         )
-        if existing.scalar_one_or_none():
+        existing_interaction = existing.scalar_one_or_none()
+        if existing_interaction:
             skipped_duplicate += 1
+            # Still reconcile last_interaction_at for duplicates
+            contact = id_to_contact.get(participant_id)
+            if contact and existing_interaction.occurred_at:
+                if contact.last_interaction_at is None or contact.last_interaction_at < existing_interaction.occurred_at:
+                    contact.last_interaction_at = existing_interaction.occurred_at
             continue
 
         # Match participant to a specific contact by Twitter user ID
@@ -797,7 +803,9 @@ async def sync_twitter_dms(
             occurred_at=_parse_twitter_ts(event.get("created_at")),
         )
         db.add(interaction)
-        contact.last_interaction_at = interaction.occurred_at
+        # Only update if this interaction is more recent
+        if contact.last_interaction_at is None or contact.last_interaction_at < interaction.occurred_at:
+            contact.last_interaction_at = interaction.occurred_at
         new_count += 1
 
     # Auto-create contacts for unmatched participants
@@ -843,7 +851,9 @@ async def sync_twitter_dms(
                     occurred_at=_parse_twitter_ts(ev.get("created_at")),
                 )
                 db.add(interaction)
-                contact.last_interaction_at = interaction.occurred_at
+                # Only update if this interaction is more recent
+                if contact.last_interaction_at is None or contact.last_interaction_at < interaction.occurred_at:
+                    contact.last_interaction_at = interaction.occurred_at
                 new_count += 1
 
     await db.flush()

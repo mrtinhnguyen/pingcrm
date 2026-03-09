@@ -665,6 +665,7 @@ export default function ContactDetailPage() {
               <div className="flex items-center justify-between pt-2 border-t border-stone-100">
                 <ScoreBadge
                   score={contact.relationship_score}
+                  lastInteractionAt={contact.last_interaction_at}
                   className="text-sm"
                 />
                 {contact.last_interaction_at && (

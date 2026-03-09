@@ -541,17 +541,15 @@ async def get_contact_activity(
 
     # Monthly trend: last 6 months
     six_months_ago = datetime.now(UTC) - timedelta(days=183)
+    month_col = func.date_trunc("month", Interaction.occurred_at).label("month")
     trend_result = await db.execute(
-        select(
-            func.date_trunc("month", Interaction.occurred_at).label("month"),
-            func.count().label("count"),
-        )
+        select(month_col, func.count().label("count"))
         .where(
             Interaction.contact_id == contact_id,
             Interaction.occurred_at >= six_months_ago,
         )
-        .group_by(func.date_trunc("month", Interaction.occurred_at))
-        .order_by(func.date_trunc("month", Interaction.occurred_at))
+        .group_by(month_col)
+        .order_by(month_col)
     )
     monthly_trend = [
         {"month": row.month.strftime("%Y-%m"), "count": row.count}

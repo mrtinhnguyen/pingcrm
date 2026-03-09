@@ -71,20 +71,30 @@ def _thread_to_metadata(thread_data: dict) -> dict | None:
     if not messages:
         return None
 
-    # Use the first message for headers, last message for recency
+    # First message for subject, last message for direction/recency
     first_msg = messages[0]
     last_msg = messages[-1]
 
-    headers = first_msg.get("payload", {}).get("headers", [])
-    subject = _extract_header(headers, "subject") or "(no subject)"
-    from_header = _extract_header(headers, "from")
-    to_header = _extract_header(headers, "to")
-    cc_header = _extract_header(headers, "cc")
+    first_headers = first_msg.get("payload", {}).get("headers", [])
+    subject = _extract_header(first_headers, "subject") or "(no subject)"
+
+    # Use last message headers for direction (reflects most recent activity)
+    last_headers = last_msg.get("payload", {}).get("headers", [])
+    from_header = _extract_header(last_headers, "from")
+    to_header = _extract_header(last_headers, "to")
+    cc_header = _extract_header(last_headers, "cc")
 
     from_addresses = _parse_email_addresses(from_header)
     to_addresses = _parse_email_addresses(to_header)
     cc_addresses = _parse_email_addresses(cc_header)
-    participants = list({*from_addresses, *to_addresses, *cc_addresses})
+
+    # Collect all participants across all messages for contact matching
+    all_participants: set[str] = set()
+    for msg in messages:
+        msg_headers = msg.get("payload", {}).get("headers", [])
+        for hdr in ("from", "to", "cc"):
+            all_participants.update(_parse_email_addresses(_extract_header(msg_headers, hdr)))
+    participants = list(all_participants)
 
     # internalDate is Unix epoch in milliseconds
     internal_date_ms = int(last_msg.get("internalDate", 0))
@@ -142,8 +152,15 @@ async def _upsert_interaction(
     )
     existing = result.scalar_one_or_none()
     if existing:
-        # Backfill content_preview if it was missing from a previous sync
-        if not existing.content_preview and snippet:
+        # Update if thread has newer messages since last sync
+        if occurred_at > existing.occurred_at:
+            existing.occurred_at = occurred_at
+            if snippet:
+                existing.content_preview = snippet[:500]
+            # If direction changed (e.g. user replied to inbound), mark mutual
+            if existing.direction != direction:
+                existing.direction = "mutual"
+        elif not existing.content_preview and snippet:
             existing.content_preview = snippet[:500]
         return existing
 
@@ -245,6 +262,15 @@ async def sync_gmail_for_user(user: User, db: AsyncSession) -> int:
             contact = await _find_contact_by_email(addr, user.id, db)
             if contact and contact not in matched_contacts:
                 matched_contacts.append(contact)
+
+        # Fallback: check all thread participants if last message didn't match
+        if not matched_contacts:
+            for addr in meta["participants"]:
+                if addr == user_email:
+                    continue
+                contact = await _find_contact_by_email(addr, user.id, db)
+                if contact and contact not in matched_contacts:
+                    matched_contacts.append(contact)
 
         if not matched_contacts:
             continue

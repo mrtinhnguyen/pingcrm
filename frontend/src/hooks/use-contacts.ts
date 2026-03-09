@@ -207,12 +207,16 @@ export function useContactActivity(id: string) {
   return useQuery({
     queryKey: ["contact-activity", id],
     queryFn: async () => {
-      const { data } = await client.GET(
+      const { data, error } = await client.GET(
         "/api/v1/contacts/{contact_id}/activity" as any,
         { params: { path: { contact_id: id } } }
       );
-      return (data as any)?.data as ActivityData;
+      if (error || !(data as any)?.data) {
+        throw new Error("Failed to fetch activity");
+      }
+      return (data as any).data as ActivityData;
     },
     enabled: Boolean(id),
+    retry: false,
   });
 }

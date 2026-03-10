@@ -21,6 +21,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate Alembic migrations
+        run: |
+          cd backend
+          pip install alembic sqlalchemy asyncpg --quiet
+          HEAD_COUNT=$(alembic heads 2>/dev/null | grep -c "(head)" || echo "0")
+          if [ "$HEAD_COUNT" -gt 1 ]; then
+            echo "❌ Multiple Alembic heads detected!"
+            alembic heads
+            exit 1
+          fi
+          echo "✅ Single migration head confirmed"
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

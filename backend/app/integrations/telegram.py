@@ -382,6 +382,7 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
     dialogs_checked = 0
     created_contacts = 0
     affected_contact_ids: set[str] = set()
+    avatar_queue: list[tuple[object, Contact]] = []  # (entity, contact) pairs needing avatars
 
     try:
         async for dialog in client.iter_dialogs():
@@ -424,11 +425,9 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
                 if not contact.telegram_user_id:
                     contact.telegram_user_id = str(entity.id)
 
-            # Download avatar if missing
+            # Queue avatar download for after main sync loop
             if not contact.avatar_url:
-                avatar_path = await _download_avatar(client, entity, contact.id)
-                if avatar_path:
-                    contact.avatar_url = avatar_path
+                avatar_queue.append((entity, contact))
 
             # Iterate recent messages for this dialog
             async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
@@ -458,6 +457,15 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
                     or contact.last_interaction_at < occurred_at
                 ):
                     contact.last_interaction_at = occurred_at
+
+        # Download avatars after all dialogs are processed
+        for av_entity, av_contact in avatar_queue:
+            try:
+                avatar_path = await _download_avatar(client, av_entity, av_contact.id)
+                if avatar_path:
+                    av_contact.avatar_url = avatar_path
+            except Exception:
+                logger.debug("Avatar download failed for contact %s", av_contact.id)
 
     finally:
         await client.disconnect()

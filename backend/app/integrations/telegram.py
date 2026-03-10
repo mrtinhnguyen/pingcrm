@@ -23,7 +23,6 @@ from app.models.user import User
 logger = logging.getLogger(__name__)
 
 MAX_MESSAGES = 50  # messages fetched per dialog per sync run
-MAX_DIALOGS = 200  # max dialogs processed per sync run
 MAX_BIO_SYNC_CONTACTS = 100  # max contacts fetched per bio sync run
 
 
@@ -392,9 +391,6 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
             if getattr(entity, "bot", False):
                 continue
             dialogs_checked += 1
-            if dialogs_checked > MAX_DIALOGS:
-                logger.info("Reached MAX_DIALOGS (%d) for user %s, stopping.", MAX_DIALOGS, user.id)
-                break
 
             # Resolve the contact in our database
             contact: Contact | None = None

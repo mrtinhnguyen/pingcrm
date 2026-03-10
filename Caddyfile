@@ -1,0 +1,21 @@
+pingcrm.sawinyh.com {
+    # API routes to backend
+    handle /api/* {
+        reverse_proxy backend:8000
+    }
+    
+    # WebSocket support
+    handle /ws/* {
+        reverse_proxy backend:8000
+    }
+    
+    # Static avatar files from backend
+    handle /static/* {
+        reverse_proxy backend:8000
+    }
+    
+    # Everything else to frontend
+    handle {
+        reverse_proxy frontend:3000
+    }
+}

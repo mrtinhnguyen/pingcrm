@@ -69,6 +69,7 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
     """
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.gmail import sync_gmail_for_user as _gmail_sync
+        from app.services.scoring import calculate_score
 
         async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
@@ -78,6 +79,21 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
                 return {"status": "user_not_found", "new_interactions": 0}
 
             new_count = await _gmail_sync(user, db)
+
+            # Rescore contacts that have interactions
+            if new_count > 0:
+                contact_ids_result = await db.execute(
+                    select(Contact.id).where(
+                        Contact.user_id == uid,
+                        Contact.last_interaction_at.isnot(None),
+                    )
+                )
+                for (cid,) in contact_ids_result.all():
+                    try:
+                        await calculate_score(cid, db)
+                    except Exception:
+                        logger.warning("gmail: score recalc failed for contact %s", cid)
+
             await db.commit()
 
         return {"status": "ok", "new_interactions": new_count}
@@ -813,6 +829,22 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
                         archived_count, uid,
                     )
 
+            # Rescore contacts that have interactions
+            if created_count or updated_count:
+                from app.services.scoring import calculate_score
+
+                score_result = await db.execute(
+                    select(Contact.id).where(
+                        Contact.user_id == uid,
+                        Contact.last_interaction_at.isnot(None),
+                    )
+                )
+                for (cid,) in score_result.all():
+                    try:
+                        await calculate_score(cid, db)
+                    except Exception:
+                        logger.warning("google_contacts: score recalc failed for contact %s", cid)
+
             parts = []
             if created_count:
                 parts.append(f"{created_count} new")
@@ -888,6 +920,22 @@ def sync_google_calendar_for_user(self, user_id: str) -> dict:
                         logger.warning("Calendar sync failed for %s: %s", ga.email, exc)
                     finally:
                         user.google_refresh_token = original_token
+
+            # Rescore contacts that have interactions
+            if cal_result.get("new_interactions") or cal_result.get("new_contacts"):
+                from app.services.scoring import calculate_score
+
+                score_result = await db.execute(
+                    select(Contact.id).where(
+                        Contact.user_id == uid,
+                        Contact.last_interaction_at.isnot(None),
+                    )
+                )
+                for (cid,) in score_result.all():
+                    try:
+                        await calculate_score(cid, db)
+                    except Exception:
+                        logger.warning("google_calendar: score recalc failed for contact %s", cid)
 
             parts = []
             if cal_result.get("new_contacts"):

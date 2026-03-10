@@ -208,8 +208,34 @@ async def generate_suggestions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[list[FollowUpResponse]]:
-    """Manually trigger suggestion generation for the current user."""
+    """Manually trigger suggestion generation for the current user.
+
+    If no contacts have been scored yet, runs score recalculation first
+    so the engine has data to work with.
+    """
     from app.services.followup_engine import generate_suggestions as _generate
+    from app.services.scoring import calculate_score
+
+    # Check if scores exist — if all are 0, recalculate first
+    scored_count = await db.execute(
+        select(func.count()).where(
+            Contact.user_id == current_user.id,
+            Contact.relationship_score > 0,
+        )
+    )
+    if scored_count.scalar() == 0:
+        contact_ids = await db.execute(
+            select(Contact.id).where(
+                Contact.user_id == current_user.id,
+                Contact.last_interaction_at.isnot(None),
+            )
+        )
+        for (cid,) in contact_ids.all():
+            try:
+                await calculate_score(cid, db)
+            except Exception:
+                pass
+        await db.flush()
 
     suggestions = await _generate(current_user.id, db)
     await db.flush()

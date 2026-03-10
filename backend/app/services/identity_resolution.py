@@ -69,7 +69,8 @@ def _contact_data_weight(contact: Contact) -> int:
     score = 0
     for attr in ("full_name", "given_name", "family_name", "company", "title",
                  "twitter_handle", "twitter_bio", "telegram_username", "telegram_bio",
-                 "linkedin_url", "notes", "source"):
+                 "linkedin_url", "linkedin_profile_id", "linkedin_headline", "linkedin_bio",
+                 "notes", "source"):
         if getattr(contact, attr):
             score += 1
     score += len(contact.emails or [])
@@ -219,7 +220,8 @@ async def merge_contacts(
     # Fill missing scalar fields from contact_b.
     for field in ("full_name", "given_name", "family_name", "company", "title",
                   "twitter_handle", "twitter_bio", "telegram_username", "telegram_bio",
-                  "linkedin_url", "notes", "source"):
+                  "linkedin_url", "linkedin_profile_id", "linkedin_headline", "linkedin_bio",
+                  "notes", "source"):
         if not getattr(contact_a, field) and getattr(contact_b, field):
             setattr(contact_a, field, getattr(contact_b, field))
 
@@ -564,6 +566,8 @@ def _build_blocking_keys(contact: Contact) -> list[str]:
         keys.append(f"twitter:{contact.twitter_handle.strip().lower().lstrip('@')}")
     if contact.telegram_username:
         keys.append(f"telegram:{contact.telegram_username.strip().lower().lstrip('@')}")
+    if contact.linkedin_profile_id:
+        keys.append(f"linkedin:{contact.linkedin_profile_id.strip().lower()}")
     return keys
 
 

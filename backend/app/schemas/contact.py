@@ -18,6 +18,9 @@ class ContactBase(BaseModel):
     telegram_bio: str | None = None
     location: str | None = None
     linkedin_url: str | None = None
+    linkedin_profile_id: str | None = None
+    linkedin_headline: str | None = None
+    linkedin_bio: str | None = None
     avatar_url: str | None = None
     birthday: str | None = None
     tags: list[str] = []
@@ -43,6 +46,9 @@ class ContactUpdate(BaseModel):
     telegram_username: str | None = None
     location: str | None = None
     linkedin_url: str | None = None
+    linkedin_profile_id: str | None = None
+    linkedin_headline: str | None = None
+    linkedin_bio: str | None = None
     birthday: str | None = None
     tags: list[str] | None = None
     notes: str | None = None

@@ -86,6 +86,13 @@ class LinkedInMessagesImportResult(BaseModel):
     unmatched_names: list[str]
 
 
+class LinkedInPushResult(BaseModel):
+    contacts_created: int
+    contacts_updated: int
+    interactions_created: int
+    interactions_skipped: int
+
+
 class SyncStartedData(BaseModel):
     status: str
 

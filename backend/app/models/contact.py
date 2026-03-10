@@ -43,6 +43,9 @@ class Contact(Base):
 
     location: Mapped[str | None] = mapped_column(String, nullable=True)
     linkedin_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    linkedin_profile_id: Mapped[str | None] = mapped_column(String, nullable=True, index=True)
+    linkedin_headline: Mapped[str | None] = mapped_column(String, nullable=True)
+    linkedin_bio: Mapped[str | None] = mapped_column(Text, nullable=True)
     avatar_url: Mapped[str | None] = mapped_column(String, nullable=True)
     birthday: Mapped[str | None] = mapped_column(String, nullable=True)  # "MM-DD" or "YYYY-MM-DD"
 

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PingCRM LinkedIn Companion</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>PingCRM</h1>
+      <p class="subtitle">LinkedIn Companion</p>
+    </header>
+
+    <div id="setup-section" class="section">
+      <div class="form-group">
+        <label for="api-url">PingCRM API URL</label>
+        <input type="url" id="api-url" placeholder="https://your-pingcrm.example.com">
+      </div>
+      <div class="form-group">
+        <label for="token">JWT Token</label>
+        <input type="password" id="token" placeholder="Paste your token here">
+      </div>
+      <button id="save-btn" class="btn btn-primary">Save &amp; Connect</button>
+    </div>
+
+    <div id="status-section" class="section hidden">
+      <div class="status-row">
+        <span class="status-dot" id="status-dot"></span>
+        <span id="status-text">Connected</span>
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <span class="stat-value" id="profile-count">0</span>
+          <span class="stat-label">Profiles synced</span>
+        </div>
+        <div class="stat">
+          <span class="stat-value" id="message-count">0</span>
+          <span class="stat-label">Messages synced</span>
+        </div>
+      </div>
+
+      <p class="last-sync" id="last-sync">Never synced</p>
+
+      <div class="toggle-row">
+        <label for="auto-sync">Auto-sync</label>
+        <input type="checkbox" id="auto-sync" checked>
+      </div>
+
+      <button id="disconnect-btn" class="btn btn-secondary">Disconnect</button>
+    </div>
+  </div>
+
+  <script src="../lib/storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

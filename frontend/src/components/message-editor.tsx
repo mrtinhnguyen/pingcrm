@@ -41,6 +41,7 @@ interface MessageEditorProps {
   initialMessage?: string;
   initialChannel?: Channel;
   onSend?: (message: string, channel: Channel, scheduledFor?: string) => void;
+  onRegenerate?: (message: string, channel: Channel) => void;
   className?: string;
   disabledChannels?: Partial<Record<Channel, string>>;
 }
@@ -51,6 +52,7 @@ export function MessageEditor({
   initialMessage = "",
   initialChannel,
   onSend,
+  onRegenerate,
   className,
   disabledChannels = {},
 }: MessageEditorProps) {
@@ -97,6 +99,7 @@ export function MessageEditor({
       }
       if (msg) {
         setMessage(msg);
+        onRegenerate?.(msg, channel);
       }
     } catch {
       // Keep existing message if regeneration fails

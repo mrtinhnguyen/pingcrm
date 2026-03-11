@@ -10,6 +10,7 @@ import {
   X,
   ChevronDown,
 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   useSuggestions,
   useUpdateSuggestion,
@@ -52,6 +53,7 @@ function getInitials(name: string | null): string {
 }
 
 function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
+  const queryClient = useQueryClient();
   const updateSuggestion = useUpdateSuggestion();
   const sendMessage = useSendMessage();
   const [snoozeOpen, setSnoozeOpen] = useState(false);
@@ -183,6 +185,9 @@ function SuggestionCard({ suggestion }: { suggestion: Suggestion }) {
           initialMessage={suggestion.suggested_message}
           initialChannel={channel}
           onSend={handleSend}
+          onRegenerate={() => {
+            void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
+          }}
         />
       ) : (
         <div

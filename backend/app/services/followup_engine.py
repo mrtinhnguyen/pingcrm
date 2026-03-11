@@ -522,11 +522,11 @@ async def generate_suggestions(
     now = datetime.now(UTC)
     settings = priority_settings or {}
 
-    # Skip contacts that already have a pending suggestion
+    # Skip contacts that already have a pending or snoozed suggestion
     existing_result = await db.execute(
         select(FollowUpSuggestion.contact_id).where(
             FollowUpSuggestion.user_id == user_id,
-            FollowUpSuggestion.status == "pending",
+            FollowUpSuggestion.status.in_(["pending", "snoozed"]),
         )
     )
     queued_contact_ids: set[uuid.UUID] = {row[0] for row in existing_result.all()}

@@ -80,12 +80,16 @@ jobs:
           host: ${{ secrets.SERVER_HOST }}
           username: root
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GITHUB_TOKEN,GITHUB_ACTOR
+          envs: GITHUB_TOKEN,GITHUB_ACTOR,BIRD_AUTH_TOKEN,BIRD_CT0
           script: |
             cd /opt/pingcrm
             
             # Login to GHCR
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            
+            # Update bird CLI credentials
+            grep -q "^AUTH_TOKEN=" .env && sed -i "s/^AUTH_TOKEN=.*/AUTH_TOKEN=$BIRD_AUTH_TOKEN/" .env || echo "AUTH_TOKEN=$BIRD_AUTH_TOKEN" >> .env
+            grep -q "^CT0=" .env && sed -i "s/^CT0=.*/CT0=$BIRD_CT0/" .env || echo "CT0=$BIRD_CT0" >> .env
             
             # Pull latest images
             docker compose pull

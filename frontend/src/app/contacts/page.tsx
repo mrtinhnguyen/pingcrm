@@ -476,9 +476,35 @@ function ContactsPageContent() {
     });
   };
 
-  const toggleSelectAll = () => {
-    if (selectedIds.size === contacts.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(contacts.map((c) => c.id)));
+  const [selectingAll, setSelectingAll] = useState(false);
+  const totalCount = meta?.total ?? contacts.length;
+
+  const toggleSelectAll = async () => {
+    if (selectedIds.size > 0) {
+      setSelectedIds(new Set());
+      return;
+    }
+    // Fetch ALL matching IDs across all pages
+    setSelectingAll(true);
+    try {
+      const { data: idsData } = await client.GET("/api/v1/contacts/ids" as any, {
+        params: {
+          query: {
+            search: search || undefined,
+            tag: tagFilter || undefined,
+            source: sourceFilter || undefined,
+            score: scoreFilter || undefined,
+            priority: priorityFilter || undefined,
+            date_from: dateFrom || undefined,
+            date_to: dateTo || undefined,
+          },
+        },
+      });
+      const allIds: string[] = (idsData as any)?.data ?? [];
+      setSelectedIds(new Set(allIds));
+    } finally {
+      setSelectingAll(false);
+    }
   };
 
   const selectedArray = Array.from(selectedIds);
@@ -777,12 +803,14 @@ function ContactsPageContent() {
         {contacts.length > 0 && (
           <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
             {/* Header row */}
-            <div className="grid grid-cols-[40px_1fr_120px_80px_80px_80px_80px] gap-2 px-4 py-3 bg-stone-50 border-b border-stone-200 items-center">
+            <div className="grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 bg-stone-50 border-b border-stone-200 items-center">
               <div>
                 <input
                   type="checkbox"
-                  checked={contacts.length > 0 && selectedIds.size === contacts.length}
+                  checked={selectedIds.size > 0 && selectedIds.size >= totalCount}
+                  ref={(el) => { if (el) el.indeterminate = selectedIds.size > 0 && selectedIds.size < totalCount; }}
                   onChange={toggleSelectAll}
+                  disabled={selectingAll}
                   className="w-3.5 h-3.5 rounded border-stone-300 text-teal-600"
                   aria-label="Select all"
                 />
@@ -820,7 +848,7 @@ function ContactsPageContent() {
               return (
                 <div
                   key={contact.id}
-                  className={`grid grid-cols-[40px_1fr_120px_80px_80px_80px_80px] gap-2 px-4 py-3 border-b border-stone-100 items-center transition-colors ${
+                  className={`grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 border-b border-stone-100 items-center transition-colors ${
                     isSelected ? "bg-teal-50" : "hover:bg-stone-50/50"
                   }`}
                 >

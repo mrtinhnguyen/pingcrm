@@ -91,6 +91,46 @@ async def list_contacts(
     )
 
 
+@router.get("/ids", response_model=Envelope[list[str]])
+async def list_contact_ids(
+    search: str | None = Query(None),
+    tag: str | None = Query(None),
+    source: str | None = Query(None),
+    score: str | None = Query(None),
+    priority: str | None = Query(None),
+    date_from: str | None = Query(None),
+    date_to: str | None = Query(None),
+    has_interactions: bool | None = Query(None),
+    interaction_days: int | None = Query(None, ge=1, le=365),
+    has_birthday: bool | None = Query(None),
+    archived_only: bool = Query(False),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[list[str]]:
+    """Return all matching contact IDs (no pagination) for bulk select-all."""
+    from app.services.contact_search import build_contact_filter_query
+
+    query = build_contact_filter_query(
+        current_user.id,
+        search=search,
+        tag=tag,
+        source=source,
+        score=score,
+        priority=priority,
+        date_from=date_from,
+        date_to=date_to,
+        has_interactions=has_interactions,
+        interaction_days=interaction_days,
+        has_birthday=has_birthday,
+        archived_only=archived_only,
+    )
+    # Select only IDs for efficiency
+    id_query = query.with_only_columns(Contact.id)
+    result = await db.execute(id_query)
+    ids = [str(row[0]) for row in result.all()]
+    return envelope(ids)
+
+
 @router.get("/tags", response_model=Envelope[list[str]])
 async def list_tags(
     db: AsyncSession = Depends(get_db),

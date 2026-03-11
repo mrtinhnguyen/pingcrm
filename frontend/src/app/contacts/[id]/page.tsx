@@ -193,20 +193,27 @@ function InlineField({
     setEditing(false);
   };
 
+  const startEdit = () => {
+    setDraft(value ?? "");
+    setEditing(true);
+  };
+
   return (
-    <div className="group/row flex items-center justify-between gap-4 py-1.5">
-      <span className="text-xs text-stone-500 shrink-0">{label}</span>
+    <div className="group/row flex items-start justify-between gap-4 py-1.5">
+      <span className="text-xs text-stone-500 shrink-0 mt-0.5">{label}</span>
       {editing ? (
-        <div className="flex items-center gap-1">
+        <div className="flex flex-col items-end gap-1.5 min-w-0 flex-1">
           <input
             ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
-            className="text-xs border border-teal-400 rounded-md px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-teal-300 w-40"
+            className="w-full text-xs border border-stone-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 bg-white"
           />
-          <button onClick={save} className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-teal-600 text-white hover:bg-teal-700">Save</button>
-          <button onClick={cancel} className="px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 hover:bg-stone-100">Cancel</button>
+          <div className="flex items-center gap-2">
+            <button onClick={cancel} className="px-2.5 py-1 text-xs font-medium rounded-md text-stone-600 hover:bg-stone-100 border border-stone-200">Cancel</button>
+            <button onClick={save} className="px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Save</button>
+          </div>
         </div>
       ) : (
         <div className="flex items-center gap-1.5 min-w-0">
@@ -222,30 +229,20 @@ function InlineField({
                 {displayValue ?? value}
               </a>
             ) : (
-              <span
-                className="text-xs font-medium text-stone-900 cursor-pointer hover:bg-stone-50 rounded px-1 -mx-1 transition-colors truncate"
-                onClick={() => { setDraft(value); setEditing(true); }}
-              >
+              <span className="text-xs font-medium text-stone-900 truncate">
                 {displayValue ?? value}
               </span>
             )
           ) : (
-            <span
-              className="text-xs text-stone-300 cursor-pointer hover:text-stone-500"
-              onClick={() => { setDraft(""); setEditing(true); }}
-            >
-              Add...
-            </span>
+            <span className="text-xs text-stone-400">—</span>
           )}
           {copyable && value && <CopyButton text={value} />}
-          {!copyable && value && (
-            <button
-              onClick={() => { setDraft(value); setEditing(true); }}
-              className="p-0.5 rounded text-stone-300 hover:text-stone-500 opacity-0 group-hover/row:opacity-100 transition-opacity"
-            >
-              <Pencil className="w-3 h-3" />
-            </button>
-          )}
+          <button
+            onClick={startEdit}
+            className="p-0.5 rounded text-stone-300 hover:text-stone-500 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
         </div>
       )}
     </div>
@@ -288,35 +285,48 @@ function InlineListField({
     setEditing(false);
   };
 
+  const startEdit = () => {
+    setDraft(values.join(", "));
+    setEditing(true);
+  };
+
   const displayValue = values[0] || null;
 
   return (
-    <div className="group/row flex items-center justify-between py-1.5">
-      <span className="text-xs text-stone-500">{label}</span>
+    <div className="group/row flex items-start justify-between gap-4 py-1.5">
+      <span className="text-xs text-stone-500 shrink-0 mt-0.5">{label}</span>
       {editing ? (
-        <div className="flex items-center gap-1">
+        <div className="flex flex-col items-end gap-1.5 min-w-0 flex-1">
           <input
             ref={inputRef}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
-            className="text-xs border border-teal-400 rounded-md px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-teal-300 w-44"
+            className="w-full text-xs border border-stone-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 bg-white"
           />
-          <button onClick={save} className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-teal-600 text-white hover:bg-teal-700">Save</button>
-          <button onClick={cancel} className="px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 hover:bg-stone-100">Cancel</button>
+          <div className="flex items-center gap-2">
+            <button onClick={cancel} className="px-2.5 py-1 text-xs font-medium rounded-md text-stone-600 hover:bg-stone-100 border border-stone-200">Cancel</button>
+            <button onClick={save} className="px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Save</button>
+          </div>
         </div>
       ) : (
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 min-w-0">
           {displayValue ? (
             isLink && linkPrefix ? (
-              <a href={`${linkPrefix}${displayValue}`} className="text-xs font-medium text-teal-600 hover:text-teal-700">{displayValue}</a>
+              <a href={`${linkPrefix}${displayValue}`} target="_blank" rel="noopener noreferrer" className="text-xs font-medium text-teal-600 hover:text-teal-700 truncate">{displayValue}</a>
             ) : (
-              <span className="text-xs font-medium text-stone-900 cursor-pointer hover:bg-stone-50 rounded px-1 -mx-1" onClick={() => { setDraft(values.join(", ")); setEditing(true); }}>{displayValue}{values.length > 1 && <span className="text-stone-400 ml-1">+{values.length - 1}</span>}</span>
+              <span className="text-xs font-medium text-stone-900 truncate">{displayValue}{values.length > 1 && <span className="text-stone-400 ml-1">+{values.length - 1}</span>}</span>
             )
           ) : (
-            <span className="text-xs text-stone-300 cursor-pointer hover:text-stone-500" onClick={() => { setDraft(""); setEditing(true); }}>Add...</span>
+            <span className="text-xs text-stone-400">—</span>
           )}
           {copyable && displayValue && <CopyButton text={displayValue} />}
+          <button
+            onClick={startEdit}
+            className="p-0.5 rounded text-stone-300 hover:text-stone-500 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
         </div>
       )}
     </div>

@@ -115,7 +115,13 @@ async def find_deterministic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
                 if other_id != contact.id and other_id not in deleted_ids and contact.id not in deleted_ids:
                     record = await merge_contacts(other_id, contact.id, db)
                     merged_records.append(record)
-                    deleted_ids.add(contact.id)
+                    # merge_contacts may swap primary/secondary; track the deleted one
+                    survivor = record.contact_a_id
+                    for cid in (other_id, contact.id):
+                        if cid != survivor:
+                            deleted_ids.add(cid)
+                    # Update email_map to point to survivor
+                    email_map[email_lower] = survivor
                     break  # contact is gone; stop processing its emails
             else:
                 email_map[email_lower] = contact.id
@@ -132,7 +138,11 @@ async def find_deterministic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
                 if other_id != contact.id and other_id not in deleted_ids and contact.id not in deleted_ids:
                     record = await merge_contacts(other_id, contact.id, db)
                     merged_records.append(record)
-                    deleted_ids.add(contact.id)
+                    survivor = record.contact_a_id
+                    for cid in (other_id, contact.id):
+                        if cid != survivor:
+                            deleted_ids.add(cid)
+                    phone_map[norm] = survivor
                     break
             else:
                 phone_map[norm] = contact.id
@@ -166,7 +176,10 @@ async def find_deterministic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
                 ):
                     record = await merge_contacts(other_id, contact.id, db)
                     merged_records.append(record)
-                    deleted_ids.add(contact.id)
+                    survivor = record.contact_a_id
+                    for cid in (other_id, contact.id):
+                        if cid != survivor:
+                            deleted_ids.add(cid)
                     break
 
     return merged_records
@@ -271,8 +284,8 @@ async def merge_contacts(
     await db.delete(contact_b)
     await db.flush()
 
-    # Refresh to pick up the SET NULL side-effect from the DB.
-    await db.refresh(match)
+    # The CASCADE SET NULL makes contact_b_id NULL in DB; update in-memory.
+    match.contact_b_id = None
 
     return match
 
@@ -638,6 +651,8 @@ async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
 
     for i, j in candidate_pairs:
         ca, cb = contact_by_idx[i], contact_by_idx[j]
+        if ca.id == cb.id:
+            continue
         if ca.id in deleted_ids or cb.id in deleted_ids:
             continue
 
@@ -651,29 +666,37 @@ async def find_probabilistic_matches(user_id: uuid.UUID, db: AsyncSession) -> li
             continue
 
         if total > 0.85:
-            # Auto-merge
+            # Auto-merge (merge_contacts picks the richer contact as primary
+            # and deletes the other — track both IDs as potentially deleted)
             try:
                 record = await merge_contacts(ca.id, cb.id, db)
                 record.match_score = total
                 record.match_method = "probabilistic"
                 new_matches.append(record)
+                # One of the two was deleted; add both to be safe
+                # (merge_contacts may swap primary/secondary)
+                deleted_ids.add(ca.id)
                 deleted_ids.add(cb.id)
+                # Re-add the surviving contact (contact_a_id is always the primary)
+                deleted_ids.discard(record.contact_a_id)
                 existing_pairs.add(pair)
             except Exception:
                 logger.warning("Auto-merge failed for contacts %s + %s", ca.id, cb.id, exc_info=True)
         else:
             # Pending review
-            match = IdentityMatch(
-                contact_a_id=ca.id,
-                contact_b_id=cb.id,
-                match_score=total,
-                match_method="probabilistic",
-                status="pending_review",
-            )
-            db.add(match)
-            await db.flush()
-            await db.refresh(match)
-            new_matches.append(match)
-            existing_pairs.add(pair)
+            try:
+                match = IdentityMatch(
+                    contact_a_id=ca.id,
+                    contact_b_id=cb.id,
+                    match_score=total,
+                    match_method="probabilistic",
+                    status="pending_review",
+                )
+                db.add(match)
+                await db.flush()
+                new_matches.append(match)
+                existing_pairs.add(pair)
+            except Exception:
+                logger.warning("Failed to create pending match for %s + %s", ca.id, cb.id, exc_info=True)
 
     return new_matches

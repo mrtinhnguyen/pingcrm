@@ -36,8 +36,6 @@ services:
       TELEGRAM_API_HASH: ${TELEGRAM_API_HASH:-}
       AUTH_TOKEN: ${AUTH_TOKEN:-}
       CT0: ${CT0:-}
-      AUTH_TOKEN: ${AUTH_TOKEN:-}
-      CT0: ${CT0:-}
     volumes:
       - avatars:/app/static/avatars
     depends_on:

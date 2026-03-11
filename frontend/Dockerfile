@@ -26,6 +26,7 @@ RUN addgroup --system --gid 1001 nodejs && \
 
 COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
+COPY --from=build /app/public ./public
 
 USER nextjs
 

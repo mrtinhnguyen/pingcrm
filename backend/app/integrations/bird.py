@@ -81,12 +81,11 @@ def _extract_tweets(data: dict | list | None) -> list[dict[str, Any]]:
 
 
 async def fetch_user_tweets_bird(handle: str, count: int = 5) -> list[dict[str, Any]]:
-    """Fetch a user's recent tweets via ``bird search from:user``."""
+    """Fetch a user's recent tweets via ``bird user-tweets``."""
     handle = handle.lstrip("@").strip()
     if not handle:
         return []
-    # bird 0.4.0 uses 'search from:user' instead of 'user-tweets'
-    data = await _run_bird("search", f"from:{handle}", "-n", str(count))
+    data = await _run_bird("user-tweets", f"@{handle}", "-n", str(count))
     return _extract_tweets(data)
 
 
@@ -110,9 +109,8 @@ async def fetch_user_profile_bird(handle: str) -> dict[str, Any]:
 
     result: dict[str, Any] = {}
 
-    # Primary: bird search from:user → extract profile from _raw
-    # bird 0.4.0 uses 'search from:user' instead of 'user-tweets'
-    data = await _run_bird("search", f"from:{handle}", "-n", "1")
+    # Primary: bird user-tweets --json-full → extract profile from _raw
+    data = await _run_bird("user-tweets", f"@{handle}", "-n", "1", "--json-full")
     tweets = _extract_tweets(data)
     if tweets:
         raw = tweets[0].get("_raw", {})
@@ -150,8 +148,8 @@ async def fetch_user_profile_bird(handle: str) -> dict[str, Any]:
         if metrics:
             result["public_metrics"] = metrics
 
-    # Note: bird 0.4.0 doesn't have 'about' command for user profiles
-    # Location must come from the search result's user data
+    # Note: bird CLI doesn't have an 'about' command for user profiles
+    # Location must come from the user-tweets result's embedded user data
 
     return result
 
@@ -174,7 +172,6 @@ async def fetch_user_replies_bird(handle: str, count: int = 50) -> list[dict[str
     handle = handle.lstrip("@").strip()
     if not handle:
         return []
-    # bird 0.4.0 uses 'search from:user' instead of 'user-tweets'
-    data = await _run_bird("search", f"from:{handle}", "-n", str(count))
+    data = await _run_bird("user-tweets", f"@{handle}", "-n", str(count))
     tweets = _extract_tweets(data)
     return [t for t in tweets if t.get("inReplyToStatusId")]

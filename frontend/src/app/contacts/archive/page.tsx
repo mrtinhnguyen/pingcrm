@@ -3,11 +3,73 @@
 import { Suspense, useState, useEffect, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, Archive, ArrowLeft } from "lucide-react";
-import { useContacts } from "@/hooks/use-contacts";
-import { useUpdateContact } from "@/hooks/use-contacts";
-import { ScoreBadge } from "@/components/score-badge";
+import {
+  Search,
+  Archive,
+  ArrowLeft,
+  ArchiveRestore,
+  Trash2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useContacts, useUpdateContact } from "@/hooks/use-contacts";
 import { formatDistanceToNow } from "date-fns";
+import { cn } from "@/lib/utils";
+
+/* ── Helpers ── */
+
+function getInitials(name: string | null): string {
+  if (!name) return "?";
+  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+const avatarColors = [
+  "bg-blue-100 text-blue-700",
+  "bg-pink-100 text-pink-700",
+  "bg-violet-100 text-violet-700",
+  "bg-orange-100 text-orange-700",
+  "bg-teal-100 text-teal-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-stone-200 text-stone-600",
+  "bg-emerald-100 text-emerald-700",
+];
+
+function avatarColor(name: string | null): string {
+  if (!name) return avatarColors[6];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+
+/* ── Score badge ── */
+function ScorePill({ score }: { score: number | null | undefined }) {
+  const s = score ?? 0;
+  if (s >= 70) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+        <span className="font-mono">{Math.round(s / 10)}</span> Strong
+      </span>
+    );
+  }
+  if (s >= 30) {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
+        <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+        <span className="font-mono">{Math.round(s / 10)}</span> Warm
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 text-red-700 border border-red-200">
+      <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+      <span className="font-mono">{Math.round(s / 10)}</span> Cold
+    </span>
+  );
+}
+
+/* ═══════════════ PAGE ═══════════════ */
 
 export default function ArchivedContactsPage() {
   return (
@@ -24,6 +86,7 @@ function ArchivedContactsInner() {
   const pageParam = Number(searchParams.get("page")) || 1;
   const searchParam = searchParams.get("q") ?? "";
   const [searchInput, setSearchInput] = useState(searchParam);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const { data, isLoading, isError } = useContacts({
     page: pageParam,
@@ -42,12 +105,9 @@ function ArchivedContactsInner() {
         if (val) params.set(key, val);
         else params.delete(key);
       }
-      // Reset to page 1 on search change
       if ("q" in updates) params.delete("page");
       const qs = params.toString();
-      router.replace(qs ? `/contacts/archive?${qs}` : "/contacts/archive", {
-        scroll: false,
-      });
+      router.replace(qs ? `/contacts/archive?${qs}` : "/contacts/archive", { scroll: false });
     },
     [searchParams, router],
   );
@@ -60,6 +120,11 @@ function ArchivedContactsInner() {
     return () => clearTimeout(timer);
   }, [searchInput, updateUrl]);
 
+  // Clear selection on page/data change
+  useEffect(() => {
+    setSelected(new Set());
+  }, [data]);
+
   const contacts = data?.data ?? [];
   const meta = data?.meta;
 
@@ -67,126 +132,253 @@ function ArchivedContactsInner() {
     updateContact.mutate({ id: contactId, input: { priority_level: "normal" } });
   };
 
+  const toggleSelect = (id: string) => {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selected.size === contacts.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(contacts.map((c) => c.id)));
+    }
+  };
+
+  const bulkUnarchive = () => {
+    for (const id of selected) {
+      updateContact.mutate({ id, input: { priority_level: "normal" } });
+    }
+    setSelected(new Set());
+  };
+
+  const allSelected = contacts.length > 0 && selected.size === contacts.length;
+  const someSelected = selected.size > 0 && !allSelected;
+
+  /* Pagination helpers */
+  const totalPages = meta?.total_pages ?? 1;
+  const currentPage = meta?.page ?? 1;
+
+  const pageNumbers: (number | "...")[] = [];
+  for (let i = 1; i <= totalPages; i++) {
+    if (i <= 3 || i > totalPages - 2 || Math.abs(i - currentPage) <= 1) {
+      pageNumbers.push(i);
+    } else if (pageNumbers[pageNumbers.length - 1] !== "...") {
+      pageNumbers.push("...");
+    }
+  }
+
   return (
-    <div className="max-w-6xl mx-auto px-4 py-8">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/contacts"
-            className="p-1.5 rounded-md text-stone-400 hover:text-stone-600 hover:bg-stone-100 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <Archive className="w-5 h-5 text-stone-400" />
-            <h1 className="text-2xl font-bold text-stone-900">Archived Contacts</h1>
+    <div className="min-h-screen bg-stone-50">
+      <main className="max-w-6xl mx-auto px-4 py-8">
+        {/* Back link */}
+        <Link
+          href="/contacts"
+          className="inline-flex items-center gap-1.5 text-sm text-stone-500 hover:text-stone-700 transition-colors mb-4 group"
+        >
+          <ArrowLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+          Back to Contacts
+        </Link>
+
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center">
+            <Archive className="w-5 h-5 text-stone-500" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold text-stone-900 leading-tight">Archived Contacts</h1>
+            <p className="text-sm text-stone-500 mt-0.5">Contacts you&apos;ve archived from your active network</p>
           </div>
           {meta && (
-            <span className="text-sm text-stone-400 ml-2">
-              <span className="font-mono text-stone-600">{meta.total}</span> contacts
+            <span className="ml-2 inline-flex items-center px-2.5 py-1 rounded-full text-xs font-mono font-medium bg-stone-100 text-stone-600 border border-stone-200">
+              {meta.total} contacts
             </span>
           )}
         </div>
-      </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
-        <input
-          type="text"
-          placeholder="Search archived contacts..."
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 text-sm border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent"
-        />
-      </div>
+        {/* Search bar */}
+        <div className="bg-white rounded-xl border border-stone-200 p-4 mb-4">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400" />
+            <input
+              type="text"
+              placeholder="Search archived contacts..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border border-stone-200 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-400"
+            />
+          </div>
+        </div>
 
-      {/* Table */}
-      {isLoading ? (
-        <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="h-14 bg-stone-100 rounded-lg animate-pulse" />
-          ))}
-        </div>
-      ) : isError ? (
-        <p className="text-red-600 text-sm">Failed to load archived contacts.</p>
-      ) : contacts.length === 0 ? (
-        <div className="text-center py-16 text-stone-400">
-          <Archive className="w-10 h-10 mx-auto mb-3 opacity-50" />
-          <p className="text-sm">No archived contacts found.</p>
-        </div>
-      ) : (
-        <div className="bg-white border border-stone-200 rounded-lg overflow-hidden">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-stone-100 text-left text-xs font-medium text-stone-400 uppercase tracking-wider">
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Company</th>
-                <th className="px-4 py-3">Score</th>
-                <th className="px-4 py-3">Last Interaction</th>
-                <th className="px-4 py-3"></th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-stone-50">
-              {contacts.map((c) => (
-                <tr key={c.id} className="hover:bg-stone-50 transition-colors">
-                  <td className="px-4 py-3">
-                    <Link
-                      href={`/contacts/${c.id}`}
-                      className="font-medium text-stone-900 hover:text-teal-600 transition-colors"
-                    >
-                      {c.full_name || c.emails?.[0] || "Unnamed"}
-                    </Link>
-                    {c.emails?.[0] && c.full_name && (
-                      <p className="text-xs text-stone-400">{c.emails[0]}</p>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-stone-600">{c.company || "—"}</td>
-                  <td className="px-4 py-3">
-                    <ScoreBadge score={c.relationship_score} lastInteractionAt={c.last_interaction_at} />
-                  </td>
-                  <td className="px-4 py-3 text-stone-500">
+        {/* Content */}
+        {isLoading ? (
+          <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="h-14 border-b border-stone-100 animate-pulse" />
+            ))}
+          </div>
+        ) : isError ? (
+          <div className="bg-white rounded-xl border border-stone-200 p-6 text-center">
+            <p className="text-sm text-red-600">Failed to load archived contacts.</p>
+          </div>
+        ) : contacts.length === 0 ? (
+          /* Empty state */
+          <div className="bg-white rounded-xl border border-stone-200 p-12 text-center">
+            <div className="w-14 h-14 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-4">
+              <Archive className="w-7 h-7 text-stone-400" />
+            </div>
+            <h3 className="text-base font-bold text-stone-900 mb-1">No archived contacts</h3>
+            <p className="text-sm text-stone-500 max-w-sm mx-auto">
+              Contacts you archive will appear here. Archive contacts to keep your active list focused.
+            </p>
+          </div>
+        ) : (
+          /* Table */
+          <div className="bg-white rounded-xl border border-stone-200 overflow-hidden">
+            {/* Header row */}
+            <div className="grid grid-cols-[40px_1fr_140px_100px_140px_140px] gap-2 px-4 py-3 bg-stone-50 border-b border-stone-200 items-center">
+              <div>
+                <input
+                  type="checkbox"
+                  checked={allSelected}
+                  ref={(el) => { if (el) el.indeterminate = someSelected; }}
+                  onChange={toggleSelectAll}
+                  className="w-3.5 h-3.5 rounded border-stone-300 text-teal-600 cursor-pointer"
+                />
+              </div>
+              <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Name</div>
+              <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Company</div>
+              <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider text-center">Score</div>
+              <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Last Interaction</div>
+              <div className="text-[11px] font-semibold text-stone-500 uppercase tracking-wider">Actions</div>
+            </div>
+
+            {/* Rows */}
+            {contacts.map((c) => {
+              const displayName = c.full_name || c.emails?.[0] || "Unnamed";
+              return (
+                <div
+                  key={c.id}
+                  className="grid grid-cols-[40px_1fr_140px_100px_140px_140px] gap-2 px-4 py-3.5 border-b border-stone-100 items-center hover:bg-stone-50 transition-colors"
+                >
+                  <div>
+                    <input
+                      type="checkbox"
+                      checked={selected.has(c.id)}
+                      onChange={() => toggleSelect(c.id)}
+                      className="w-3.5 h-3.5 rounded border-stone-300 text-teal-600 cursor-pointer"
+                    />
+                  </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn("w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold shrink-0", avatarColor(displayName))}>
+                      {getInitials(displayName)}
+                    </div>
+                    <div className="min-w-0">
+                      <Link
+                        href={`/contacts/${c.id}`}
+                        className="text-sm font-medium text-stone-900 truncate block hover:text-teal-700 transition-colors"
+                      >
+                        {displayName}
+                      </Link>
+                      {c.emails?.[0] && c.full_name && (
+                        <p className="text-xs text-stone-400 truncate">{c.emails[0]}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="text-xs text-stone-600 truncate">{c.company || "—"}</div>
+                  <div className="text-center">
+                    <ScorePill score={c.relationship_score} />
+                  </div>
+                  <div className="text-xs text-stone-500">
                     {c.last_interaction_at
                       ? formatDistanceToNow(new Date(c.last_interaction_at), { addSuffix: true })
                       : "Never"}
-                  </td>
-                  <td className="px-4 py-3 text-right">
+                  </div>
+                  <div>
                     <button
                       onClick={() => handleUnarchive(c.id)}
-                      className="text-xs px-3 py-1 rounded-md border border-stone-200 text-stone-600 hover:bg-teal-50 hover:text-teal-700 hover:border-teal-200 transition-colors"
+                      disabled={updateContact.isPending}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 text-stone-600 hover:border-teal-300 hover:text-teal-700 hover:bg-teal-50 disabled:opacity-50 transition-colors"
                     >
+                      <ArchiveRestore className="w-3.5 h-3.5" />
                       Unarchive
                     </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+                  </div>
+                </div>
+              );
+            })}
 
-      {/* Pagination */}
-      {meta && meta.total_pages > 1 && (
-        <div className="flex items-center justify-between mt-4 text-sm text-stone-500">
-          <span>
-            Page <span className="font-mono text-stone-700">{meta.page}</span> of{" "}
-            <span className="font-mono text-stone-700">{meta.total_pages}</span>
-          </span>
-          <div className="flex gap-2">
+            {/* Pagination */}
+            {meta && totalPages > 1 && (
+              <div className="flex items-center justify-between px-4 py-3 border-t border-stone-200 bg-stone-50">
+                <p className="text-xs text-stone-500 font-mono">
+                  Page <strong className="text-stone-700">{currentPage}</strong> of {totalPages} — <strong className="text-stone-700">{meta.total}</strong> archived contacts
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={currentPage <= 1}
+                    onClick={() => updateUrl({ page: String(currentPage - 1) })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 text-stone-500 hover:bg-stone-100 hover:text-stone-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    <ChevronLeft className="w-3.5 h-3.5" /> Previous
+                  </button>
+                  <div className="flex items-center gap-1">
+                    {pageNumbers.map((p, i) =>
+                      p === "..." ? (
+                        <span key={`ellipsis-${i}`} className="w-7 h-7 flex items-center justify-center text-xs text-stone-400">...</span>
+                      ) : (
+                        <button
+                          key={p}
+                          onClick={() => updateUrl({ page: String(p) })}
+                          className={cn(
+                            "w-7 h-7 rounded-md text-xs font-medium transition-colors",
+                            p === currentPage
+                              ? "bg-teal-600 text-white"
+                              : "text-stone-600 hover:bg-stone-100"
+                          )}
+                        >
+                          {p}
+                        </button>
+                      )
+                    )}
+                  </div>
+                  <button
+                    disabled={currentPage >= totalPages}
+                    onClick={() => updateUrl({ page: String(currentPage + 1) })}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md border border-stone-200 text-stone-600 hover:bg-stone-100 hover:text-stone-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    Next <ChevronRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Bulk actions bar */}
+      {selected.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+          <div className="flex items-center gap-3 bg-stone-900 text-white rounded-xl px-4 py-3 shadow-2xl border border-stone-700">
+            <span className="text-sm font-medium">{selected.size} selected</span>
+            <div className="w-px h-5 bg-stone-600" />
             <button
-              disabled={meta.page <= 1}
-              onClick={() => updateUrl({ page: String(meta.page - 1) })}
-              className="px-3 py-1 rounded border border-stone-200 disabled:opacity-40"
+              onClick={bulkUnarchive}
+              disabled={updateContact.isPending}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-teal-600 hover:bg-teal-500 text-white transition-colors disabled:opacity-50"
             >
-              Previous
+              <ArchiveRestore className="w-3.5 h-3.5" />
+              Unarchive All
             </button>
             <button
-              disabled={meta.page >= meta.total_pages}
-              onClick={() => updateUrl({ page: String(meta.page + 1) })}
-              className="px-3 py-1 rounded border border-stone-200 disabled:opacity-40"
+              onClick={() => setSelected(new Set())}
+              className="p-1 text-stone-400 hover:text-white transition-colors"
             >
-              Next
+              <X className="w-4 h-4" />
             </button>
           </div>
         </div>

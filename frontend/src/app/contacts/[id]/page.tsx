@@ -1,47 +1,55 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
-  AlertCircle,
-  ArrowLeft,
-  Mail,
-  Phone,
-  Building2,
-  Tag,
-  User,
-  Briefcase,
-  MessageCircle,
-  Twitter,
-  Linkedin,
-  FileText,
-  AtSign,
+  Archive,
+  ArrowRight,
   Calendar,
-  MapPin,
+  Check,
+  ChevronDown,
+  Clock,
+  Copy,
+  GitMerge,
+  Mail,
+  MessageCircle,
+  Minus,
   MoreVertical,
+  Pencil,
   RefreshCw,
+  Send,
   Sparkles,
+  StickyNote,
   Trash2,
+  Twitter,
   Users,
   Wand2,
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useContact, useUpdateContact, useDeleteContact, useContactDuplicates, useMergeContacts, useContactActivity, useContacts, type Contact } from "@/hooks/use-contacts";
-import { ActivityBreakdown, ActivityBreakdownSkeleton } from "@/components/activity-breakdown";
-import { ScoreBadge } from "@/components/score-badge";
-import { Timeline, type TimelineEntry } from "@/components/timeline";
 import {
-  EditableField,
-  EditableListField,
-  EditableTagsField,
-} from "@/components/editable-field";
-import { ContactAvatar } from "@/components/contact-avatar";
+  useContact,
+  useUpdateContact,
+  useDeleteContact,
+  useContactDuplicates,
+  useMergeContacts,
+  useContactActivity,
+  useContacts,
+  type Contact,
+  type ActivityData,
+} from "@/hooks/use-contacts";
 import { MessageEditor } from "@/components/message-editor";
-import { useContactSuggestion, useUpdateSuggestion, useSendMessage } from "@/hooks/use-suggestions";
+import {
+  useContactSuggestion,
+  useUpdateSuggestion,
+  useSendMessage,
+} from "@/hooks/use-suggestions";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { client } from "@/lib/api-client";
-import { formatDistanceToNow } from "date-fns";
+import { formatDistanceToNow, format, isToday, isYesterday, isSameDay } from "date-fns";
+import { cn } from "@/lib/utils";
+
+/* ── Types ── */
 
 interface InteractionResponse {
   id: string;
@@ -51,135 +59,447 @@ interface InteractionResponse {
   occurred_at: string;
 }
 
-interface NotificationItem {
-  id: string;
-  notification_type: string;
-  title: string;
-  body: string | null;
-  read: boolean;
-  link: string | null;
-  created_at: string | null;
+/* ── Helpers ── */
+
+const URL_RE = /(https?:\/\/[^\s<]+)/g;
+
+function Linkify({ text, className }: { text: string; className?: string }) {
+  const parts = text.split(URL_RE);
+  return (
+    <span>
+      {parts.map((part, i) =>
+        URL_RE.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className={cn("underline break-all", className)}>
+            {part}
+          </a>
+        ) : (
+          part
+        )
+      )}
+    </span>
+  );
 }
 
-function DuplicateRow({
-  dup,
-  contactId,
-  mergeConfirmId,
-  setMergeConfirmId,
-  onMerge,
-  isPending,
-  onClose,
-  score,
-}: {
-  dup: { id: string; full_name?: string | null; given_name?: string | null; family_name?: string | null; emails?: string[] | null; company?: string | null; twitter_handle?: string | null; telegram_username?: string | null };
-  contactId: string;
-  mergeConfirmId: string | null;
-  setMergeConfirmId: (id: string | null) => void;
-  onMerge: (id: string) => void;
-  isPending: boolean;
-  onClose: () => void;
-  score?: number;
-}) {
-  const name =
-    dup.full_name ||
-    [dup.given_name, dup.family_name].filter(Boolean).join(" ") ||
-    "Unnamed";
-  const isConfirming = mergeConfirmId === dup.id;
-  if (dup.id === contactId) return null;
+function getInitials(name: string | null): string {
+  if (!name) return "?";
+  return name.split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+const avatarColors = [
+  "bg-violet-100 text-violet-700",
+  "bg-teal-100 text-teal-700",
+  "bg-pink-100 text-pink-700",
+  "bg-orange-100 text-orange-700",
+  "bg-sky-100 text-sky-700",
+  "bg-indigo-100 text-indigo-700",
+  "bg-stone-200 text-stone-600",
+  "bg-emerald-100 text-emerald-700",
+];
+
+function avatarColor(name: string | null): string {
+  if (!name) return avatarColors[6];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return avatarColors[Math.abs(hash) % avatarColors.length];
+}
+
+function scorePillClasses(score: number): { bg: string; text: string; dot: string; label: string } {
+  if (score >= 8) return { bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500", label: "Strong" };
+  if (score >= 4) return { bg: "bg-amber-50", text: "text-amber-700", dot: "bg-amber-400", label: "Warm" };
+  return { bg: "bg-red-50", text: "text-red-700", dot: "bg-red-400", label: "Cold" };
+}
+
+function dateSeparatorLabel(dateStr: string): string {
+  const d = new Date(dateStr);
+  if (isToday(d)) return "Today";
+  if (isYesterday(d)) return "Yesterday";
+  return format(d, "MMM d, yyyy");
+}
+
+function needsSeparator(current: string, prev: string | null): boolean {
+  if (!prev) return true;
+  return !isSameDay(new Date(current), new Date(prev));
+}
+
+const platformIconMap: Record<string, React.ReactNode> = {
+  email: <Mail className="w-3 h-3 text-red-400" />,
+  telegram: <MessageCircle className="w-3 h-3 text-sky-400" />,
+  twitter: <Twitter className="w-3 h-3 text-stone-400" />,
+  manual: <StickyNote className="w-3 h-3 text-amber-400" />,
+  meeting: <Calendar className="w-3 h-3 text-teal-500" />,
+};
+
+function platformLabel(platform: string): string {
+  return platform === "manual" ? "Note" : platform.charAt(0).toUpperCase() + platform.slice(1);
+}
+
+/* ── Clipboard helper ── */
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
   return (
-    <div className="flex items-center gap-3 p-3 rounded-lg border border-stone-200 hover:border-teal-300 hover:bg-teal-50/50 transition-colors">
-      <Link
-        href={`/contacts/${dup.id}`}
-        onClick={onClose}
-        className="flex items-center gap-3 min-w-0 flex-1"
-      >
-        <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 font-semibold text-sm flex-shrink-0">
-          {name
-            .split(" ")
-            .map((w: string) => w[0])
-            .slice(0, 2)
-            .join("")
-            .toUpperCase()}
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        void navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      className={cn(
+        "p-0.5 rounded transition-opacity",
+        copied ? "text-emerald-500 opacity-100" : "text-stone-300 hover:text-stone-500 opacity-0 group-hover/row:opacity-100"
+      )}
+      title="Copy"
+    >
+      {copied ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+    </button>
+  );
+}
+
+/* ── Editable inline field ── */
+
+function InlineField({
+  label,
+  value,
+  onSave,
+  copyable,
+  isLink,
+  linkPrefix,
+}: {
+  label: string;
+  value: string | null | undefined;
+  onSave: (v: string) => void;
+  copyable?: boolean;
+  isLink?: boolean;
+  linkPrefix?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const save = () => {
+    if (draft !== (value ?? "")) onSave(draft);
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(value ?? "");
+    setEditing(false);
+  };
+
+  return (
+    <div className="group/row flex items-center justify-between py-1.5">
+      <span className="text-xs text-stone-500">{label}</span>
+      {editing ? (
+        <div className="flex items-center gap-1">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+            className="text-xs border border-teal-400 rounded-md px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-teal-300 w-40"
+          />
+          <button onClick={save} className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-teal-600 text-white hover:bg-teal-700">Save</button>
+          <button onClick={cancel} className="px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 hover:bg-stone-100">Cancel</button>
         </div>
-        <div className="min-w-0 flex-1">
-          <p className="font-medium text-gray-900 truncate">{name}</p>
-          <p className="text-xs text-gray-500 truncate">
-            {[
-              dup.company,
-              dup.emails?.[0],
-              dup.twitter_handle ? `@${dup.twitter_handle}` : null,
-              dup.telegram_username ? `@${dup.telegram_username}` : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </p>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          {value ? (
+            isLink && linkPrefix !== undefined ? (
+              <a
+                href={`${linkPrefix}${value}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs font-medium text-teal-600 hover:text-teal-700 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {value}
+              </a>
+            ) : (
+              <span
+                className="text-xs font-medium text-stone-900 cursor-pointer hover:bg-stone-50 rounded px-1 -mx-1 transition-colors"
+                onClick={() => { setDraft(value); setEditing(true); }}
+              >
+                {value}
+              </span>
+            )
+          ) : (
+            <span
+              className="text-xs text-stone-300 cursor-pointer hover:text-stone-500"
+              onClick={() => { setDraft(""); setEditing(true); }}
+            >
+              Add...
+            </span>
+          )}
+          {copyable && value && <CopyButton text={value} />}
+          {!copyable && value && (
+            <button
+              onClick={() => { setDraft(value); setEditing(true); }}
+              className="p-0.5 rounded text-stone-300 hover:text-stone-500 opacity-0 group-hover/row:opacity-100 transition-opacity"
+            >
+              <Pencil className="w-3 h-3" />
+            </button>
+          )}
         </div>
-        {score !== undefined && (
-          <span className="text-sm font-semibold text-teal-600 font-mono-data flex-shrink-0">
-            {Math.round(score * 100)}%
-          </span>
-        )}
-      </Link>
-      {isConfirming ? (
-        <div className="flex items-center gap-1.5 flex-shrink-0">
-          <button
-            onClick={() => onMerge(dup.id)}
-            disabled={isPending}
-            className="px-2.5 py-1.5 text-xs font-medium rounded-md bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
-          >
-            {isPending ? "Merging..." : "Confirm"}
+      )}
+    </div>
+  );
+}
+
+/* ── Editable list field (emails, phones) ── */
+
+function InlineListField({
+  label,
+  values,
+  onSave,
+  copyable,
+  isLink,
+  linkPrefix,
+}: {
+  label: string;
+  values: string[];
+  onSave: (v: string[]) => void;
+  copyable?: boolean;
+  isLink?: boolean;
+  linkPrefix?: string;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(values.join(", "));
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const save = () => {
+    const newValues = draft.split(",").map((s) => s.trim()).filter(Boolean);
+    onSave(newValues);
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(values.join(", "));
+    setEditing(false);
+  };
+
+  const displayValue = values[0] || null;
+
+  return (
+    <div className="group/row flex items-center justify-between py-1.5">
+      <span className="text-xs text-stone-500">{label}</span>
+      {editing ? (
+        <div className="flex items-center gap-1">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") cancel(); }}
+            className="text-xs border border-teal-400 rounded-md px-2 py-0.5 focus:outline-none focus:ring-2 focus:ring-teal-300 w-44"
+          />
+          <button onClick={save} className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-teal-600 text-white hover:bg-teal-700">Save</button>
+          <button onClick={cancel} className="px-1.5 py-0.5 text-[10px] font-medium rounded text-stone-500 hover:bg-stone-100">Cancel</button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5">
+          {displayValue ? (
+            isLink && linkPrefix ? (
+              <a href={`${linkPrefix}${displayValue}`} className="text-xs font-medium text-teal-600 hover:text-teal-700">{displayValue}</a>
+            ) : (
+              <span className="text-xs font-medium text-stone-900 cursor-pointer hover:bg-stone-50 rounded px-1 -mx-1" onClick={() => { setDraft(values.join(", ")); setEditing(true); }}>{displayValue}{values.length > 1 && <span className="text-stone-400 ml-1">+{values.length - 1}</span>}</span>
+            )
+          ) : (
+            <span className="text-xs text-stone-300 cursor-pointer hover:text-stone-500" onClick={() => { setDraft(""); setEditing(true); }}>Add...</span>
+          )}
+          {copyable && displayValue && <CopyButton text={displayValue} />}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Tags in header ── */
+
+function TagsPills({
+  tags,
+  allTags,
+  onSave,
+}: {
+  tags: string[];
+  allTags: string[];
+  onSave: (tags: string[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (adding) inputRef.current?.focus();
+  }, [adding]);
+
+  const tagColors: Record<number, string> = {
+    0: "bg-violet-50 text-violet-700 border-violet-200",
+    1: "bg-teal-50 text-teal-700 border-teal-200",
+    2: "bg-amber-50 text-amber-700 border-amber-200",
+    3: "bg-sky-50 text-sky-700 border-sky-200",
+    4: "bg-pink-50 text-pink-700 border-pink-200",
+  };
+
+  const addTag = () => {
+    const tag = draft.trim().toLowerCase();
+    if (tag && !tags.includes(tag)) {
+      onSave([...tags, tag]);
+    }
+    setDraft("");
+    setAdding(false);
+  };
+
+  const removeTag = (tag: string) => {
+    onSave(tags.filter((t) => t !== tag));
+  };
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {tags.map((tag, i) => (
+        <span
+          key={tag}
+          className={cn(
+            "group/tag inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-medium border",
+            tagColors[i % 5]
+          )}
+        >
+          {tag}
+          <button onClick={() => removeTag(tag)} className="opacity-0 group-hover/tag:opacity-100 transition-opacity -mr-0.5">
+            <X className="w-3 h-3" />
           </button>
-          <button
-            onClick={() => setMergeConfirmId(null)}
-            className="px-2.5 py-1.5 text-xs rounded-md border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors"
-          >
-            Cancel
-          </button>
+        </span>
+      ))}
+      {adding ? (
+        <div className="flex items-center gap-1">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") addTag(); if (e.key === "Escape") { setAdding(false); setDraft(""); } }}
+            placeholder="Tag name..."
+            className="text-[11px] border border-teal-300 rounded-full px-2 py-0.5 w-24 focus:outline-none focus:ring-1 focus:ring-teal-400"
+            list="tag-suggestions"
+          />
+          <datalist id="tag-suggestions">
+            {allTags.filter((t) => !tags.includes(t)).map((t) => (
+              <option key={t} value={t} />
+            ))}
+          </datalist>
         </div>
       ) : (
         <button
-          onClick={() => setMergeConfirmId(dup.id)}
-          className="px-3 py-1.5 text-xs font-medium rounded-md border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors flex-shrink-0"
+          onClick={() => setAdding(true)}
+          className="px-2 py-0.5 rounded-full text-[11px] text-stone-400 border border-dashed border-stone-300 hover:bg-stone-50"
         >
-          Merge
+          +
         </button>
       )}
     </div>
   );
 }
 
-function DuplicatesModal({
-  contactId,
-  contactName,
-  onClose,
-}: {
-  contactId: string;
-  contactName: string;
-  onClose: () => void;
-}) {
+/* ── Relationship Health Card ── */
+
+function RelationshipHealth({ activityData, contact }: { activityData: ActivityData; contact: Contact }) {
+  const { dimensions, stats } = activityData;
+  const score = contact.relationship_score;
+  const s = scorePillClasses(score);
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 p-5">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-stone-900">Relationship Health</h3>
+        <span className={cn("font-mono text-lg font-bold", s.text)}>
+          {score}<span className="text-stone-300 font-normal text-sm">/10</span>
+        </span>
+      </div>
+
+      <div className="space-y-2.5 mb-5">
+        {[
+          { label: "Reciprocity", ...dimensions.reciprocity },
+          { label: "Recency", ...dimensions.recency },
+          { label: "Frequency", ...dimensions.frequency },
+          { label: "Breadth", ...dimensions.breadth },
+        ].map((dim) => (
+          <div key={dim.label}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-stone-600">{dim.label}</span>
+              <span className="font-mono text-[11px] text-stone-400">{dim.value}/{dim.max}</span>
+            </div>
+            <div className="h-1.5 bg-stone-100 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-teal-500 rounded-full transition-all"
+                style={{ width: dim.max > 0 ? `${(dim.value / dim.max) * 100}%` : "0%" }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="border-t border-stone-100 pt-4 space-y-2.5">
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-stone-500">Last contacted</span>
+          <div className="text-right">
+            <span className="text-xs font-medium text-stone-900">
+              {contact.last_interaction_at
+                ? formatDistanceToNow(new Date(contact.last_interaction_at), { addSuffix: true })
+                : "Never"}
+            </span>
+            {stats.platforms.length > 0 && (
+              <span className="text-[10px] text-stone-400 ml-1">via {stats.platforms[0]}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-stone-500">Total interactions</span>
+          <div className="text-right">
+            <span className="text-xs font-medium text-stone-900">{stats.interaction_count}</span>
+            {(stats.inbound_365d > 0 || stats.outbound_365d > 0) && (
+              <span className="text-[10px] text-stone-400 ml-1">{stats.outbound_365d} out / {stats.inbound_365d} in</span>
+            )}
+          </div>
+        </div>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-stone-500">Since</span>
+          <span className="text-xs font-medium text-stone-900">
+            {format(new Date(contact.created_at), "MMM yyyy")}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── Duplicates Inline Card ── */
+
+function DuplicatesCard({ contactId }: { contactId: string }) {
   const { data, isLoading } = useContactDuplicates(contactId, true);
-  const duplicates = data?.data ?? [];
+  const duplicates = (data?.data ?? []).filter((d: any) => d.id !== contactId);
   const mergeContacts = useMergeContacts();
-  const [mergeConfirmId, setMergeConfirmId] = useState<string | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
   const queryClient = useQueryClient();
   const router = useRouter();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
-  const { data: searchData } = useContacts(
-    searchQuery.length >= 2 ? { search: searchQuery, page_size: 10 } : {}
-  );
-  const searchResults = searchQuery.length >= 2
-    ? (searchData?.data ?? []).filter((c) => c.id !== contactId)
-    : [];
+  if (isLoading || duplicates.length === 0) return null;
 
-  const handleMerge = (otherId: string) => {
+  const dup = duplicates[0] as any;
+  const name = dup.full_name || [dup.given_name, dup.family_name].filter(Boolean).join(" ") || "Unnamed";
+  const score = typeof dup.score === "number" ? Math.round(dup.score * 100) : null;
+
+  const handleMerge = () => {
     mergeContacts.mutate(
-      { contactId, otherId },
+      { contactId, otherId: dup.id },
       {
-        onSuccess: (result) => {
-          setMergeConfirmId(null);
+        onSuccess: (result: any) => {
           void queryClient.invalidateQueries({ queryKey: ["contacts"] });
-          onClose();
           const survivingId = result?.data?.id;
           if (survivingId && survivingId !== contactId) {
             router.replace(`/contacts/${survivingId}`);
@@ -189,89 +509,244 @@ function DuplicatesModal({
     );
   };
 
-  const showSearch = searchQuery.length >= 2;
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[80vh] flex flex-col">
-        <div className="flex items-center justify-between p-5 border-b border-stone-200">
-          <h3 className="text-lg font-display font-semibold text-stone-900">
-            Possible duplicates of {contactName}
-          </h3>
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded-md hover:bg-stone-100 transition-colors"
-          >
-            <X className="w-5 h-5 text-stone-500" />
-          </button>
-        </div>
-        <div className="px-5 pt-4 pb-2">
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search contacts to merge..."
-            className="w-full px-3 py-2 text-sm rounded-lg border border-stone-200 focus:border-teal-400 focus:ring-1 focus:ring-teal-400 outline-none transition-colors"
-          />
-        </div>
-        <div className="overflow-y-auto flex-1 p-5 pt-2">
-          {showSearch ? (
-            searchResults.length === 0 ? (
-              <div className="text-center py-6 text-gray-400">
-                <p className="text-sm">No contacts matching &ldquo;{searchQuery}&rdquo;</p>
+    <div className="bg-white rounded-xl border border-stone-200 p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h3 className="text-sm font-semibold text-stone-900">Possible Duplicates</h3>
+        <span className="text-[11px] font-medium text-stone-400">{duplicates.length} pending</span>
+      </div>
+
+      <div className="border border-stone-200 rounded-lg overflow-hidden">
+        {score !== null && (
+          <div className="flex items-center justify-between px-3 py-2 bg-stone-50 border-b border-stone-100">
+            <span className={cn(
+              "inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium border",
+              score >= 85 ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+              score >= 65 ? "bg-amber-50 text-amber-700 border-amber-200" :
+              "bg-sky-50 text-sky-700 border-sky-200"
+            )}>
+              {score >= 85 ? "Strong match" : score >= 65 ? "Probable match" : "Possible match"}
+            </span>
+            <div className="flex items-center gap-1.5">
+              <div className="w-12 h-1.5 bg-stone-200 rounded-full overflow-hidden">
+                <div className={cn("h-full rounded-full", score >= 85 ? "bg-emerald-500" : score >= 65 ? "bg-amber-400" : "bg-sky-400")} style={{ width: `${score}%` }} />
               </div>
-            ) : (
-              <div className="space-y-3">
-                <p className="text-xs font-medium text-stone-400 uppercase tracking-wide">Search results</p>
-                {searchResults.map((c) => (
-                  <DuplicateRow
-                    key={c.id}
-                    dup={{
-                      id: c.id,
-                      full_name: c.full_name ?? undefined,
-                      given_name: c.given_name ?? undefined,
-                      family_name: c.family_name ?? undefined,
-                      emails: c.emails ?? [],
-                      company: c.company ?? undefined,
-                      twitter_handle: c.twitter_handle ?? undefined,
-                      telegram_username: c.telegram_username ?? undefined,
-                    }}
-                    contactId={contactId}
-                    mergeConfirmId={mergeConfirmId}
-                    setMergeConfirmId={setMergeConfirmId}
-                    onMerge={handleMerge}
-                    isPending={mergeContacts.isPending}
-                    onClose={onClose}
-                  />
-                ))}
-              </div>
-            )
-          ) : isLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map((n) => (
-                <div key={n} className="h-16 rounded-lg bg-gray-100 animate-pulse" />
-              ))}
+              <span className="font-mono text-xs font-bold text-stone-600">{score}%</span>
             </div>
-          ) : duplicates.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
-              <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
-              <p className="text-sm">No possible duplicates found</p>
+          </div>
+        )}
+
+        <div className="px-3 py-3">
+          <div className="flex items-center gap-2.5 mb-2.5">
+            <div className={cn("w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-semibold shrink-0", avatarColor(name))}>
+              {getInitials(name)}
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-stone-900">{name}</p>
+              <p className="text-[10px] text-stone-400">{dup.source ? `Via ${dup.source}` : "Contact"}</p>
+            </div>
+          </div>
+
+          <div className="space-y-1.5 mb-3">
+            {dup.emails?.[0] && (
+              <div className="flex items-center gap-2">
+                <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                <span className="text-[11px] text-stone-600">Email: <strong className="text-stone-800">{dup.emails[0]}</strong></span>
+              </div>
+            )}
+            {dup.company && (
+              <div className="flex items-center gap-2">
+                <Check className="w-3 h-3 text-emerald-500 shrink-0" />
+                <span className="text-[11px] text-stone-600">Company: <strong className="text-stone-800">{dup.company}</strong></span>
+              </div>
+            )}
+            {!dup.twitter_handle && !dup.telegram_username && (
+              <div className="flex items-center gap-2">
+                <Minus className="w-3 h-3 text-stone-300 shrink-0" />
+                <span className="text-[11px] text-stone-400">No matching handles</span>
+              </div>
+            )}
+          </div>
+
+          {confirmId === dup.id ? (
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleMerge}
+                disabled={mergeContacts.isPending}
+                className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors"
+              >
+                {mergeContacts.isPending ? "Merging..." : "Confirm merge"}
+              </button>
+              <button
+                onClick={() => setConfirmId(null)}
+                className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors"
+              >
+                Cancel
+              </button>
             </div>
           ) : (
-            <div className="space-y-3">
-              {duplicates.map((dup) => (
-                <DuplicateRow
-                  key={dup.id}
-                  dup={dup}
-                  contactId={contactId}
-                  mergeConfirmId={mergeConfirmId}
-                  setMergeConfirmId={setMergeConfirmId}
-                  onMerge={handleMerge}
-                  isPending={mergeContacts.isPending}
-                  onClose={onClose}
-                  score={dup.score}
-                />
-              ))}
+            <div className="flex items-center gap-2">
+              <button className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors">
+                <X className="w-3 h-3" /> Not the same
+              </button>
+              <button
+                onClick={() => setConfirmId(dup.id)}
+                className="flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-1.5 text-[11px] font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+              >
+                <GitMerge className="w-3 h-3" /> Merge
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <Link
+        href="/identity"
+        className="flex items-center justify-center gap-1 mt-3 text-[11px] text-teal-600 hover:text-teal-700 font-medium"
+      >
+        View all duplicates <ArrowRight className="w-3 h-3" />
+      </Link>
+    </div>
+  );
+}
+
+/* ── Suggestion Card (collapsible) ── */
+
+function SuggestionCard({
+  contact,
+  contactId,
+}: {
+  contact: Contact;
+  contactId: string;
+}) {
+  const suggestion = useContactSuggestion(contactId);
+  const updateSuggestion = useUpdateSuggestion();
+  const sendMessageMutation = useSendMessage();
+  const [expanded, setExpanded] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [showSnooze, setShowSnooze] = useState(false);
+
+  if (!suggestion) return null;
+
+  const handleSnooze = (days: number) => {
+    const date = new Date();
+    date.setDate(date.getDate() + days);
+    updateSuggestion.mutate({
+      id: suggestion.id,
+      input: { status: "snoozed", snooze_until: date.toISOString() },
+    });
+    setShowSnooze(false);
+  };
+
+  const handleDismiss = () => {
+    updateSuggestion.mutate({
+      id: suggestion.id,
+      input: { status: "dismissed" },
+    });
+  };
+
+  const handleSend = async (message: string, channel: string, scheduledFor?: string) => {
+    setError(null);
+    if (channel === "telegram" && contact.telegram_username) {
+      try {
+        await sendMessageMutation.mutateAsync({ contactId, message, channel, scheduledFor });
+        updateSuggestion.mutate({ id: suggestion.id, input: { status: "sent", suggested_message: message, suggested_channel: channel as "email" | "telegram" | "twitter" } });
+        setSent(scheduledFor ? `Scheduled for ${new Date(scheduledFor).toLocaleString()}` : "Sent via Telegram!");
+        setTimeout(() => setSent(null), 4000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to send");
+      }
+    } else if (channel === "email" && contact.emails?.length) {
+      const email = contact.emails[0];
+      const name = contact.given_name || contact.full_name || "";
+      window.open(`mailto:${email}?subject=${encodeURIComponent(`Hey ${name}`.trim())}&body=${encodeURIComponent(message)}`, "_blank");
+      updateSuggestion.mutate({ id: suggestion.id, input: { status: "sent", suggested_message: message, suggested_channel: channel as "email" | "telegram" | "twitter" } });
+      setSent("Email draft opened");
+      setTimeout(() => setSent(null), 4000);
+    } else if (channel === "twitter" && contact.twitter_handle) {
+      window.open(`https://x.com/messages/compose?text=${encodeURIComponent(message)}`, "_blank");
+      void navigator.clipboard?.writeText(message).catch(() => {});
+      updateSuggestion.mutate({ id: suggestion.id, input: { status: "sent", suggested_message: message, suggested_channel: channel as "email" | "telegram" | "twitter" } });
+      setSent(`DM compose opened — search for @${contact.twitter_handle.replace(/^@/, "")}`);
+      setTimeout(() => setSent(null), 5000);
+    } else {
+      void navigator.clipboard?.writeText(message).catch(() => {});
+      updateSuggestion.mutate({ id: suggestion.id, input: { status: "sent", suggested_message: message, suggested_channel: channel as "email" | "telegram" | "twitter" } });
+      setSent("Copied to clipboard");
+      setTimeout(() => setSent(null), 4000);
+    }
+  };
+
+  return (
+    <div
+      className={cn(
+        "bg-white rounded-xl border p-4 transition-all",
+        expanded ? "border-teal-200 shadow-sm" : "border-stone-200 cursor-pointer hover:border-stone-300 hover:shadow-sm"
+      )}
+      onClick={() => !expanded && setExpanded(true)}
+    >
+      <div className="flex items-start gap-3">
+        <div className="w-10 h-10 rounded-full bg-amber-50 flex items-center justify-center shrink-0">
+          <Sparkles className="w-5 h-5 text-amber-500" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-stone-900">Follow-up suggested</p>
+            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-600 border border-amber-200">
+              <Sparkles className="w-3 h-3" />
+            </span>
+          </div>
+          <p className="text-xs text-stone-500 mt-1 line-clamp-2">
+            {suggestion.suggested_message?.slice(0, 120) || "A follow-up is recommended..."}
+            {!expanded && "..."}
+          </p>
+
+          {expanded && (
+            <div className="mt-4 pt-4 border-t border-stone-100" onClick={(e) => e.stopPropagation()}>
+              {sent && (
+                <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2 mb-3">{sent}</div>
+              )}
+              {error && (
+                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">{error}</div>
+              )}
+              <MessageEditor
+                suggestionId={suggestion.id}
+                contactId={contactId}
+                initialMessage={suggestion.suggested_message ?? ""}
+                initialChannel={suggestion.suggested_channel}
+                disabledChannels={{
+                  ...(!contact.emails?.length ? { email: "No email" } : {}),
+                  ...(!contact.telegram_username ? { telegram: "No Telegram" } : {}),
+                  ...(!contact.twitter_handle ? { twitter: "No Twitter" } : {}),
+                }}
+                onSend={handleSend}
+              />
+              <div className="flex items-center justify-between mt-3">
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <button
+                      onClick={() => setShowSnooze(!showSnooze)}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-amber-600 border border-amber-200 bg-amber-50 hover:bg-amber-100 transition-colors"
+                    >
+                      <Clock className="w-3 h-3" /> Snooze <ChevronDown className="w-2.5 h-2.5" />
+                    </button>
+                    {showSnooze && (
+                      <div className="absolute left-0 bottom-full mb-1 w-32 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-50">
+                        <button onClick={() => handleSnooze(14)} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"><Clock className="w-3 h-3 text-stone-400" /> 2 weeks</button>
+                        <button onClick={() => handleSnooze(30)} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"><Clock className="w-3 h-3 text-stone-400" /> 1 month</button>
+                        <button onClick={() => handleSnooze(90)} className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 hover:bg-stone-50"><Clock className="w-3 h-3 text-stone-400" /> 3 months</button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={handleDismiss}
+                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-stone-400 border border-stone-200 hover:bg-stone-50 transition-colors"
+                  >
+                    <X className="w-3 h-3" /> Dismiss
+                  </button>
+                </div>
+              </div>
             </div>
           )}
         </div>
@@ -280,10 +755,205 @@ function DuplicatesModal({
   );
 }
 
+/* ── Add Note Input ── */
+
+function AddNoteInput({ onSave }: { onSave: (content: string) => void }) {
+  const [focused, setFocused] = useState(false);
+  const [text, setText] = useState("");
+
+  const handleSave = () => {
+    if (!text.trim()) return;
+    onSave(text.trim());
+    setText("");
+    setFocused(false);
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 p-3 flex items-start gap-3">
+      <StickyNote className="w-4 h-4 text-amber-400 mt-1.5 shrink-0" />
+      <div className="flex-1">
+        <textarea
+          rows={focused ? 3 : 1}
+          placeholder="Add a note..."
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          onFocus={() => setFocused(true)}
+          className="w-full text-sm border-0 resize-none focus:outline-none placeholder:text-stone-400 py-1"
+        />
+        {focused && (
+          <div className="flex items-center justify-end gap-2 mt-2 pt-2 border-t border-stone-100">
+            <button
+              onClick={() => { setText(""); setFocused(false); }}
+              className="px-3 py-1.5 text-xs text-stone-500 hover:bg-stone-50 rounded-md transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              className="px-3 py-1.5 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700 transition-colors"
+            >
+              Save note
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ── Timeline ── */
+
+const TIMELINE_PAGE_SIZE = 50;
+
+function ChatTimeline({
+  interactions,
+  contactName,
+  onAddNote,
+}: {
+  interactions: InteractionResponse[];
+  contactName: string;
+  onAddNote: (content: string) => void;
+}) {
+  const [visibleCount, setVisibleCount] = useState(TIMELINE_PAGE_SIZE);
+  const visible = interactions.slice(0, visibleCount);
+  const hasMore = visibleCount < interactions.length;
+
+  if (interactions.length === 0) {
+    return (
+      <div className="bg-white rounded-xl border border-stone-200 p-10 text-center">
+        <div className="w-12 h-12 rounded-full bg-stone-100 flex items-center justify-center mx-auto mb-3">
+          <MessageCircle className="w-6 h-6 text-stone-400" />
+        </div>
+        <h3 className="text-sm font-semibold text-stone-900 mb-1">No interactions yet</h3>
+        <p className="text-xs text-stone-500 mb-4 max-w-xs mx-auto">Connect an account to sync messages, or add a note to get started.</p>
+      </div>
+    );
+  }
+
+  const initials = getInitials(contactName);
+  const contactAvatarCls = avatarColor(contactName);
+
+  return (
+    <div className="bg-white rounded-xl border border-stone-200 p-4 space-y-1">
+      {visible.map((item, idx) => {
+        const prevItem = idx > 0 ? visible[idx - 1] : null;
+        const showSeparator = needsSeparator(item.occurred_at, prevItem?.occurred_at ?? null);
+        const isManual = item.platform === "manual";
+        const isMeeting = item.platform === "meeting";
+        const isOutbound = item.direction === "outbound";
+        const time = format(new Date(item.occurred_at), "h:mm a");
+
+        return (
+          <div key={item.id}>
+            {/* Date separator */}
+            {showSeparator && (
+              <div className="flex items-center gap-3 py-2 mt-1">
+                <div className="flex-1 h-px bg-stone-100" />
+                <span className="text-[10px] font-medium text-stone-400 uppercase tracking-wider">
+                  {dateSeparatorLabel(item.occurred_at)}
+                </span>
+                <div className="flex-1 h-px bg-stone-100" />
+              </div>
+            )}
+
+            {/* Note */}
+            {isManual && (
+              <div className="my-3 ml-2 pl-3 border-l-2 border-amber-300 py-1.5 group/note">
+                <div className="flex items-start justify-between">
+                  {item.content_preview && (
+                    <p className="text-[13px] text-stone-700 leading-relaxed">
+                      <Linkify text={item.content_preview} className="text-amber-700 hover:text-amber-900" />
+                    </p>
+                  )}
+                  <div className="flex items-center gap-1 opacity-0 group-hover/note:opacity-100 transition-opacity shrink-0 ml-2">
+                    <button className="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100"><Pencil className="w-3 h-3" /></button>
+                    <button className="p-1 rounded text-stone-400 hover:text-red-500 hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1">
+                  {platformIconMap.manual}
+                  <span className="text-[10px] text-stone-400">
+                    Note &middot; {format(new Date(item.occurred_at), "MMM d")}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Meeting event */}
+            {isMeeting && (
+              <div className="flex justify-center py-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50 border border-stone-100">
+                  <Calendar className="w-3.5 h-3.5 text-teal-500" />
+                  <span className="text-[11px] text-stone-500">
+                    Meeting{item.content_preview ? ` · ${item.content_preview}` : ""}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {/* Regular message */}
+            {!isManual && !isMeeting && (
+              isOutbound ? (
+                <div className="flex items-end gap-2 max-w-[85%] ml-auto flex-row-reverse">
+                  <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-semibold shrink-0">You</div>
+                  <div>
+                    <div className="bg-teal-600 text-white rounded-2xl rounded-br-md px-3.5 py-2.5">
+                      {item.content_preview && (
+                        <p className="text-[13px] leading-relaxed">
+                          <Linkify text={item.content_preview} className="text-teal-100 hover:text-white" />
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1 mr-1 justify-end">
+                      <span className="text-[10px] text-stone-400">{time} &middot; {platformLabel(item.platform)}</span>
+                      {platformIconMap[item.platform]}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-end gap-2 max-w-[85%]">
+                  <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-semibold shrink-0", contactAvatarCls)}>
+                    {initials}
+                  </div>
+                  <div>
+                    <div className="bg-stone-100 rounded-2xl rounded-bl-md px-3.5 py-2.5">
+                      {item.content_preview && (
+                        <p className="text-[13px] text-stone-800 leading-relaxed">
+                          <Linkify text={item.content_preview} className="text-teal-600 hover:text-teal-800" />
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 mt-1 ml-1">
+                      {platformIconMap[item.platform]}
+                      <span className="text-[10px] text-stone-400">{platformLabel(item.platform)} &middot; {time}</span>
+                    </div>
+                  </div>
+                </div>
+              )
+            )}
+          </div>
+        );
+      })}
+
+      {hasMore && (
+        <button
+          onClick={() => setVisibleCount((c) => c + TIMELINE_PAGE_SIZE)}
+          className="w-full mt-3 py-2 text-xs font-medium text-teal-600 hover:text-teal-700 hover:bg-teal-50 rounded-lg transition-colors"
+        >
+          Load more interactions...
+        </button>
+      )}
+    </div>
+  );
+}
+
+/* ═══════════════ PAGE ═══════════════ */
+
 export default function ContactDetailPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
+  const queryClient = useQueryClient();
 
   const { data: contactData, isLoading, isError } = useContact(id);
   const contact = contactData?.data as Contact | undefined;
@@ -293,31 +963,22 @@ export default function ContactDetailPage() {
 
   const [menuOpen, setMenuOpen] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
-  const [showDuplicates, setShowDuplicates] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isEnriching, setIsEnriching] = useState(false);
   const [isAutoTagging, setIsAutoTagging] = useState(false);
-  const [autoTagResult, setAutoTagResult] = useState<string | null>(null);
-  const [enrichResult, setEnrichResult] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setMenuOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
     }
     if (menuOpen) document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, [menuOpen]);
 
-  const handleDelete = () => {
-    deleteContact.mutate(id, {
-      onSuccess: () => router.push("/contacts"),
-    });
-  };
-
+  // Interactions query with pagination
   const { data: interactionsData, refetch: refetchInteractions } = useQuery({
     queryKey: ["interactions", id],
     queryFn: async () => {
@@ -329,33 +990,7 @@ export default function ContactDetailPage() {
     enabled: Boolean(id),
   });
 
-  // Fetch notifications linked to this contact (bio changes, events)
-  const { data: notificationsData } = useQuery({
-    queryKey: ["contact-notifications", id],
-    queryFn: async () => {
-      const { data } = await client.GET("/api/v1/notifications", {
-        params: { query: { page_size: 50, link: `/contacts/${id}` } },
-      });
-      return (data?.data as NotificationItem[]) ?? [];
-    },
-    enabled: Boolean(id),
-  });
-  const contactNotifications = notificationsData ?? [];
-
-  // Fetch common Telegram groups
-  const { data: commonGroupsData } = useQuery({
-    queryKey: ["telegram-common-groups", id],
-    queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/{contact_id}/telegram/common-groups", {
-        params: { path: { contact_id: id } },
-      });
-      return (data?.data as { id: number; title: string; link: string | null; participants_count: number | null }[]) ?? [];
-    },
-    enabled: Boolean(id),
-  });
-  const commonGroups = commonGroupsData ?? [];
-
-  // Fetch all existing tags for the tag picker
+  // All tags for tag picker
   const { data: allTagsData } = useQuery({
     queryKey: ["tags"],
     queryFn: async () => {
@@ -365,15 +1000,11 @@ export default function ContactDetailPage() {
   });
   const allTags = allTagsData ?? [];
 
-  // Trigger background bio refresh (rate-limited to 1/24h on backend)
-  const queryClient = useQueryClient();
+  // Background bio refresh
   useQuery({
     queryKey: ["refresh-bios", id],
     queryFn: async () => {
-      await client.POST("/api/v1/contacts/{contact_id}/refresh-bios", {
-        params: { path: { contact_id: id } },
-      });
-      // Silently refresh contact data after bio update completes
+      await client.POST("/api/v1/contacts/{contact_id}/refresh-bios", { params: { path: { contact_id: id } } });
       void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
       return true;
     },
@@ -382,14 +1013,12 @@ export default function ContactDetailPage() {
     retry: false,
   });
 
-  // Background email sync — fires once per contact if they have emails (rate-limited to 1/hr on backend)
+  // Background email sync
   const contactEmails = contact?.emails;
   useQuery({
     queryKey: ["sync-emails", id],
     queryFn: async () => {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, {
-        params: { path: { contact_id: id } },
-      });
+      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, { params: { path: { contact_id: id } } });
       const data = (res.data as any)?.data;
       if (data?.new_interactions > 0) {
         void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
@@ -402,16 +1031,12 @@ export default function ContactDetailPage() {
     retry: false,
   });
 
-  // Background avatar refresh (rate-limited to 1/24h on backend)
+  // Background avatar refresh
   useQuery({
     queryKey: ["refresh-avatar", id],
     queryFn: async () => {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, {
-        params: { path: { contact_id: id } },
-      });
-      if ((res.data as any)?.data?.changed) {
-        void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
-      }
+      const res = await client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, { params: { path: { contact_id: id } } });
+      if ((res.data as any)?.data?.changed) void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
       return true;
     },
     enabled: Boolean(id),
@@ -419,27 +1044,17 @@ export default function ContactDetailPage() {
     retry: false,
   });
 
-  // Manual "Refresh Details" — force-refreshes bios, avatar, emails, and common groups
   const handleRefreshDetails = async () => {
     if (!id || isRefreshing) return;
     setIsRefreshing(true);
     try {
       await Promise.allSettled([
-        client.POST("/api/v1/contacts/{contact_id}/refresh-bios", {
-          params: { path: { contact_id: id }, query: { force: true } },
-        } as any),
-        client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, {
-          params: { path: { contact_id: id }, query: { force: true } },
-        }),
-        ...(contactEmails?.length
-          ? [client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, {
-              params: { path: { contact_id: id }, query: { force: true } },
-            })]
-          : []),
+        client.POST("/api/v1/contacts/{contact_id}/refresh-bios", { params: { path: { contact_id: id }, query: { force: true } } } as any),
+        client.POST("/api/v1/contacts/{contact_id}/refresh-avatar" as any, { params: { path: { contact_id: id }, query: { force: true } } }),
+        ...(contactEmails?.length ? [client.POST("/api/v1/contacts/{contact_id}/sync-emails" as any, { params: { path: { contact_id: id }, query: { force: true } } })] : []),
       ]);
       void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
       void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
-      void queryClient.invalidateQueries({ queryKey: ["telegram-common-groups", id] });
     } finally {
       setIsRefreshing(false);
     }
@@ -448,111 +1063,88 @@ export default function ContactDetailPage() {
   const handleEnrich = async () => {
     if (!id || isEnriching) return;
     setIsEnriching(true);
-    setEnrichResult(null);
+    setToast(null);
     try {
-      const res = await client.POST("/api/v1/contacts/{contact_id}/enrich" as any, {
-        params: { path: { contact_id: id } },
-      });
+      const res = await client.POST("/api/v1/contacts/{contact_id}/enrich" as any, { params: { path: { contact_id: id } } });
       const data = (res.data as any)?.data;
       const fields: string[] = data?.fields_updated ?? [];
-      if (fields.length > 0) {
-        setEnrichResult({ type: "success", text: `Updated: ${fields.join(", ")}` });
-      } else {
-        setEnrichResult({ type: "success", text: "No new data found on Apollo" });
-      }
+      setToast({ type: "success", text: fields.length > 0 ? `Updated: ${fields.join(", ")}` : "No new data found" });
       void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
     } catch (err: any) {
-      const detail = err?.message || "Enrichment failed";
-      setEnrichResult({ type: "error", text: detail });
+      setToast({ type: "error", text: err?.message || "Enrichment failed" });
     } finally {
       setIsEnriching(false);
+      setTimeout(() => setToast(null), 5000);
     }
   };
 
   const handleAutoTag = async () => {
     if (!id || isAutoTagging) return;
     setIsAutoTagging(true);
-    setAutoTagResult(null);
+    setToast(null);
     try {
       const res = await fetch(`/api/v1/contacts/${id}/auto-tag`, {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("access_token")}`,
-          "Content-Type": "application/json",
-        },
+        headers: { Authorization: `Bearer ${localStorage.getItem("access_token")}`, "Content-Type": "application/json" },
       });
       const json = await res.json();
       if (!res.ok) {
-        setAutoTagResult(json.detail || "Auto-tagging failed");
+        setToast({ type: "error", text: json.detail || "Auto-tagging failed" });
       } else {
         const tagsAdded = json.data?.tags_added ?? [];
-        setAutoTagResult(
-          tagsAdded.length > 0
-            ? `Added: ${tagsAdded.join(", ")}`
-            : "No new tags to add"
-        );
+        setToast({ type: "success", text: tagsAdded.length > 0 ? `Added: ${tagsAdded.join(", ")}` : "No new tags" });
         void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
         void queryClient.invalidateQueries({ queryKey: ["tags"] });
       }
-      setTimeout(() => setAutoTagResult(null), 5000);
     } catch {
-      setAutoTagResult("Auto-tagging failed");
-      setTimeout(() => setAutoTagResult(null), 5000);
+      setToast({ type: "error", text: "Auto-tagging failed" });
     } finally {
       setIsAutoTagging(false);
+      setTimeout(() => setToast(null), 5000);
     }
   };
 
-  const allInteractions = (interactionsData?.data ?? []) as InteractionResponse[];
-  const interactions: TimelineEntry[] = allInteractions.map((i) => ({
-    id: i.id,
-    platform: i.platform as TimelineEntry["platform"],
-    direction: i.direction as TimelineEntry["direction"],
-    content_preview: i.content_preview,
-    occurred_at: i.occurred_at,
-  }));
-
-  // Follow-up suggestion for this contact
-  const suggestion = useContactSuggestion(id);
-  const updateSuggestion = useUpdateSuggestion();
-  const sendMessageMutation = useSendMessage();
-  const [suggestionSent, setSuggestionSent] = useState<string | null>(null);
-  const [suggestionError, setSuggestionError] = useState<string | null>(null);
+  const handleDelete = () => {
+    deleteContact.mutate(id, { onSuccess: () => router.push("/contacts") });
+  };
 
   const addNoteMutation = useMutation({
     mutationFn: async (content: string) => {
       await client.POST("/api/v1/contacts/{contact_id}/interactions", {
         params: { path: { contact_id: id } },
-        body: {
-          platform: "manual",
-          direction: "outbound",
-          content_preview: content,
-          occurred_at: new Date().toISOString(),
-        },
+        body: { platform: "manual", direction: "outbound", content_preview: content, occurred_at: new Date().toISOString() },
       });
     },
-    onSuccess: () => {
-      void refetchInteractions();
-    },
+    onSuccess: () => void refetchInteractions(),
   });
 
   const saveField = (field: string, value: string | string[]) => {
     const input: Record<string, string | string[]> = { [field]: value };
-
-    // Keep full_name in sync when given/family name changes
     if (field === "given_name" || field === "family_name") {
       const given = field === "given_name" ? (value as string) : (contact?.given_name ?? "");
       const family = field === "family_name" ? (value as string) : (contact?.family_name ?? "");
       input.full_name = [given, family].filter(Boolean).join(" ") || "";
     }
-
     updateContact.mutate({ id, input });
   };
 
+  const allInteractions = (interactionsData?.data ?? []) as InteractionResponse[];
+
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
-        <p className="text-stone-400">Loading contact...</p>
+      <div className="min-h-screen bg-stone-50">
+        <main className="max-w-6xl mx-auto px-4 py-8">
+          <div className="bg-white rounded-xl border border-stone-200 p-6 mb-6 animate-pulse">
+            <div className="flex items-start gap-6">
+              <div className="w-20 h-20 rounded-full bg-stone-200" />
+              <div className="flex-1 space-y-3">
+                <div className="h-6 w-48 bg-stone-200 rounded" />
+                <div className="h-4 w-72 bg-stone-100 rounded" />
+                <div className="h-4 w-32 bg-stone-100 rounded" />
+              </div>
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -562,128 +1154,183 @@ export default function ContactDetailPage() {
       <div className="min-h-screen bg-stone-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-500 mb-4">Contact not found.</p>
-          <Link href="/contacts" className="text-teal-600 hover:underline">
-            Back to contacts
-          </Link>
+          <Link href="/contacts" className="text-teal-600 hover:underline">Back to contacts</Link>
         </div>
       </div>
     );
   }
 
-  const displayName =
-    contact.full_name ??
-    [contact.given_name, contact.family_name].filter(Boolean).join(" ") ??
-    "Unnamed Contact";
+  const displayName = contact.full_name ?? [contact.given_name, contact.family_name].filter(Boolean).join(" ") ?? "Unnamed Contact";
+  const sp = scorePillClasses(contact.relationship_score);
+  const activePriority = contact.priority_level || "medium";
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        {/* Breadcrumb + Menu */}
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.back()}
-              className="p-1.5 rounded-md hover:bg-stone-200 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-stone-600" />
-            </button>
-            <span className="text-sm text-stone-500">
-              <Link href="/contacts" className="hover:underline">
-                Contacts
-              </Link>{" "}
-              / {displayName}
-            </span>
-          </div>
+      <main className="max-w-6xl mx-auto px-4 py-8">
 
-          {/* Kebab menu */}
-          <div className="relative" ref={menuRef}>
-            <button
-              onClick={() => setMenuOpen((v) => !v)}
-              className="p-2 rounded-md hover:bg-stone-200 transition-colors"
-              aria-label="Contact actions"
-            >
-              <MoreVertical className="w-5 h-5 text-stone-600" />
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-20">
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    handleRefreshDetails();
-                  }}
-                  disabled={isRefreshing}
-                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 disabled:opacity-50"
-                >
-                  <RefreshCw className={`w-4 h-4 text-stone-400 ${isRefreshing ? "animate-spin" : ""}`} />
-                  {isRefreshing ? "Refreshing..." : "Refresh details"}
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    handleEnrich();
-                  }}
-                  disabled={isEnriching || (!contact?.emails?.length && !contact?.linkedin_url)}
-                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 disabled:opacity-50"
-                >
-                  <Sparkles className={`w-4 h-4 text-amber-500 ${isEnriching ? "animate-spin" : ""}`} />
-                  {isEnriching ? "Enriching..." : "Enrich with Apollo"}
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    handleAutoTag();
-                  }}
-                  disabled={isAutoTagging}
-                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5 disabled:opacity-50"
-                >
-                  <Wand2 className={`w-4 h-4 text-violet-500 ${isAutoTagging ? "animate-spin" : ""}`} />
-                  {isAutoTagging ? "Tagging..." : "Auto-tag with AI"}
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setShowDuplicates(true);
-                  }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-stone-700 hover:bg-stone-50 flex items-center gap-2.5"
-                >
-                  <Users className="w-4 h-4 text-stone-400" />
-                  Show possible duplicates
-                </button>
-                <button
-                  onClick={() => {
-                    setMenuOpen(false);
-                    setShowDeleteConfirm(true);
-                  }}
-                  className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2.5"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete contact
-                </button>
+        {/* Toast */}
+        {toast && (
+          <div className={cn(
+            "mb-4 px-4 py-3 rounded-lg text-sm flex items-center gap-2",
+            toast.type === "success" ? "bg-teal-50 border border-teal-200 text-teal-700" : "bg-red-50 border border-red-200 text-red-700"
+          )}>
+            {toast.type === "success" ? <Sparkles className="w-4 h-4 flex-shrink-0" /> : <X className="w-4 h-4 flex-shrink-0" />}
+            {toast.text}
+            <button onClick={() => setToast(null)} className="ml-auto p-0.5 hover:opacity-70"><X className="w-3.5 h-3.5" /></button>
+          </div>
+        )}
+
+        {/* ═══ TOP: Contact Header Card ═══ */}
+        <div className="bg-white rounded-xl border border-stone-200 p-6 mb-6">
+          <div className="flex items-start gap-6">
+            {/* Avatar */}
+            <div className="shrink-0">
+              {contact.avatar_url ? (
+                <img src={contact.avatar_url} alt={displayName} className="w-20 h-20 rounded-full object-cover" />
+              ) : (
+                <div className={cn("w-20 h-20 rounded-full flex items-center justify-center text-2xl font-bold", avatarColor(displayName))}>
+                  {getInitials(displayName)}
+                </div>
+              )}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-0.5">
+                <h1 className="text-xl font-bold text-stone-900">{displayName}</h1>
+                <span className={cn(
+                  "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border",
+                  sp.bg, sp.text, `border-current/20`
+                )}>
+                  <span className={cn("w-1.5 h-1.5 rounded-full", sp.dot)} />
+                  {sp.label}
+                </span>
               </div>
-            )}
+
+              {/* Bios */}
+              <div className="space-y-1.5 mb-4">
+                {contact.twitter_bio && (
+                  <div className="flex items-start gap-2">
+                    <Twitter className="w-3.5 h-3.5 text-stone-400 mt-0.5 shrink-0" />
+                    <p className="text-xs text-stone-600 leading-relaxed">{contact.twitter_bio}</p>
+                  </div>
+                )}
+                {contact.telegram_bio && (
+                  <div className="flex items-start gap-2">
+                    <MessageCircle className="w-3.5 h-3.5 text-sky-400 mt-0.5 shrink-0" />
+                    <p className="text-xs text-stone-600 leading-relaxed">{contact.telegram_bio}</p>
+                  </div>
+                )}
+                {!contact.twitter_bio && !contact.telegram_bio && (contact.title || contact.company) && (
+                  <p className="text-xs text-stone-500">
+                    {[contact.title, contact.company].filter(Boolean).join(" at ")}
+                  </p>
+                )}
+              </div>
+
+              {/* Tags */}
+              <TagsPills
+                tags={contact.tags ?? []}
+                allTags={allTags}
+                onSave={(tags) => saveField("tags", tags)}
+              />
+            </div>
+
+            {/* Top-right: priority + archive + kebab */}
+            <div className="flex items-center gap-1 shrink-0">
+              {/* Priority toggle */}
+              <div className="flex items-center rounded-lg border border-stone-200 overflow-hidden">
+                {[
+                  { level: "high", emoji: "\u{1F525}", colors: "bg-red-50 text-red-600" },
+                  { level: "medium", emoji: "\u26A1", colors: "bg-amber-50 text-amber-600" },
+                  { level: "low", emoji: "\u{1F4A4}", colors: "bg-sky-50 text-sky-600" },
+                ].map(({ level, emoji, colors }, i) => (
+                  <button
+                    key={level}
+                    onClick={() => updateContact.mutate({ id, input: { priority_level: level } })}
+                    className={cn(
+                      "px-2.5 py-1.5 text-xs transition-colors",
+                      i < 2 && "border-r border-stone-200",
+                      activePriority === level ? colors : "text-stone-400 hover:bg-stone-50"
+                    )}
+                    title={level.charAt(0).toUpperCase() + level.slice(1)}
+                  >
+                    {emoji}
+                  </button>
+                ))}
+              </div>
+
+              {/* Archive */}
+              <button
+                onClick={() => {
+                  updateContact.mutate({ id, input: { priority_level: "archived" } });
+                  router.push("/contacts");
+                }}
+                className="p-2 rounded-lg text-stone-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
+                title="Archive contact"
+              >
+                <Archive className="w-4 h-4" />
+              </button>
+
+              {/* Kebab menu */}
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="p-2 rounded-lg text-stone-400 hover:bg-stone-100 transition-colors"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {menuOpen && (
+                  <div className="absolute right-0 top-full mt-1 w-52 bg-white rounded-lg border border-stone-200 shadow-lg py-1 z-50">
+                    <button
+                      onClick={() => { setMenuOpen(false); handleRefreshDetails(); }}
+                      disabled={isRefreshing}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      <RefreshCw className={cn("w-4 h-4 text-stone-400", isRefreshing && "animate-spin")} />
+                      {isRefreshing ? "Refreshing..." : "Refresh details"}
+                    </button>
+                    <button
+                      onClick={() => { setMenuOpen(false); handleEnrich(); }}
+                      disabled={isEnriching || (!contact.emails?.length && !contact.linkedin_url)}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      <Sparkles className={cn("w-4 h-4 text-amber-500", isEnriching && "animate-spin")} />
+                      {isEnriching ? "Enriching..." : "Enrich with Apollo"}
+                    </button>
+                    <button
+                      onClick={() => { setMenuOpen(false); handleAutoTag(); }}
+                      disabled={isAutoTagging}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-stone-700 hover:bg-stone-50 disabled:opacity-50"
+                    >
+                      <Wand2 className={cn("w-4 h-4 text-violet-500", isAutoTagging && "animate-spin")} />
+                      {isAutoTagging ? "Tagging..." : "Auto-tag with AI"}
+                    </button>
+                    <div className="my-1 h-px bg-stone-100" />
+                    <button
+                      onClick={() => { setMenuOpen(false); setShowDeleteConfirm(true); }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      <Trash2 className="w-4 h-4" /> Delete contact
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         </div>
 
-        {/* Delete confirmation dialog */}
+        {/* Delete confirmation */}
         {showDeleteConfirm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-            <div className="bg-white rounded-xl shadow-xl p-6 max-w-sm w-full mx-4">
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Delete contact?</h3>
-              <p className="text-sm text-gray-600 mb-5">
-                This will permanently delete <strong>{displayName}</strong> and all associated interactions. This action cannot be undone.
+          <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: "rgba(28,25,23,0.4)", backdropFilter: "blur(2px)" }}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full mx-4">
+              <h3 className="text-lg font-bold text-stone-900 mb-2">Delete contact?</h3>
+              <p className="text-sm text-stone-600 mb-5">
+                This will permanently delete <strong>{displayName}</strong> and all associated interactions.
               </p>
               <div className="flex gap-3 justify-end">
-                <button
-                  onClick={() => setShowDeleteConfirm(false)}
-                  className="px-4 py-2 text-sm rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleDelete}
-                  disabled={deleteContact.isPending}
-                  className="px-4 py-2 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors"
-                >
+                <button onClick={() => setShowDeleteConfirm(false)} className="px-4 py-2 text-sm rounded-lg border border-stone-200 text-stone-700 hover:bg-stone-50 transition-colors">Cancel</button>
+                <button onClick={handleDelete} disabled={deleteContact.isPending} className="px-4 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50 transition-colors">
                   {deleteContact.isPending ? "Deleting..." : "Delete"}
                 </button>
               </div>
@@ -691,471 +1338,65 @@ export default function ContactDetailPage() {
           </div>
         )}
 
-        {/* Duplicates modal */}
-        {showDuplicates && (
-          <DuplicatesModal contactId={id} contactName={displayName} onClose={() => setShowDuplicates(false)} />
-        )}
-
-        {/* Enrich result toast */}
-        {enrichResult && (
-          <div className={`mb-4 px-4 py-3 rounded-lg text-sm flex items-center gap-2 ${
-            enrichResult.type === "success"
-              ? "bg-amber-50 border border-amber-200 text-amber-700"
-              : "bg-red-50 border border-red-200 text-red-700"
-          }`}>
-            <Sparkles className="w-4 h-4 flex-shrink-0" />
-            {enrichResult.text}
-            <button onClick={() => setEnrichResult(null)} className="ml-auto p-0.5 hover:opacity-70">
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        )}
-
-        {/* Auto-tag result toast */}
-        {autoTagResult && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-violet-50 border border-violet-200 text-sm text-violet-700 flex items-center gap-2">
-            <Wand2 className="w-4 h-4 flex-shrink-0" />
-            {autoTagResult}
-          </div>
-        )}
-
+        {/* ═══ TWO COLUMN GRID ═══ */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left column: Contact properties */}
-          <div className="lg:col-span-1 space-y-4">
-            {/* Header card with name + score */}
-            <div className="bg-white rounded-lg border border-stone-200 p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <ContactAvatar
-                  avatarUrl={contact.avatar_url}
-                  name={displayName}
-                  size="lg"
-                  score={contact.relationship_score}
-                />
-                <div className="min-w-0">
-                  <h1 className="text-lg font-display font-bold text-stone-900 truncate">
-                    {displayName}
-                  </h1>
-                  {(contact.title || contact.company) && (
-                    <p className="text-sm text-stone-500 truncate">
-                      {[contact.title, contact.company]
-                        .filter(Boolean)
-                        .join(" at ")}
-                    </p>
-                  )}
+
+          {/* Main content (2/3) — DOM order 2, visual order 2 on desktop */}
+          <div className="lg:col-span-2 lg:order-2 space-y-4">
+            {/* Suggestion card */}
+            <SuggestionCard contact={contact} contactId={id} />
+
+            {/* Add note input */}
+            <AddNoteInput onSave={(content) => addNoteMutation.mutate(content)} />
+
+            {/* Timeline */}
+            <ChatTimeline
+              interactions={allInteractions}
+              contactName={contact.full_name || contact.given_name || "Contact"}
+              onAddNote={(content) => addNoteMutation.mutate(content)}
+            />
+          </div>
+
+          {/* Sidebar (1/3) — DOM order 1, visual order 1 on desktop */}
+          <div className="lg:order-1 space-y-6">
+            {/* Contact Details */}
+            <div className="bg-white rounded-xl border border-stone-200 p-5">
+              <h3 className="text-sm font-semibold text-stone-900 mb-4">Contact Details</h3>
+              <div className="space-y-0.5">
+                <InlineField label="First name" value={contact.given_name} onSave={(v) => saveField("given_name", v)} />
+                <InlineField label="Last name" value={contact.family_name} onSave={(v) => saveField("family_name", v)} />
+                <InlineField label="Title" value={contact.title} onSave={(v) => saveField("title", v)} />
+                <InlineField label="Company" value={contact.company} onSave={(v) => saveField("company", v)} />
+                <InlineField label="Location" value={contact.location} onSave={(v) => saveField("location", v)} />
+                <InlineField label="Birthday" value={contact.birthday} onSave={(v) => saveField("birthday", v)} />
+
+                <div className="my-2 h-px bg-stone-100" />
+
+                <InlineListField label="Email" values={contact.emails ?? []} onSave={(v) => saveField("emails", v)} copyable isLink linkPrefix="mailto:" />
+                <InlineField label="Telegram" value={contact.telegram_username} onSave={(v) => saveField("telegram_username", v)} copyable />
+                <InlineField label="Twitter" value={contact.twitter_handle} onSave={(v) => saveField("twitter_handle", v)} copyable />
+                <InlineField label="LinkedIn" value={contact.linkedin_url} onSave={(v) => saveField("linkedin_url", v)} copyable />
+                <InlineListField label="Phone" values={contact.phones ?? []} onSave={(v) => saveField("phones", v)} copyable isLink linkPrefix="tel:" />
+              </div>
+            </div>
+
+            {/* Relationship Health */}
+            {activityLoading ? (
+              <div className="bg-white rounded-xl border border-stone-200 p-5 animate-pulse">
+                <div className="h-4 w-40 bg-stone-200 rounded mb-4" />
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((i) => <div key={i} className="h-1.5 bg-stone-100 rounded-full" />)}
                 </div>
               </div>
-              <div className="flex items-center justify-between pt-2 border-t border-stone-100">
-                <ScoreBadge
-                  score={contact.relationship_score}
-                  lastInteractionAt={contact.last_interaction_at}
-                  className="text-sm"
-                />
-                {contact.last_interaction_at && (
-                  <span className="text-xs text-stone-400">
-                    Last contact{" "}
-                    {formatDistanceToNow(
-                      new Date(contact.last_interaction_at),
-                      { addSuffix: true }
-                    )}
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Priority panel */}
-            <div className="bg-white rounded-lg border border-stone-200 p-4">
-              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2.5">
-                Priority
-              </p>
-              <div className="flex gap-2">
-                {(["high", "medium", "low", "archived"] as const).map((level) => {
-                  const isActive = contact.priority_level === level;
-                  const colors: Record<string, string> = {
-                    high: isActive ? "bg-red-100 text-red-700 border-red-300" : "text-stone-600 border-stone-200 hover:bg-red-50 hover:text-red-600",
-                    medium: isActive ? "bg-amber-100 text-amber-700 border-amber-300" : "text-stone-600 border-stone-200 hover:bg-amber-50 hover:text-amber-600",
-                    low: isActive ? "bg-teal-100 text-teal-700 border-teal-300" : "text-stone-600 border-stone-200 hover:bg-teal-50 hover:text-teal-600",
-                    archived: isActive ? "bg-stone-200 text-stone-700 border-stone-400" : "text-stone-600 border-stone-200 hover:bg-stone-100",
-                  };
-                  return (
-                    <button
-                      key={level}
-                      onClick={() => {
-                        if (!isActive) {
-                          updateContact.mutate({ id, input: { priority_level: level } });
-                          if (level === "archived") {
-                            router.push("/contacts");
-                          }
-                        }
-                      }}
-                      className={`flex-1 px-3 py-1.5 text-sm font-medium rounded-md border transition-colors capitalize ${colors[level]}`}
-                    >
-                      {({ high: "🔥 High", medium: "⚡ Medium", low: "💤 Low", archived: "📦 Archive" } as Record<string, string>)[level]}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Activity breakdown */}
-            {activityLoading ? (
-              <ActivityBreakdownSkeleton />
             ) : activityData ? (
-              <ActivityBreakdown data={activityData} />
+              <RelationshipHealth activityData={activityData} contact={contact} />
             ) : null}
 
-            {/* Editable properties card */}
-            <div className="bg-white rounded-lg border border-stone-200 p-5">
-              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2 pl-3 border-l-[3px] border-teal-500">
-                Contact Details
-              </h2>
-              <div className="divide-y divide-stone-100">
-                <EditableField
-                  label="First name"
-                  value={contact.given_name}
-                  onSave={(v) => saveField("given_name", v)}
-                  placeholder="Add first name..."
-                  icon={<User className="w-4 h-4" />}
-                />
-                <EditableField
-                  label="Last name"
-                  value={contact.family_name}
-                  onSave={(v) => saveField("family_name", v)}
-                  placeholder="Add last name..."
-                  icon={<User className="w-4 h-4" />}
-                />
-                <EditableListField
-                  label="Email"
-                  values={contact.emails ?? []}
-                  onSave={(v) => saveField("emails", v)}
-                  placeholder="Add email..."
-                  icon={<Mail className="w-4 h-4" />}
-                  linkPrefix="mailto:"
-                />
-                <EditableListField
-                  label="Phone"
-                  values={contact.phones ?? []}
-                  onSave={(v) => saveField("phones", v)}
-                  placeholder="Add phone..."
-                  icon={<Phone className="w-4 h-4" />}
-                  linkPrefix="tel:"
-                />
-                <EditableField
-                  label="Company"
-                  value={contact.company}
-                  onSave={(v) => saveField("company", v)}
-                  placeholder="Add company..."
-                  icon={<Building2 className="w-4 h-4" />}
-                />
-                <EditableField
-                  label="Job title"
-                  value={contact.title}
-                  onSave={(v) => saveField("title", v)}
-                  placeholder="Add job title..."
-                  icon={<Briefcase className="w-4 h-4" />}
-                />
-                <EditableField
-                  label="Location"
-                  value={contact.location}
-                  onSave={(v) => saveField("location", v)}
-                  placeholder="Add location..."
-                  icon={<MapPin className="w-4 h-4" />}
-                />
-                <EditableField
-                  label="Birthday"
-                  value={contact.birthday}
-                  onSave={(v) => saveField("birthday", v)}
-                  placeholder="Add birthday..."
-                  icon={<Calendar className="w-4 h-4" />}
-                />
-              </div>
-            </div>
-
-            {/* Social & Messaging */}
-            <div className="bg-stone-50 rounded-lg border border-stone-200 p-5">
-              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2 pl-3 border-l-[3px] border-teal-500">
-                Social & Messaging
-              </h2>
-              <div className="divide-y divide-stone-100">
-                <EditableField
-                  label="Twitter"
-                  value={contact.twitter_handle}
-                  onSave={(v) => saveField("twitter_handle", v)}
-                  placeholder="Add Twitter handle..."
-                  icon={<Twitter className="w-4 h-4" />}
-                  linkPrefix="https://x.com/"
-                />
-                {contact.twitter_bio && (
-                  <div className="py-2.5 px-3 -mx-3">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
-                      Twitter Bio
-                    </p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {contact.twitter_bio}
-                    </p>
-                  </div>
-                )}
-                <EditableField
-                  label="Telegram"
-                  value={contact.telegram_username}
-                  onSave={(v) => saveField("telegram_username", v)}
-                  placeholder="Add Telegram username..."
-                  icon={<MessageCircle className="w-4 h-4" />}
-                  linkPrefix="https://t.me/"
-                />
-                {contact.telegram_bio && (
-                  <div className="py-2.5 px-3 -mx-3">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
-                      Telegram Bio
-                    </p>
-                    <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {contact.telegram_bio}
-                    </p>
-                  </div>
-                )}
-                <EditableField
-                  label="LinkedIn"
-                  value={contact.linkedin_url}
-                  onSave={(v) => saveField("linkedin_url", v)}
-                  placeholder="Add LinkedIn URL..."
-                  icon={<Linkedin className="w-4 h-4" />}
-                  linkPrefix=""
-                />
-                {commonGroups.length > 0 && (
-                  <div className="py-2.5 px-3 -mx-3">
-                    <p className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1.5">
-                      Common Groups ({commonGroups.length})
-                    </p>
-                    <div className="space-y-1">
-                      {commonGroups.map((g) => (
-                        <div
-                          key={g.id}
-                          className="flex items-center gap-2 text-sm"
-                        >
-                          <span className="w-5 h-5 rounded bg-sky-100 text-sky-600 flex items-center justify-center text-xs flex-shrink-0">
-                            #
-                          </span>
-                          {g.link ? (
-                            <a
-                              href={g.link}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-blue-600 hover:underline truncate"
-                            >
-                              {g.title}
-                            </a>
-                          ) : (
-                            <span className="text-gray-800 truncate">
-                              {g.title}
-                            </span>
-                          )}
-                          {g.participants_count != null && (
-                            <span className="text-xs text-gray-400 flex-shrink-0">
-                              {g.participants_count} members
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Labels & Notes */}
-            <div className="bg-white rounded-lg border border-stone-200 p-5">
-              <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2 pl-3 border-l-[3px] border-teal-500">
-                Other
-              </h2>
-              <div className="divide-y divide-stone-100">
-                <EditableTagsField
-                  label="Tags"
-                  values={contact.tags ?? []}
-                  onSave={(v) => saveField("tags", v)}
-                  icon={<Tag className="w-4 h-4" />}
-                  allTags={allTags}
-                />
-                <EditableField
-                  label="Notes"
-                  value={contact.notes}
-                  onSave={(v) => saveField("notes", v)}
-                  placeholder="Add notes..."
-                  type="textarea"
-                  icon={<FileText className="w-4 h-4" />}
-                />
-                <EditableField
-                  label="Source"
-                  value={contact.source}
-                  onSave={(v) => saveField("source", v)}
-                  placeholder="e.g. telegram, twitter, manual"
-                  icon={<AtSign className="w-4 h-4" />}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Right column: Suggestion + Meetings + Notifications + Interactions timeline */}
-          <div className="lg:col-span-2 space-y-4">
-            <div className="bg-gradient-to-r from-teal-50 to-cyan-50 rounded-lg border border-teal-200 p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-display font-semibold text-teal-800">
-                  Reach out
-                </h2>
-                {suggestion && (
-                  <span className="text-xs text-teal-500">
-                    {suggestion.trigger_type === "birthday"
-                      ? "🎂 Birthday coming up"
-                      : suggestion.trigger_type === "time_based"
-                        ? "No interaction in 90+ days"
-                        : suggestion.trigger_type === "scheduled"
-                          ? "Scheduled follow-up"
-                          : "New event detected"}
-                  </span>
-                )}
-              </div>
-              {suggestionSent && (
-                <div className="text-xs text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2 mb-3">
-                  {suggestionSent}
-                </div>
-              )}
-              {suggestionError && (
-                <div className="text-xs text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2 mb-3">
-                  {suggestionError}
-                </div>
-              )}
-              <MessageEditor
-                suggestionId={suggestion?.id}
-                contactId={id}
-                initialMessage={suggestion?.suggested_message ?? ""}
-                initialChannel={suggestion?.suggested_channel}
-                disabledChannels={{
-                  ...(!contact.emails?.length ? { email: "No email address" } : {}),
-                  ...(!contact.telegram_username ? { telegram: "No Telegram username" } : {}),
-                  ...(!contact.twitter_handle ? { twitter: "No Twitter handle" } : {}),
-                }}
-                onSend={async (message, channel, scheduledFor) => {
-                  setSuggestionError(null);
-                  if (channel === "telegram" && contact?.telegram_username) {
-                    try {
-                      await sendMessageMutation.mutateAsync({
-                        contactId: id,
-                        message,
-                        channel,
-                        scheduledFor,
-                      });
-                      if (suggestion) {
-                        updateSuggestion.mutate({
-                          id: suggestion.id,
-                          input: { status: "sent", suggested_message: message, suggested_channel: channel },
-                        });
-                      }
-                      setSuggestionSent(
-                        scheduledFor
-                          ? `Message scheduled for ${new Date(scheduledFor).toLocaleString()}!`
-                          : "Message sent via Telegram!"
-                      );
-                      setTimeout(() => setSuggestionSent(null), 4000);
-                    } catch (err) {
-                      setSuggestionError(
-                        err instanceof Error ? err.message : "Failed to send"
-                      );
-                    }
-                  } else if (channel === "email" && contact?.emails?.length) {
-                    const email = contact.emails[0];
-                    const name = contact.given_name || contact.full_name || "";
-                    const subject = encodeURIComponent(`Hey ${name}`.trim());
-                    const body = encodeURIComponent(message);
-                    window.open(`mailto:${email}?subject=${subject}&body=${body}`, "_blank");
-                    if (suggestion) {
-                      updateSuggestion.mutate({
-                        id: suggestion.id,
-                        input: { status: "sent", suggested_message: message, suggested_channel: channel },
-                      });
-                    }
-                    setSuggestionSent("Email draft opened in your mail app");
-                    setTimeout(() => setSuggestionSent(null), 4000);
-                  } else if (channel === "twitter" && contact?.twitter_handle) {
-                    const handle = contact.twitter_handle.replace(/^@/, "");
-                    const text = encodeURIComponent(message);
-                    window.open(`https://x.com/messages/compose?text=${text}`, "_blank");
-                    void navigator.clipboard?.writeText(message).catch(() => {});
-                    if (suggestion) {
-                      updateSuggestion.mutate({
-                        id: suggestion.id,
-                        input: { status: "sent", suggested_message: message, suggested_channel: channel },
-                      });
-                    }
-                    setSuggestionSent(`DM compose opened on X — search for @${handle}`);
-                    setTimeout(() => setSuggestionSent(null), 5000);
-                  } else {
-                    void navigator.clipboard?.writeText(message).catch(() => {});
-                    if (suggestion) {
-                      updateSuggestion.mutate({
-                        id: suggestion.id,
-                        input: { status: "sent", suggested_message: message, suggested_channel: channel },
-                      });
-                    }
-                    setSuggestionSent("Message copied to clipboard");
-                    setTimeout(() => setSuggestionSent(null), 4000);
-                  }
-                }}
-              />
-            </div>
-
-            {contactNotifications.length > 0 && (
-              <div className="bg-white rounded-lg border border-stone-200 p-5">
-                <h2 className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-3">
-                  Activity Alerts
-                </h2>
-                <div className="space-y-2">
-                  {contactNotifications.map((n) => (
-                    <div
-                      key={n.id}
-                      className={`flex items-start gap-3 p-3 rounded-lg border ${
-                        n.read
-                          ? "border-gray-100 bg-gray-50"
-                          : "border-blue-200 bg-blue-50"
-                      }`}
-                    >
-                      <span className="mt-0.5 flex-shrink-0">
-                        {n.notification_type === "bio_change" ? (
-                          <Twitter className="w-4 h-4 text-blue-500" />
-                        ) : (
-                          <AlertCircle className="w-4 h-4 text-amber-500" />
-                        )}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium text-gray-900">
-                          {n.title}
-                        </p>
-                        {n.body && (
-                          <p className="text-sm text-gray-600 mt-0.5">
-                            {n.body}
-                          </p>
-                        )}
-                        {n.created_at && (
-                          <p className="text-xs text-gray-400 mt-1">
-                            {formatDistanceToNow(new Date(n.created_at), {
-                              addSuffix: true,
-                            })}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <div className="bg-white rounded-lg border border-stone-200 p-5">
-              <Timeline
-                interactions={interactions}
-                onAddNote={(content) => addNoteMutation.mutate(content)}
-                contactName={contact?.full_name || contact?.given_name || "Contact"}
-              />
-            </div>
+            {/* Possible Duplicates */}
+            <DuplicatesCard contactId={id} />
           </div>
         </div>
-      </div>
+      </main>
     </div>
   );
 }

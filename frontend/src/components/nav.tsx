@@ -172,7 +172,7 @@ function NavSearch() {
         className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-stone-400 border border-stone-200 hover:border-stone-300 hover:text-stone-500 transition-colors"
       >
         <Search className="w-3.5 h-3.5" />
-        <span className="hidden sm:inline">Search</span>
+        <span className="hidden sm:inline">Search contacts</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-stone-100 rounded text-stone-400">
           ⌘K
         </kbd>
@@ -264,15 +264,21 @@ export function Nav() {
 
   return (
     <nav className="sticky top-0 z-40 bg-white border-b border-stone-200">
-      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center gap-6">
         {/* Logo */}
         <Link
           href="/dashboard"
-          className="flex items-center gap-2 text-lg font-display font-bold text-teal-600 hover:text-teal-700 transition-colors"
+          className="flex items-center gap-2 text-lg font-display font-bold text-teal-600 hover:text-teal-700 transition-colors shrink-0"
         >
           <span className="w-2.5 h-2.5 rounded-full bg-teal-500" />
           Ping
         </Link>
+
+        {/* Search — left, right after logo */}
+        <NavSearch />
+
+        {/* Spacer */}
+        <div className="flex-1" />
 
         {/* Navigation links */}
         <div className="flex items-center gap-0.5">
@@ -312,57 +318,56 @@ export function Nav() {
           })}
         </div>
 
-        {/* Contact search */}
-        <NavSearch />
+        {/* Right: bell + user */}
+        <div className="flex items-center gap-1.5">
+          <NotificationBell />
 
-        {/* Notifications bell */}
-        <NotificationBell />
+          {/* User menu */}
+          <div ref={menuRef} className="relative">
+            {isLoading ? (
+              <div className="w-24 h-7 bg-stone-100 rounded-md animate-pulse" />
+            ) : user ? (
+              <>
+                <button
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-stone-700 hover:bg-stone-100 transition-colors"
+                >
+                  <span className="max-w-[120px] truncate">
+                    {user.full_name ?? user.email}
+                  </span>
+                  <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
+                </button>
 
-        {/* User menu */}
-        <div ref={menuRef} className="relative">
-          {isLoading ? (
-            <div className="w-24 h-7 bg-stone-100 rounded-md animate-pulse" />
-          ) : user ? (
-            <>
-              <button
-                onClick={() => setMenuOpen((v) => !v)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-stone-700 hover:bg-stone-100 transition-colors"
-              >
-                <span className="max-w-[120px] truncate">
-                  {user.full_name ?? user.email}
-                </span>
-                <ChevronDown className="w-3.5 h-3.5 text-stone-400" />
-              </button>
-
-              {menuOpen && (
-                <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-stone-200 shadow-md py-1 z-50">
-                  <div className="px-3 py-2 border-b border-stone-100">
-                    <p className="text-xs font-medium text-stone-900 truncate">
-                      {user.full_name ?? ""}
-                    </p>
-                    <p className="text-xs text-stone-400 truncate">{user.email}</p>
+                {menuOpen && (
+                  <div className="absolute right-0 mt-1 w-48 bg-white rounded-lg border border-stone-200 shadow-md py-1 z-50">
+                    <div className="px-3 py-2 border-b border-stone-100">
+                      <p className="text-xs font-medium text-stone-900 truncate">
+                        {user.full_name ?? ""}
+                      </p>
+                      <p className="text-xs text-stone-400 truncate">{user.email}</p>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setMenuOpen(false);
+                        logout();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
+                    >
+                      <LogOut className="w-4 h-4" />
+                      Sign out
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      setMenuOpen(false);
-                      logout();
-                    }}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50 transition-colors"
-                  >
-                    <LogOut className="w-4 h-4" />
-                    Sign out
-                  </button>
-                </div>
-              )}
-            </>
-          ) : (
-            <Link
-              href="/auth/login"
-              className="px-3 py-1.5 rounded-md text-sm font-medium text-teal-600 hover:bg-teal-50 transition-colors"
-            >
-              Sign in
-            </Link>
-          )}
+                )}
+              </>
+            ) : (
+              <Link
+                href="/auth/login"
+                className="px-3 py-1.5 rounded-md text-sm font-medium text-teal-600 hover:bg-teal-50 transition-colors"
+              >
+                Sign in
+              </Link>
+            )}
+          </div>
         </div>
       </div>
     </nav>

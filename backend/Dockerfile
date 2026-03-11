@@ -6,8 +6,8 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends nodejs && \
     rm -rf /var/lib/apt/lists/*
 
-# Install bird CLI for Twitter/X cookie-based data access
-RUN npm install -g @steipete/bird
+# Install bird CLI for Twitter/X cookie-based data access (v0.8.0+ has user-tweets)
+RUN npm install -g @steipete/bird@latest
 
 WORKDIR /app
 

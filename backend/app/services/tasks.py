@@ -520,7 +520,9 @@ def poll_twitter_activity(self, user_id: str) -> dict:
     async def _poll(uid: uuid.UUID) -> dict:
         import uuid as _uuid_mod
 
+        from app.integrations import bird
         from app.integrations.twitter import poll_contacts_activity
+        from app.models.notification import Notification
         from app.services.event_classifier import process_contact_activity
         from app.services.notifications import notify_detected_event
 
@@ -532,6 +534,17 @@ def poll_twitter_activity(self, user_id: str) -> dict:
                 return {"status": "user_not_found", "contacts_processed": 0, "events_created": 0}
 
             activity_records = await poll_contacts_activity(user, db)
+
+            # Surface bird CLI failures to the user (once per poll cycle)
+            bird_error = bird.last_error
+            if bird_error and not activity_records:
+                db.add(Notification(
+                    user_id=uid,
+                    notification_type="sync",
+                    title="Twitter enrichment unavailable",
+                    body=bird_error[:200],
+                    link="/settings",
+                ))
 
             total_events = 0
             for record in activity_records:
@@ -569,6 +582,7 @@ def poll_twitter_activity(self, user_id: str) -> dict:
             "status": "ok",
             "contacts_processed": len(activity_records),
             "events_created": total_events,
+            "bird_error": bird_error,
         }
 
     try:

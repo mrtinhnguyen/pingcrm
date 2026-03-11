@@ -361,7 +361,10 @@ async def poll_contacts_activity(
 
     activity_records: list[dict[str, Any]] = []
 
+    from app.integrations import bird
     from app.integrations.bird import fetch_user_tweets_bird, fetch_user_profile_bird
+
+    bird.last_error = None  # reset before batch
 
     for contact in contacts:
         handle = (contact.twitter_handle or "").lstrip("@").strip()

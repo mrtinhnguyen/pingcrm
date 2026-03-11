@@ -1,9 +1,10 @@
 """bird CLI integration — cookie-based Twitter/X data access.
 
-Uses the ``bird`` CLI (@steipete/bird) which authenticates via browser
+Uses the ``bird`` CLI (@steipete/bird v0.8.0) which authenticates via browser
 cookies, bypassing X API rate limits and credit restrictions.
 
 All functions are best-effort and return empty results on failure.
+Failures are tracked via ``last_error`` so callers can surface them to users.
 """
 from __future__ import annotations
 
@@ -17,15 +18,52 @@ logger = logging.getLogger(__name__)
 
 _BIRD_TIMEOUT = 20  # seconds
 
+# Tracks the last bird CLI error for the current process — callers can read
+# this after a batch of bird calls to decide whether to notify the user.
+last_error: str | None = None
+
+
+def is_available() -> bool:
+    """Check if the bird CLI is installed and on PATH."""
+    return shutil.which("bird") is not None
+
+
+async def check_health() -> dict[str, Any]:
+    """Run a lightweight bird health check.
+
+    Returns a dict with ``available``, ``version``, and ``error`` keys.
+    """
+    if not is_available():
+        return {"available": False, "version": None, "error": "bird CLI not found on PATH"}
+
+    try:
+        proc = await asyncio.wait_for(
+            asyncio.create_subprocess_exec(
+                shutil.which("bird"), "--version",  # type: ignore[arg-type]
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            ),
+            timeout=5,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+        version = stdout.decode().strip() if proc.returncode == 0 else None
+        return {"available": True, "version": version, "error": None}
+    except (asyncio.TimeoutError, OSError) as exc:
+        return {"available": False, "version": None, "error": str(exc)}
+
 
 async def _run_bird(*args: str) -> dict | list | None:
     """Execute a bird CLI command and parse JSON output.
 
     Returns parsed JSON (dict or list) on success, None on failure.
+    Sets ``last_error`` on failure so callers can inspect it.
     """
+    global last_error
+
     bird_path = shutil.which("bird")
     if not bird_path:
-        logger.warning("bird CLI not found on PATH")
+        last_error = "bird CLI not found on PATH — Twitter enrichment is unavailable"
+        logger.warning(last_error)
         return None
 
     cmd = [bird_path, *args]
@@ -46,21 +84,27 @@ async def _run_bird(*args: str) -> dict | list | None:
             proc.communicate(),
             timeout=_BIRD_TIMEOUT,
         )
-    except (asyncio.TimeoutError, OSError) as exc:
-        logger.warning("bird %s: timed out or failed: %s", args[0], exc)
+    except asyncio.TimeoutError:
+        last_error = f"bird {args[0]}: timed out after {_BIRD_TIMEOUT}s"
+        logger.warning(last_error)
+        return None
+    except OSError as exc:
+        last_error = f"bird {args[0]}: OS error: {exc}"
+        logger.warning(last_error)
         return None
 
     if proc.returncode != 0:
-        logger.warning(
-            "bird %s: exit code %d: %s",
-            args[0], proc.returncode, stderr.decode(errors="replace")[:200],
-        )
+        stderr_text = stderr.decode(errors="replace")[:200]
+        last_error = f"bird {args[0]}: exit code {proc.returncode}: {stderr_text}"
+        logger.warning(last_error)
         return None
 
     try:
+        last_error = None  # success — clear any previous error
         return json.loads(stdout.decode())
     except (json.JSONDecodeError, ValueError) as exc:
-        logger.warning("bird %s: invalid JSON: %s", args[0], exc)
+        last_error = f"bird {args[0]}: invalid JSON output: {exc}"
+        logger.warning(last_error)
         return None
 
 

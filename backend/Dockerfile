@@ -22,6 +22,12 @@ RUN mkdir -p /app/static/avatars
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+# Security: Run as non-root user
+RUN groupadd --gid 1000 appgroup && \
+    useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser && \
+    chown -R appuser:appgroup /app
+USER appuser
+
 EXPOSE 8000
 
 ENTRYPOINT ["/entrypoint.sh"]

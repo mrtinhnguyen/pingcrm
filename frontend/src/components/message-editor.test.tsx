@@ -64,7 +64,7 @@ describe("MessageEditor", () => {
       />
     );
     fireEvent.click(screen.getByText("Send"));
-    expect(onSend).toHaveBeenCalledWith("Test message", "telegram");
+    expect(onSend).toHaveBeenCalledWith("Test message", "telegram", undefined);
   });
 
   it("disables send button when message is empty", () => {

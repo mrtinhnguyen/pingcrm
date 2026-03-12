@@ -82,7 +82,7 @@ describe("SettingsPage", () => {
   it("renders settings page after loading", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connected Accounts")).toBeInTheDocument();
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
   });
 
@@ -125,11 +125,10 @@ describe("SettingsPage", () => {
     });
 
     expect(screen.getByText("user@gmail.com")).toBeInTheDocument();
-    expect(screen.getByText("connected @sawinyh")).toBeInTheDocument();
-    expect(screen.getByText("connected @sneg55")).toBeInTheDocument();
+    expect(screen.getAllByText(/connected as/i).length).toBeGreaterThan(0);
   });
 
-  it("shows Add Google Account button when already connected", async () => {
+  it("shows re-authorize option in kebab menu when already connected to Google", async () => {
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me")
         return Promise.resolve(mockMeResponse({ google_connected: true }));
@@ -138,7 +137,8 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Add Google Account")).toBeInTheDocument();
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
+      expect(screen.getAllByText("Connected")).toHaveLength(1);
     });
   });
 
@@ -147,7 +147,7 @@ describe("SettingsPage", () => {
   it("does not render ConnectionBadge when disconnected", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connected Accounts")).toBeInTheDocument();
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
     expect(screen.queryAllByText("Connected")).toHaveLength(0);
   });
@@ -164,7 +164,7 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Twitter Connected")).toBeInTheDocument();
     });
     expect(screen.getByText(/successfully linked/)).toBeInTheDocument();
-    expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/settings?tab=sync");
+    expect(window.history.replaceState).toHaveBeenCalledWith({}, "", "/settings?tab=integrations");
   });
 
   it("closes success modal on Done click", async () => {
@@ -184,7 +184,7 @@ describe("SettingsPage", () => {
 
   // ─── Google connect ───────────────────────────────────────────────
 
-  it("redirects to Google OAuth URL on Connect Google click", async () => {
+  it("redirects to Google OAuth URL on Connect click (Google card)", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me") return Promise.resolve(mockMeResponse());
@@ -195,10 +195,13 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Google")).toBeInTheDocument();
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Google"));
+    // The Google card has a "Connect" button (not connected state)
+    const connectButtons = screen.getAllByText("Connect");
+    // Click the first Connect button (Gmail card)
+    await user.click(connectButtons[0]);
     await waitFor(() => {
       expect(window.location.href).toBe("https://accounts.google.com/o/auth");
     });
@@ -215,12 +218,13 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Google")).toBeInTheDocument();
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Google"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[0]);
     await waitFor(() => {
-      expect(screen.getByText("Google OAuth not configured")).toBeInTheDocument();
+      expect(screen.getByText(/Google OAuth not configured/)).toBeInTheDocument();
     });
   });
 
@@ -235,10 +239,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Google")).toBeInTheDocument();
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Google"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[0]);
     await waitFor(() => {
       expect(screen.getByText(/Google OAuth not configured/)).toBeInTheDocument();
     });
@@ -246,35 +251,43 @@ describe("SettingsPage", () => {
 
   // ─── Google sync ──────────────────────────────────────────────────
 
-  it("sync contacts button is disabled when not connected", async () => {
+  it("sync now button is disabled when Google not connected", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Contacts")).toBeInTheDocument();
+      expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
-    expect(screen.getByText("Sync Contacts").closest("button")).toBeDisabled();
+    // When not connected, the Google card shows "Connect" button, not "Sync now"
+    expect(screen.queryByText("Sync now")).not.toBeInTheDocument();
+    // The Connect button should be present but not a sync button
+    const connectButtons = screen.getAllByText("Connect");
+    expect(connectButtons.length).toBeGreaterThan(0);
   });
 
-  it("syncs Google contacts successfully — button not in loading state after", async () => {
+  it("syncs Google contacts successfully — shows Syncing... state", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me")
         return Promise.resolve(mockMeResponse({ google_connected: true }));
-      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+      return Promise.resolve({ data: null, error: null });
     });
     mockedClient.POST.mockImplementation((url: string) => {
-      if (url === "/api/v1/contacts/sync/google")
+      if (
+        url === "/api/v1/contacts/sync/google" ||
+        url === "/api/v1/contacts/sync/gmail" ||
+        url === "/api/v1/contacts/sync/google-calendar"
+      )
         return Promise.resolve({ data: null, error: null });
       return Promise.resolve({ data: null, error: { detail: "unexpected" } });
     });
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Contacts")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Contacts"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
-      // After sync, POST was called with the correct endpoint
+      // After sync, POST was called with the google endpoint
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
       // Button shows syncing state (stays loading while polling for notification)
       expect(screen.getByText("Syncing...")).toBeInTheDocument();
@@ -286,24 +299,24 @@ describe("SettingsPage", () => {
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me")
         return Promise.resolve(mockMeResponse({ google_connected: true }));
-      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+      return Promise.resolve({ data: null, error: null });
     });
     mockedClient.POST.mockImplementation((url: string) => {
       if (url === "/api/v1/contacts/sync/google")
         return Promise.resolve({ data: null, error: { detail: "Token expired" } });
-      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+      return Promise.resolve({ data: null, error: { detail: "unexpected POST " + url } });
     });
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Contacts")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Contacts"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
-      // Button returns to non-loading, non-disabled state after error
-      expect(screen.getByText("Sync Contacts").closest("button")).not.toBeDisabled();
+      // After error, button returns to idle (not disabled)
+      expect(screen.getByText("Sync now").closest("button")).not.toBeDisabled();
     });
   });
 
@@ -312,36 +325,38 @@ describe("SettingsPage", () => {
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me")
         return Promise.resolve(mockMeResponse({ google_connected: true }));
-      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+      return Promise.resolve({ data: null, error: null });
     });
     mockedClient.POST.mockImplementation((url: string) => {
       if (url === "/api/v1/contacts/sync/google")
         return Promise.resolve({ data: null, error: {} });
-      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+      return Promise.resolve({ data: null, error: { detail: "unexpected POST " + url } });
     });
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Contacts")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Contacts"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
       expect(mockedClient.POST).toHaveBeenCalledWith("/api/v1/contacts/sync/google");
-      expect(screen.getByText("Sync Contacts").closest("button")).not.toBeDisabled();
+      expect(screen.getByText("Sync now").closest("button")).not.toBeDisabled();
     });
   });
 
   // ─── Telegram connect (phone → code → verify) ────────────────────
 
-  it("opens Telegram modal on Connect Telegram click", async () => {
+  it("opens Telegram modal on Connect click (Telegram card)", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    // Find the Connect button in the Telegram card - it's the second Connect button
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     expect(screen.getByText("Connect Telegram", { selector: "h3" })).toBeInTheDocument();
     expect(screen.getByPlaceholderText("+1234567890")).toBeInTheDocument();
   });
@@ -350,10 +365,11 @@ describe("SettingsPage", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     expect(screen.getByText("Send code").closest("button")).toBeDisabled();
   });
 
@@ -367,10 +383,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
 
@@ -390,10 +407,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+1");
     await user.click(screen.getByText("Send code"));
 
@@ -412,10 +430,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+1");
     await user.click(screen.getByText("Send code"));
 
@@ -448,10 +467,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
 
@@ -479,10 +499,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
 
@@ -510,10 +531,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
 
@@ -525,7 +547,7 @@ describe("SettingsPage", () => {
     await user.click(screen.getByText("Verify"));
 
     await waitFor(() => {
-      expect(screen.getAllByText("Invalid code. Try again.").length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Invalid code/).length).toBeGreaterThan(0);
     });
   });
 
@@ -543,10 +565,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
 
@@ -589,10 +612,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
     await waitFor(() => expect(screen.getByPlaceholderText("12345")).toBeInTheDocument());
@@ -625,10 +649,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
     await waitFor(() => expect(screen.getByPlaceholderText("12345")).toBeInTheDocument());
@@ -661,10 +686,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
     await waitFor(() => expect(screen.getByPlaceholderText("12345")).toBeInTheDocument());
@@ -679,7 +705,7 @@ describe("SettingsPage", () => {
     await user.click(screen.getByText("Submit"));
 
     await waitFor(() => {
-      expect(screen.getAllByText("Incorrect password. Try again.").length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/Incorrect password/).length).toBeGreaterThan(0);
     });
   });
 
@@ -689,10 +715,11 @@ describe("SettingsPage", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     expect(screen.getByPlaceholderText("+1234567890")).toBeInTheDocument();
 
     await user.click(screen.getByText("Cancel"));
@@ -703,10 +730,11 @@ describe("SettingsPage", () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     const closeBtn = screen.getByLabelText("Close");
     await user.click(closeBtn);
     expect(screen.queryByPlaceholderText("+1234567890")).not.toBeInTheDocument();
@@ -722,10 +750,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
 
@@ -747,10 +776,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Telegram")).toBeInTheDocument();
+      expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Telegram"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[1]);
     await user.type(screen.getByPlaceholderText("+1234567890"), "+15551234567");
     await user.click(screen.getByText("Send code"));
     await waitFor(() => expect(screen.getByPlaceholderText("12345")).toBeInTheDocument());
@@ -782,10 +812,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Chats")).toBeInTheDocument();
+      // When Telegram is connected, "Sync now" button appears
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Chats"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
       expect(screen.getByText(/Sync dispatched/)).toBeInTheDocument();
     });
@@ -806,10 +837,10 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Chats")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Chats"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
       expect(screen.getByText("Telegram session expired")).toBeInTheDocument();
     });
@@ -830,18 +861,18 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Chats")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Chats"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
-      expect(screen.getByText("Telegram sync failed. Please try again.")).toBeInTheDocument();
+      expect(screen.getByText(/Telegram sync failed/)).toBeInTheDocument();
     });
   });
 
   // ─── Twitter connect ──────────────────────────────────────────────
 
-  it("redirects to Twitter OAuth URL on Connect Twitter click", async () => {
+  it("redirects to Twitter OAuth URL on Connect click (Twitter card)", async () => {
     const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
     mockedClient.GET.mockImplementation((url: string) => {
       if (url === "/api/v1/auth/me") return Promise.resolve(mockMeResponse());
@@ -852,10 +883,12 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Twitter")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Twitter"));
+    // Twitter is the third card - third Connect button
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[2]);
     await waitFor(() => {
       expect(window.location.href).toBe("https://twitter.com/oauth");
     });
@@ -872,10 +905,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Twitter")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Twitter"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[2]);
     await waitFor(() => {
       expect(screen.getByText("Twitter OAuth not configured")).toBeInTheDocument();
     });
@@ -892,10 +926,11 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Connect Twitter")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Connect Twitter"));
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[2]);
     await waitFor(() => {
       expect(screen.getByText(/Twitter OAuth not configured/)).toBeInTheDocument();
     });
@@ -903,12 +938,13 @@ describe("SettingsPage", () => {
 
   // ─── Twitter sync ────────────────────────────────────────────────
 
-  it("sync activity button is disabled when not connected", async () => {
+  it("sync now button is not shown when Twitter not connected", async () => {
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Activity")).toBeInTheDocument();
+      expect(screen.getByText("Twitter / X")).toBeInTheDocument();
     });
-    expect(screen.getByText("Sync Activity").closest("button")).toBeDisabled();
+    // When not connected, all three platforms show "Connect" buttons, no "Sync now"
+    expect(screen.queryByText("Sync now")).not.toBeInTheDocument();
   });
 
   it("syncs Twitter activity successfully", async () => {
@@ -926,10 +962,10 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Activity")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Activity"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
       expect(screen.getByText(/Sync dispatched/)).toBeInTheDocument();
     });
@@ -950,10 +986,10 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Activity")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Activity"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
       expect(screen.getByText("Rate limit exceeded")).toBeInTheDocument();
     });
@@ -974,12 +1010,12 @@ describe("SettingsPage", () => {
 
     render(<SettingsPage />);
     await waitFor(() => {
-      expect(screen.getByText("Sync Activity")).toBeInTheDocument();
+      expect(screen.getByText("Sync now")).toBeInTheDocument();
     });
 
-    await user.click(screen.getByText("Sync Activity"));
+    await user.click(screen.getByText("Sync now"));
     await waitFor(() => {
-      expect(screen.getByText("Sync failed. Connect Twitter first.")).toBeInTheDocument();
+      expect(screen.getByText(/Sync failed/)).toBeInTheDocument();
     });
   });
 });

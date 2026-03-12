@@ -108,5 +108,41 @@ vi.mock("lucide-react", () => {
     ExternalLink: makeIcon("ExternalLink"),
     Link2: makeIcon("Link2"),
     Linkedin: makeIcon("Linkedin"),
+    // contacts/archive
+    ArchiveRestore: makeIcon("ArchiveRestore"),
+    ChevronLeft: makeIcon("ChevronLeft"),
+    // contacts/page
+    SlidersHorizontal: makeIcon("SlidersHorizontal"),
+    ArrowUpDown: makeIcon("ArrowUpDown"),
+    SearchX: makeIcon("SearchX"),
+    // dashboard
+    HeartPulse: makeIcon("HeartPulse"),
+    Plug: makeIcon("Plug"),
+    FileDown: makeIcon("FileDown"),
+    // identity
+    HelpCircle: makeIcon("HelpCircle"),
+    BarChart2: makeIcon("BarChart2"),
+    Zap: makeIcon("Zap"),
+    // notifications
+    ArrowRight: makeIcon("ArrowRight"),
+    // suggestions
+    Timer: makeIcon("Timer"),
+    TimerOff: makeIcon("TimerOff"),
+    CalendarClock: makeIcon("CalendarClock"),
+    // contacts/[id] + settings
+    Save: makeIcon("Save"),
+    Key: makeIcon("Key"),
+    History: makeIcon("History"),
+    Unplug: makeIcon("Unplug"),
+    Download: makeIcon("Download"),
+    Camera: makeIcon("Camera"),
+    // tag-taxonomy-panel
+    Loader2: makeIcon("Loader2"),
+    Wand2: makeIcon("Wand2"),
+    RotateCcw: makeIcon("RotateCcw"),
+    // contacts/[id] detail (multi-select icons)
+    Minus: makeIcon("Minus"),
+    Copy: makeIcon("Copy"),
+    StickyNote: makeIcon("StickyNote"),
   };
 });

@@ -8,6 +8,7 @@ import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
 import { Search, Building2, CheckSquare, GitMerge, Trash2, BarChart3, MessageSquare, Clock, Users, ArrowDown, ArrowUpDown } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
+import { CompanyFavicon } from "@/components/company-favicon";
 import { formatDistanceToNow } from "date-fns";
 
 const EMPTY_SET = new Set<string>();
@@ -29,23 +30,6 @@ interface Organization {
   total_interactions: number;
   last_interaction_at: string | null;
 }
-
-/* ── Favicon helper ── */
-
-const OrgIcon = memo(function OrgIcon({ domain }: { domain: string | null }) {
-  const [failed, setFailed] = useState(false);
-  if (!domain || failed) {
-    return <Building2 className="w-4 h-4 text-blue-600" />;
-  }
-  return (
-    <img
-      src={`https://www.google.com/s2/favicons?domain=${encodeURIComponent(domain)}&sz=32`}
-      alt=""
-      className="w-5 h-5 rounded-sm"
-      onError={() => setFailed(true)}
-    />
-  );
-});
 
 /* ── Merge Modal ── */
 
@@ -435,7 +419,7 @@ function OrganizationsPageContent() {
                           className="flex items-center gap-3 group"
                         >
                           <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                            <OrgIcon domain={org.domain} />
+                            <CompanyFavicon domain={org.domain} size="w-5 h-5" />
                           </div>
                           <div className="min-w-0">
                             <span className="text-sm font-semibold text-gray-900 group-hover:text-blue-600 transition-colors">

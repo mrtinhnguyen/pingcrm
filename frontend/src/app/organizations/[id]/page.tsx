@@ -20,6 +20,7 @@ import {
 import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { CompanyFavicon } from "@/components/company-favicon";
 import { ScoreBadge } from "@/components/score-badge";
 import { formatDistanceToNow } from "date-fns";
 
@@ -334,8 +335,8 @@ export default function OrganizationDetailPage() {
           >
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-100 dark:bg-teal-900">
-            <Building2 className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-teal-50 dark:bg-teal-900 overflow-hidden">
+            <CompanyFavicon domain={org.domain} size="h-6 w-6" />
           </div>
           <OrgNameField value={org.name} onSave={(v) => saveField("name", v)} />
         </div>

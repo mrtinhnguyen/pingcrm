@@ -41,6 +41,7 @@ import {
   type ActivityData,
 } from "@/hooks/use-contacts";
 import { MessageEditor } from "@/components/message-editor";
+import { CompanyFavicon } from "@/components/company-favicon";
 import { InlineListField } from "@/components/inline-list-field";
 import {
   useContactSuggestion,
@@ -272,11 +273,13 @@ interface OrgOption {
 function CompanyAutocompleteField({
   value,
   organizationId,
+  emails,
   onSave,
   onLinkOrg,
 }: {
   value: string | null | undefined;
   organizationId: string | null | undefined;
+  emails?: string[] | null;
   onSave: (v: string) => void;
   onLinkOrg: (orgId: string, orgName: string) => void;
 }) {
@@ -386,16 +389,19 @@ function CompanyAutocompleteField({
       ) : (
         <div className="flex items-center gap-1.5 min-w-0">
           {value ? (
-            organizationId ? (
-              <Link
-                href={`/organizations/${organizationId}`}
-                className="text-xs font-medium text-teal-600 hover:text-teal-700 truncate"
-              >
-                {value}
-              </Link>
-            ) : (
-              <span className="text-xs font-medium text-stone-900 truncate">{value}</span>
-            )
+            <>
+              <CompanyFavicon emails={emails} size="w-3.5 h-3.5" />
+              {organizationId ? (
+                <Link
+                  href={`/organizations/${organizationId}`}
+                  className="text-xs font-medium text-teal-600 hover:text-teal-700 truncate"
+                >
+                  {value}
+                </Link>
+              ) : (
+                <span className="text-xs font-medium text-stone-900 truncate">{value}</span>
+              )}
+            </>
           ) : (
             <span className="text-xs text-stone-400">—</span>
           )}
@@ -1582,6 +1588,7 @@ export default function ContactDetailPage() {
                 <CompanyAutocompleteField
                   value={contact.company}
                   organizationId={contact.organization_id}
+                  emails={contact.emails}
                   onSave={(v) => saveField("company", v)}
                   onLinkOrg={(orgId, orgName) => {
                     updateContact.mutate({ id, input: { company: orgName, organization_id: orgId } });

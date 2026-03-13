@@ -26,6 +26,7 @@ import {
 import { useContacts } from "@/hooks/use-contacts";
 import { ScoreBadge } from "@/components/score-badge";
 import { ContactAvatar } from "@/components/contact-avatar";
+import { CompanyFavicon } from "@/components/company-favicon";
 import { formatDistanceToNow } from "date-fns";
 import { client } from "@/lib/api-client";
 
@@ -886,8 +887,15 @@ function ContactsPageContent() {
                   </div>
 
                   {/* Company */}
-                  <div className="text-xs text-stone-600 truncate">
-                    {contact.company || <span className="text-stone-300">&mdash;</span>}
+                  <div className="text-xs text-stone-600 truncate flex items-center gap-1.5">
+                    {contact.company ? (
+                      <>
+                        <CompanyFavicon emails={contact.emails} size="w-3.5 h-3.5" className="shrink-0" />
+                        <span className="truncate">{contact.company}</span>
+                      </>
+                    ) : (
+                      <span className="text-stone-300">&mdash;</span>
+                    )}
                   </div>
 
                   {/* Score */}

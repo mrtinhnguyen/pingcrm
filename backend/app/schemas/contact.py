@@ -54,6 +54,7 @@ class ContactUpdate(BaseModel):
     notes: str | None = None
     priority_level: str | None = None
     source: str | None = None
+    organization_id: uuid.UUID | None = None
 
 
 class ContactResponse(ContactBase):

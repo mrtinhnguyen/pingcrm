@@ -65,6 +65,7 @@ export interface ContactCreateInput {
   notes?: string;
   priority_level?: string;
   source?: string;
+  organization_id?: string;
 }
 
 export function useContacts(params: ContactsParams = {}) {

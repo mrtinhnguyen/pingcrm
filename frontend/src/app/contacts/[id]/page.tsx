@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import {
   Archive,
   ArrowRight,
+  Building2,
   Calendar,
   Check,
   ChevronDown,
@@ -16,6 +17,7 @@ import {
   Minus,
   MoreVertical,
   Pencil,
+  Plus,
   RefreshCw,
   Send,
   Sparkles,
@@ -248,6 +250,155 @@ function InlineField({
             <span className="text-xs text-stone-400">—</span>
           )}
           {copyable && value && <CopyButton text={value} />}
+          <button
+            onClick={startEdit}
+            className="p-0.5 rounded text-stone-300 hover:text-stone-500 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0"
+          >
+            <Pencil className="w-3 h-3" />
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Company autocomplete field ── */
+
+interface OrgOption {
+  id: string;
+  name: string;
+}
+
+function CompanyAutocompleteField({
+  value,
+  organizationId,
+  onSave,
+  onLinkOrg,
+}: {
+  value: string | null | undefined;
+  organizationId: string | null | undefined;
+  onSave: (v: string) => void;
+  onLinkOrg: (orgId: string, orgName: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [options, setOptions] = useState<OrgOption[]>([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const fetchOptions = (query: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    if (!query.trim()) { setOptions([]); setShowDropdown(false); return; }
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await client.GET("/api/v1/organizations" as any, {
+          params: { query: { search: query, page_size: "8" } },
+        });
+        const orgs = ((res.data as any)?.data ?? []) as OrgOption[];
+        setOptions(orgs);
+        setShowDropdown(orgs.length > 0 || query.trim().length > 0);
+      } catch {
+        setOptions([]);
+      }
+    }, 200);
+  };
+
+  const save = () => {
+    if (draft !== (value ?? "")) onSave(draft);
+    setEditing(false);
+    setShowDropdown(false);
+  };
+
+  const cancel = () => {
+    setDraft(value ?? "");
+    setEditing(false);
+    setShowDropdown(false);
+  };
+
+  const selectOrg = (org: OrgOption) => {
+    onLinkOrg(org.id, org.name);
+    setEditing(false);
+    setShowDropdown(false);
+  };
+
+  const startEdit = () => {
+    setDraft(value ?? "");
+    setEditing(true);
+  };
+
+  return (
+    <div className="group/row flex items-start justify-between gap-4 py-1.5" ref={wrapperRef}>
+      <span className="text-xs text-stone-500 shrink-0 mt-0.5">Company</span>
+      {editing ? (
+        <div className="flex flex-col items-end gap-1.5 min-w-0 flex-1 relative">
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => { setDraft(e.target.value); fetchOptions(e.target.value); }}
+            onKeyDown={(e) => { if (e.key === "Enter") { save(); } if (e.key === "Escape") cancel(); }}
+            className="w-full text-xs border border-stone-300 rounded-md px-2.5 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-400 focus:border-teal-400 bg-white"
+            autoComplete="off"
+          />
+          {showDropdown && (
+            <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-stone-200 rounded-lg shadow-lg z-50 max-h-48 overflow-y-auto">
+              {options.map((org) => (
+                <button
+                  key={org.id}
+                  onClick={() => selectOrg(org)}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-teal-50 flex items-center gap-2 transition-colors"
+                >
+                  <Building2 className="w-3 h-3 text-stone-400 shrink-0" />
+                  <span className="text-stone-900 truncate">{org.name}</span>
+                </button>
+              ))}
+              {draft.trim() && !options.some((o) => o.name.toLowerCase() === draft.toLowerCase()) && (
+                <button
+                  onClick={save}
+                  className="w-full text-left px-3 py-2 text-xs hover:bg-emerald-50 flex items-center gap-2 border-t border-stone-100 transition-colors"
+                >
+                  <Plus className="w-3 h-3 text-emerald-500 shrink-0" />
+                  <span className="text-emerald-700">Set as &quot;{draft.trim()}&quot;</span>
+                </button>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-2">
+            <button onClick={cancel} className="px-2.5 py-1 text-xs font-medium rounded-md text-stone-600 hover:bg-stone-100 border border-stone-200">Cancel</button>
+            <button onClick={save} className="px-2.5 py-1 text-xs font-medium rounded-md bg-emerald-600 text-white hover:bg-emerald-700">Save</button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex items-center gap-1.5 min-w-0">
+          {value ? (
+            organizationId ? (
+              <Link
+                href={`/organizations/${organizationId}`}
+                className="text-xs font-medium text-teal-600 hover:text-teal-700 truncate"
+              >
+                {value}
+              </Link>
+            ) : (
+              <span className="text-xs font-medium text-stone-900 truncate">{value}</span>
+            )
+          ) : (
+            <span className="text-xs text-stone-400">—</span>
+          )}
           <button
             onClick={startEdit}
             className="p-0.5 rounded text-stone-300 hover:text-stone-500 opacity-0 group-hover/row:opacity-100 transition-opacity shrink-0"
@@ -1428,11 +1579,13 @@ export default function ContactDetailPage() {
                 <InlineField label="First name" value={contact.given_name} onSave={(v) => saveField("given_name", v)} />
                 <InlineField label="Last name" value={contact.family_name} onSave={(v) => saveField("family_name", v)} />
                 <InlineField label="Title" value={contact.title} onSave={(v) => saveField("title", v)} />
-                <InlineField
-                  label="Company"
+                <CompanyAutocompleteField
                   value={contact.company}
+                  organizationId={contact.organization_id}
                   onSave={(v) => saveField("company", v)}
-                  internalHref={contact.organization_id ? `/organizations/${contact.organization_id}` : undefined}
+                  onLinkOrg={(orgId, orgName) => {
+                    updateContact.mutate({ id, input: { company: orgName, organization_id: orgId } });
+                  }}
                 />
                 <InlineField label="Location" value={contact.location} onSave={(v) => saveField("location", v)} />
                 <InlineField label="Birthday" value={contact.birthday} onSave={(v) => saveField("birthday", v)} />

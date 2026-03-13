@@ -250,6 +250,66 @@ async def list_organizations(
 
 
 # ---------------------------------------------------------------------------
+# POST /api/v1/organizations/merge  (must be before /{org_id} routes)
+# ---------------------------------------------------------------------------
+
+
+@router.post("/merge", response_model=Envelope[MergeOrganizationsResult])
+async def merge_organizations(
+    payload: MergeOrganizationsRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Merge source organizations into the target organization.
+
+    Moves all contacts from source orgs to target, then deletes sources.
+    """
+    source_ids = [uuid.UUID(sid) for sid in payload.source_ids if sid != payload.target_id]
+    target_id = uuid.UUID(payload.target_id)
+
+    if not source_ids:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="source_ids must contain at least one ID different from target_id",
+        )
+
+    # Verify target exists and belongs to user
+    result = await db.execute(
+        select(Organization).where(
+            Organization.id == target_id, Organization.user_id == current_user.id
+        )
+    )
+    target_org = result.scalar_one_or_none()
+    if not target_org:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target organization not found")
+
+    # Move contacts from sources to target
+    move_result = await db.execute(
+        update(Contact)
+        .where(
+            Contact.organization_id.in_(source_ids),
+            Contact.user_id == current_user.id,
+        )
+        .values(organization_id=target_id, company=target_org.name)
+    )
+
+    # Delete source organizations
+    delete_result = await db.execute(
+        delete(Organization).where(
+            Organization.id.in_(source_ids),
+            Organization.user_id == current_user.id,
+        )
+    )
+
+    return _envelope({
+        "target_id": str(target_id),
+        "target_name": target_org.name,
+        "contacts_updated": move_result.rowcount,
+        "source_organizations_merged": delete_result.rowcount,
+    })
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/organizations/{id} — Detail
 # ---------------------------------------------------------------------------
 
@@ -273,11 +333,12 @@ async def get_organization(
     stats_map = await _get_org_stats_map(db, [org.id])
     org_dict = _org_to_dict(org, stats_map.get(org.id))
 
-    # Fetch contacts
+    # Fetch contacts (capped to avoid unbounded response size)
     contacts_result = await db.execute(
         select(Contact)
         .where(Contact.organization_id == org.id, Contact.priority_level != "archived")
         .order_by(Contact.relationship_score.desc())
+        .limit(200)
     )
     org_dict["contacts"] = [
         {
@@ -401,61 +462,3 @@ async def delete_organization(
     return _envelope({"id": str(org_id), "deleted": True})
 
 
-# ---------------------------------------------------------------------------
-# POST /api/v1/organizations/merge
-# ---------------------------------------------------------------------------
-
-
-@router.post("/merge", response_model=Envelope[MergeOrganizationsResult])
-async def merge_organizations(
-    payload: MergeOrganizationsRequest,
-    db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> dict:
-    """Merge source organizations into the target organization.
-
-    Moves all contacts from source orgs to target, then deletes sources.
-    """
-    source_ids = [uuid.UUID(sid) for sid in payload.source_ids if sid != payload.target_id]
-    target_id = uuid.UUID(payload.target_id)
-
-    if not source_ids:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="source_ids must contain at least one ID different from target_id",
-        )
-
-    # Verify target exists and belongs to user
-    result = await db.execute(
-        select(Organization).where(
-            Organization.id == target_id, Organization.user_id == current_user.id
-        )
-    )
-    target_org = result.scalar_one_or_none()
-    if not target_org:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Target organization not found")
-
-    # Move contacts from sources to target
-    move_result = await db.execute(
-        update(Contact)
-        .where(
-            Contact.organization_id.in_(source_ids),
-            Contact.user_id == current_user.id,
-        )
-        .values(organization_id=target_id, company=target_org.name)
-    )
-
-    # Delete source organizations
-    await db.execute(
-        delete(Organization).where(
-            Organization.id.in_(source_ids),
-            Organization.user_id == current_user.id,
-        )
-    )
-
-    return _envelope({
-        "target_id": str(target_id),
-        "target_name": target_org.name,
-        "contacts_updated": move_result.rowcount,
-        "source_organizations_merged": len(source_ids),
-    })

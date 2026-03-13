@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
@@ -24,6 +24,13 @@ import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { ScoreBadge } from "@/components/score-badge";
 import { formatDistanceToNow } from "date-fns";
+
+/* ── Helpers ── */
+
+function safeHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
+}
 
 /* ── Types ── */
 
@@ -135,7 +142,7 @@ export default function OrganizationDetailPage() {
   const org = data;
   const contacts = org.contacts ?? [];
 
-  const sortedContacts = [...contacts].sort((a, b) => {
+  const sortedContacts = useMemo(() => [...contacts].sort((a, b) => {
     if (sortBy === "score") return b.relationship_score - a.relationship_score;
     if (sortBy === "name") return (a.full_name ?? "").localeCompare(b.full_name ?? "");
     if (sortBy === "recent") {
@@ -144,7 +151,7 @@ export default function OrganizationDetailPage() {
       return bDate - aDate;
     }
     return 0;
-  });
+  }), [contacts, sortBy]);
 
   const handleSave = () => {
     updateMutation.mutate(editData);
@@ -265,13 +272,13 @@ export default function OrganizationDetailPage() {
                 icon={Globe}
                 label="Website"
                 value={org.website}
-                href={org.website?.startsWith("http") ? org.website : org.website ? `https://${org.website}` : undefined}
+                href={safeHref(org.website)}
               />
               <InfoRow
                 icon={Linkedin}
                 label="LinkedIn"
                 value={org.linkedin_url}
-                href={org.linkedin_url ?? undefined}
+                href={safeHref(org.linkedin_url)}
               />
               <InfoRow icon={Twitter} label="Twitter" value={org.twitter_handle} />
             </>

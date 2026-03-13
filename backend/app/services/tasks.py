@@ -1161,6 +1161,8 @@ def reactivate_snoozed_suggestions() -> dict:
 @shared_task(name="app.services.tasks.refresh_org_stats")
 def refresh_org_stats() -> dict:
     """Hourly task: refresh the organization_stats_mv materialized view."""
+    from sqlalchemy import text as sa_text
+
     async def _refresh() -> None:
         async with task_session() as db:
             await db.execute(
@@ -1168,7 +1170,6 @@ def refresh_org_stats() -> dict:
             )
             await db.commit()
 
-    from sqlalchemy import text as sa_text
     _run(_refresh())
     logger.info("refresh_org_stats: materialized view refreshed.")
     return {"status": "ok"}

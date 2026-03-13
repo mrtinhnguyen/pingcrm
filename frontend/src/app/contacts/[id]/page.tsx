@@ -63,13 +63,14 @@ interface InteractionResponse {
 /* ── Helpers ── */
 
 const URL_RE = /(https?:\/\/[^\s<]+)/g;
+const URL_TEST = /^https?:\/\/[^\s<]+$/;
 
 function Linkify({ text, className }: { text: string; className?: string }) {
   const parts = text.split(URL_RE);
   return (
     <span>
       {parts.map((part, i) =>
-        URL_RE.test(part) ? (
+        URL_TEST.test(part) ? (
           <a key={i} href={part} target="_blank" rel="noopener noreferrer" className={cn("underline break-all", className)}>
             {part}
           </a>

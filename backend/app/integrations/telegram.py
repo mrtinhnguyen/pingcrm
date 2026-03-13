@@ -30,6 +30,11 @@ MAX_BIO_SYNC_CONTACTS = 100  # max contacts fetched per bio sync run
 
 def _make_client(session_string: str | None = None) -> TelegramClient:
     """Construct a TelegramClient backed by a StringSession."""
+    if not settings.TELEGRAM_API_ID or not settings.TELEGRAM_API_HASH:
+        raise RuntimeError(
+            "Telegram credentials not configured: set TELEGRAM_API_ID and "
+            "TELEGRAM_API_HASH environment variables."
+        )
     session = StringSession(session_string or "")
     return TelegramClient(
         session,

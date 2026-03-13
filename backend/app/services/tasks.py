@@ -305,6 +305,11 @@ def sync_telegram_for_user(user_id: str) -> None:
     Telegram's API rate limits, followed by a callback that sends the
     summary notification.
     """
+    from app.core.config import settings
+    if not settings.TELEGRAM_API_ID or not settings.TELEGRAM_API_HASH:
+        logger.warning("sync_telegram_for_user: skipping user %s — TELEGRAM_API_ID/HASH not configured.", user_id)
+        return
+
     from celery import chain
 
     chain(

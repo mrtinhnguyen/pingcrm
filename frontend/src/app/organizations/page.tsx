@@ -5,7 +5,7 @@ export const dynamic = "force-dynamic";
 import { Suspense, useState, useCallback, useRef } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient, useMutation } from "@tanstack/react-query";
-import { Search, Building2, ChevronDown, ChevronRight, CheckSquare, Tag, X, Archive, GitMerge } from "lucide-react";
+import { Search, Building2, ChevronDown, ChevronRight, CheckSquare, Tag, X, Archive, GitMerge, BarChart3, MessageSquare, Clock } from "lucide-react";
 import Link from "next/link";
 import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
@@ -24,27 +24,34 @@ interface OrgContact {
 }
 
 interface Organization {
-  company: string;
+  id: string;
+  name: string;
+  domain: string | null;
+  industry: string | null;
+  location: string | null;
+  website: string | null;
+  linkedin_url: string | null;
+  twitter_handle: string | null;
+  notes: string | null;
   contact_count: number;
-  contacts: OrgContact[];
+  avg_relationship_score: number;
+  total_interactions: number;
+  last_interaction_at: string | null;
+  contacts: OrgContact[] | null;
 }
 
 function MergeModal({
-  companies,
+  orgs,
   onMerge,
   onClose,
   isPending,
 }: {
-  companies: string[];
-  onMerge: (target: string) => void;
+  orgs: Organization[];
+  onMerge: (targetId: string) => void;
   onClose: () => void;
   isPending: boolean;
 }) {
-  const [target, setTarget] = useState(companies[0] ?? "");
-  const [customName, setCustomName] = useState("");
-  const [useCustom, setUseCustom] = useState(false);
-
-  const finalTarget = useCustom ? customName.trim() : target;
+  const [targetId, setTargetId] = useState(orgs[0]?.id ?? "");
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
@@ -58,19 +65,19 @@ function MergeModal({
         </div>
 
         <p className="text-sm text-gray-600 mb-4">
-          All contacts from the selected companies will be moved under one company name.
+          All contacts from the selected organizations will be moved under one organization. Select which to keep:
         </p>
 
-        <div className="mb-4">
+        <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Keep as company name:
+            Keep as target organization:
           </label>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
-            {companies.map((c) => (
+            {orgs.map((org) => (
               <label
-                key={c}
+                key={org.id}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                  !useCustom && target === c
+                  targetId === org.id
                     ? "border-blue-500 bg-blue-50"
                     : "border-gray-200 hover:bg-gray-50"
                 }`}
@@ -78,41 +85,15 @@ function MergeModal({
                 <input
                   type="radio"
                   name="target"
-                  checked={!useCustom && target === c}
-                  onChange={() => { setTarget(c); setUseCustom(false); }}
+                  checked={targetId === org.id}
+                  onChange={() => setTargetId(org.id)}
                   className="text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-gray-900">{c}</span>
+                <span className="text-sm text-gray-900">{org.name}</span>
+                <span className="text-xs text-gray-400 ml-auto">{org.contact_count} contacts</span>
               </label>
             ))}
           </div>
-        </div>
-
-        <div className="mb-5">
-          <label
-            className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-              useCustom ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:bg-gray-50"
-            }`}
-          >
-            <input
-              type="radio"
-              name="target"
-              checked={useCustom}
-              onChange={() => setUseCustom(true)}
-              className="text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-700">Use a different name:</span>
-          </label>
-          {useCustom && (
-            <input
-              type="text"
-              value={customName}
-              onChange={(e) => setCustomName(e.target.value)}
-              placeholder="Enter company name..."
-              className="mt-2 w-full px-3 py-2 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-              autoFocus
-            />
-          )}
         </div>
 
         <div className="flex gap-2 justify-end">
@@ -123,8 +104,8 @@ function MergeModal({
             Cancel
           </button>
           <button
-            onClick={() => finalTarget && onMerge(finalTarget)}
-            disabled={!finalTarget || isPending}
+            onClick={() => targetId && onMerge(targetId)}
+            disabled={!targetId || isPending}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             <GitMerge className="w-4 h-4" />
@@ -289,7 +270,7 @@ function OrganizationsPageContent() {
 
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [selectedOrgs, setSelectedOrgs] = useState<Set<string>>(new Set());
+  const [selectedOrgIds, setSelectedOrgIds] = useState<Set<string>>(new Set());
   const [showMergeModal, setShowMergeModal] = useState(false);
 
   const setParams = useCallback(
@@ -328,11 +309,6 @@ function OrganizationsPageContent() {
   const organizations = data?.data ?? [];
   const meta = data?.meta;
 
-  // Collect all visible contact IDs (from expanded orgs only)
-  const allVisibleContactIds = organizations
-    .filter((org) => expandedOrgs.has(org.company))
-    .flatMap((org) => org.contacts.map((c) => c.id));
-
   const bulkUpdate = useMutation({
     mutationFn: async (body: {
       contact_ids: string[];
@@ -355,25 +331,25 @@ function OrganizationsPageContent() {
   });
 
   const mergeOrgs = useMutation({
-    mutationFn: async (body: { source_companies: string[]; target_company: string }) => {
+    mutationFn: async (body: { source_ids: string[]; target_id: string }) => {
       const { data, error } = await client.POST("/api/v1/organizations/merge" as any, { body });
       if (error) throw new Error((error as { detail?: string })?.detail ?? "Merge failed");
       return data;
     },
     onSuccess: () => {
       setSelectedIds(new Set());
-      setSelectedOrgs(new Set());
+      setSelectedOrgIds(new Set());
       setShowMergeModal(false);
       void queryClient.invalidateQueries({ queryKey: ["organizations"] });
       void queryClient.invalidateQueries({ queryKey: ["contacts"] });
     },
   });
 
-  const toggleOrg = (company: string) => {
+  const toggleOrg = (orgId: string) => {
     setExpandedOrgs((prev) => {
       const next = new Set(prev);
-      if (next.has(company)) next.delete(company);
-      else next.add(company);
+      if (next.has(orgId)) next.delete(orgId);
+      else next.add(orgId);
       return next;
     });
   };
@@ -388,8 +364,9 @@ function OrganizationsPageContent() {
   };
 
   const toggleSelectOrg = (org: Organization) => {
-    const orgContactIds = org.contacts.map((c) => c.id);
-    const allSelected = orgContactIds.every((id) => selectedIds.has(id));
+    const contacts = org.contacts ?? [];
+    const orgContactIds = contacts.map((c) => c.id);
+    const allSelected = orgContactIds.length > 0 && orgContactIds.every((id) => selectedIds.has(id));
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (allSelected) {
@@ -399,15 +376,16 @@ function OrganizationsPageContent() {
       }
       return next;
     });
-    setSelectedOrgs((prev) => {
+    setSelectedOrgIds((prev) => {
       const next = new Set(prev);
-      if (allSelected) next.delete(org.company);
-      else next.add(org.company);
+      if (allSelected) next.delete(org.id);
+      else next.add(org.id);
       return next;
     });
   };
 
   const selectedArray = Array.from(selectedIds);
+  const selectedMergeOrgs = organizations.filter((o) => selectedOrgIds.has(o.id));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -417,7 +395,7 @@ function OrganizationsPageContent() {
             <h1 className="text-2xl font-bold text-gray-900">Organizations</h1>
             {meta && (
               <p className="text-sm text-gray-500 mt-0.5">
-                {meta.total} companies
+                {meta.total} organizations
               </p>
             )}
           </div>
@@ -428,7 +406,7 @@ function OrganizationsPageContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
             <input
               type="text"
-              placeholder="Search companies..."
+              placeholder="Search organizations..."
               value={searchInput}
               onChange={(e) => {
                 const value = e.target.value;
@@ -447,7 +425,7 @@ function OrganizationsPageContent() {
         {selectedIds.size > 0 && (
           <BulkActionBar
             selectedCount={selectedIds.size}
-            selectedOrgCount={selectedOrgs.size}
+            selectedOrgCount={selectedOrgIds.size}
             allTags={allTags}
             isPending={bulkUpdate.isPending}
             onAddTag={(tag) =>
@@ -460,17 +438,17 @@ function OrganizationsPageContent() {
               bulkUpdate.mutate({ contact_ids: selectedArray, priority_level: level })
             }
             onMergeOrgs={() => setShowMergeModal(true)}
-            onClear={() => { setSelectedIds(new Set()); setSelectedOrgs(new Set()); }}
+            onClear={() => { setSelectedIds(new Set()); setSelectedOrgIds(new Set()); }}
           />
         )}
 
-        {showMergeModal && selectedOrgs.size >= 2 && (
+        {showMergeModal && selectedMergeOrgs.length >= 2 && (
           <MergeModal
-            companies={Array.from(selectedOrgs).sort()}
+            orgs={selectedMergeOrgs}
             isPending={mergeOrgs.isPending}
-            onMerge={(target) => {
-              const sources = Array.from(selectedOrgs).filter((c) => c !== target);
-              mergeOrgs.mutate({ source_companies: sources, target_company: target });
+            onMerge={(targetId) => {
+              const sourceIds = selectedMergeOrgs.map((o) => o.id).filter((id) => id !== targetId);
+              mergeOrgs.mutate({ source_ids: sourceIds, target_id: targetId });
             }}
             onClose={() => setShowMergeModal(false)}
           />
@@ -495,12 +473,13 @@ function OrganizationsPageContent() {
         {organizations.length > 0 && (
           <div className="space-y-2">
             {organizations.map((org) => {
-              const isExpanded = expandedOrgs.has(org.company);
-              const orgContactIds = org.contacts.map((c) => c.id);
+              const contacts = org.contacts ?? [];
+              const isExpanded = expandedOrgs.has(org.id);
+              const orgContactIds = contacts.map((c) => c.id);
               const allOrgSelected = orgContactIds.length > 0 && orgContactIds.every((id) => selectedIds.has(id));
               const someOrgSelected = orgContactIds.some((id) => selectedIds.has(id));
               return (
-                <div key={org.company} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+                <div key={org.id} className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                   <div className="flex items-center gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
                     <input
                       type="checkbox"
@@ -510,10 +489,10 @@ function OrganizationsPageContent() {
                       }}
                       onChange={() => toggleSelectOrg(org)}
                       className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 flex-shrink-0"
-                      aria-label={`Select all contacts in ${org.company}`}
+                      aria-label={`Select all contacts in ${org.name}`}
                     />
                     <button
-                      onClick={() => toggleOrg(org.company)}
+                      onClick={() => toggleOrg(org.id)}
                       className="flex items-center gap-3 flex-1 min-w-0 text-left"
                     >
                       {isExpanded ? (
@@ -525,11 +504,40 @@ function OrganizationsPageContent() {
                         <Building2 className="w-4 h-4 text-blue-600" />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <span className="text-sm font-semibold text-gray-900">{org.company}</span>
+                        <Link
+                          href={`/organizations/${org.id}`}
+                          className="text-sm font-semibold text-gray-900 hover:text-blue-600"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {org.name}
+                        </Link>
+                        {org.domain && (
+                          <span className="ml-2 text-xs text-gray-400">{org.domain}</span>
+                        )}
                       </div>
-                      <span className="text-xs text-gray-500 flex-shrink-0">
-                        {org.contact_count} {org.contact_count === 1 ? "person" : "people"}
-                      </span>
+                      <div className="flex items-center gap-4 flex-shrink-0">
+                        <span className="text-xs text-gray-500" title="Contacts">
+                          {org.contact_count} {org.contact_count === 1 ? "person" : "people"}
+                        </span>
+                        {org.avg_relationship_score > 0 && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1" title="Avg Score">
+                            <BarChart3 className="w-3 h-3" />
+                            {org.avg_relationship_score}
+                          </span>
+                        )}
+                        {org.total_interactions > 0 && (
+                          <span className="text-xs text-gray-500 flex items-center gap-1" title="Total Interactions">
+                            <MessageSquare className="w-3 h-3" />
+                            {org.total_interactions}
+                          </span>
+                        )}
+                        {org.last_interaction_at && (
+                          <span className="text-xs text-gray-400 flex items-center gap-1" title="Last Activity">
+                            <Clock className="w-3 h-3" />
+                            {formatDistanceToNow(new Date(org.last_interaction_at), { addSuffix: true })}
+                          </span>
+                        )}
+                      </div>
                     </button>
                   </div>
 
@@ -537,7 +545,7 @@ function OrganizationsPageContent() {
                     <div className="border-t border-gray-100">
                       <table className="w-full text-sm">
                         <tbody className="divide-y divide-gray-50">
-                          {org.contacts.map((contact) => {
+                          {contacts.map((contact) => {
                             const name =
                               contact.full_name ??
                               [contact.given_name, contact.family_name].filter(Boolean).join(" ") ??

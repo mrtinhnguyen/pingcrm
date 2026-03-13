@@ -10,6 +10,7 @@ export interface Contact {
   emails: string[];
   phones: string[];
   company: string | null;
+  organization_id: string | null;
   title: string | null;
   twitter_handle: string | null;
   twitter_bio: string | null;

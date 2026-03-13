@@ -1357,6 +1357,17 @@ export default function ContactDetailPage() {
                 <InlineField label="Last name" value={contact.family_name} onSave={(v) => saveField("family_name", v)} />
                 <InlineField label="Title" value={contact.title} onSave={(v) => saveField("title", v)} />
                 <InlineField label="Company" value={contact.company} onSave={(v) => saveField("company", v)} />
+                {contact.organization_id && (
+                  <div className="flex items-start justify-between gap-4 py-1.5">
+                    <span className="text-xs text-stone-500 shrink-0 mt-0.5">Organization</span>
+                    <Link
+                      href={`/organizations/${contact.organization_id}`}
+                      className="text-xs font-medium text-teal-600 hover:text-teal-700 truncate"
+                    >
+                      {contact.company ?? "View organization"} →
+                    </Link>
+                  </div>
+                )}
                 <InlineField label="Location" value={contact.location} onSave={(v) => saveField("location", v)} />
                 <InlineField label="Birthday" value={contact.birthday} onSave={(v) => saveField("birthday", v)} />
 

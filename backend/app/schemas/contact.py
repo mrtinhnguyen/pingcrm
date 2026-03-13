@@ -59,6 +59,7 @@ class ContactUpdate(BaseModel):
 class ContactResponse(ContactBase):
     id: uuid.UUID
     user_id: uuid.UUID
+    organization_id: uuid.UUID | None = None
     relationship_score: int
     interaction_count: int = 0
     last_interaction_at: datetime | None = None

@@ -6,11 +6,11 @@ import logging
 import os
 import random
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, SessionPasswordNeededError
@@ -26,6 +26,23 @@ logger = logging.getLogger(__name__)
 
 MAX_MESSAGES = 50  # messages fetched per dialog per sync run
 MAX_BIO_SYNC_CONTACTS = 100  # max contacts fetched per bio sync run
+
+RATE_GATE_KEY = "tg_flood:{user_id}"
+
+
+async def _check_rate_gate(user_id: str) -> int | None:
+    """Return seconds remaining if user is rate-gated, else None."""
+    from app.core.redis import get_redis
+    r = get_redis()
+    ttl = await r.ttl(RATE_GATE_KEY.format(user_id=user_id))
+    return ttl if ttl > 0 else None
+
+
+async def _set_rate_gate(user_id: str, seconds: int) -> None:
+    """Record a FloodWait so all operations respect the cooldown."""
+    from app.core.redis import get_redis
+    r = get_redis()
+    await r.set(RATE_GATE_KEY.format(user_id=user_id), "1", ex=seconds)
 
 
 def _make_client(session_string: str | None = None) -> TelegramClient:
@@ -134,6 +151,14 @@ async def send_telegram_message(
     if not user.telegram_session:
         raise RuntimeError("No Telegram session. Please connect your account first.")
 
+    # Check rate gate before connecting
+    gate_ttl = await _check_rate_gate(str(user.id))
+    if gate_ttl:
+        raise RuntimeError(
+            f"Telegram rate limit: please wait {gate_ttl // 60}m before sending messages.",
+            gate_ttl,
+        )
+
     client = _make_client(user.telegram_session)
     await _ensure_connected(client)
     try:
@@ -162,6 +187,7 @@ async def send_telegram_message(
             "resolved_user_id": resolved_id,
         }
     except FloodWaitError as e:
+        await _set_rate_gate(str(user.id), e.seconds)
         wait_hours = e.seconds // 3600
         wait_minutes = (e.seconds % 3600) // 60
         if wait_hours > 0:
@@ -169,7 +195,8 @@ async def send_telegram_message(
         else:
             wait_str = f"{wait_minutes}m"
         raise RuntimeError(
-            f"Telegram rate limit: please wait {wait_str} before sending messages."
+            f"Telegram rate limit: please wait {wait_str} before sending messages.",
+            e.seconds,
         ) from e
     finally:
         await client.disconnect()
@@ -444,6 +471,12 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
         logger.warning("User %s has no telegram_session; skipping Telegram sync.", user.id)
         return {"new_interactions": 0, "new_contacts": 0, "affected_contact_ids": []}
 
+    # Bail early if rate-gated
+    gate_ttl = await _check_rate_gate(str(user.id))
+    if gate_ttl:
+        logger.info("sync_telegram_chats: user %s is rate-gated (%ds remaining), skipping.", user.id, gate_ttl)
+        return {"new_interactions": 0, "new_contacts": 0, "affected_contact_ids": []}
+
     client = _make_client(user.telegram_session)
     await _ensure_connected(client)
 
@@ -460,6 +493,7 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
 
     new_count = 0
     dialogs_checked = 0
+    dialogs_skipped = 0
     created_contacts = 0
     affected_contact_ids: set[str] = set()
     avatar_queue: list[tuple[object, Contact]] = []  # (entity, contact) pairs needing avatars
@@ -513,6 +547,20 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
             if not contact.avatar_url:
                 avatar_queue.append((entity, contact))
 
+            # Skip dialog if the latest message is already in our DB
+            last_msg = dialog.message
+            if last_msg and contact:
+                latest_ref = f"{entity.id}:{last_msg.id}"
+                existing = await db.execute(
+                    select(Interaction.id).where(
+                        Interaction.raw_reference_id == latest_ref,
+                        Interaction.user_id == user.id,
+                    ).limit(1)
+                )
+                if existing.scalar_one_or_none():
+                    dialogs_skipped += 1
+                    continue  # No new messages, skip this dialog entirely
+
             # Iterate recent messages for this dialog
             try:
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
@@ -543,6 +591,7 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                     ):
                         contact.last_interaction_at = occurred_at
             except FloodWaitError as e:
+                await _set_rate_gate(str(user.id), e.seconds)
                 logger.warning("FloodWaitError in sync_telegram_chats: waiting %d seconds", e.seconds)
                 await asyncio.sleep(e.seconds + 5)
                 continue
@@ -570,8 +619,8 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
         return {"new_interactions": 0, "new_contacts": 0, "affected_contact_ids": []}
 
     logger.info(
-        "Telegram sync for user %s: %d new interaction(s), %d new contacts, %d dialogs checked.",
-        user.id, new_count, created_contacts, dialogs_checked,
+        "Telegram sync for user %s: %d new interaction(s), %d new contacts, %d dialogs checked, %d skipped (unchanged).",
+        user.id, new_count, created_contacts, dialogs_checked, dialogs_skipped,
     )
     return {
         "new_interactions": new_count,
@@ -592,6 +641,11 @@ async def sync_telegram_chats_batch(
     Returns ``{"new_interactions": N, "new_contacts": N, "affected_contact_ids": [...]}``.
     """
     if not user.telegram_session or not entity_ids:
+        return {"new_interactions": 0, "new_contacts": 0, "affected_contact_ids": []}
+
+    gate_ttl = await _check_rate_gate(str(user.id))
+    if gate_ttl:
+        logger.info("sync_telegram_chats_batch: user %s is rate-gated (%ds remaining), skipping.", user.id, gate_ttl)
         return {"new_interactions": 0, "new_contacts": 0, "affected_contact_ids": []}
 
     client = _make_client(user.telegram_session)
@@ -657,6 +711,24 @@ async def sync_telegram_chats_batch(
             if not contact.avatar_url:
                 avatar_queue.append((entity, contact))
 
+            # Skip entity if latest message already synced
+            try:
+                latest_msgs = await client.get_messages(entity, limit=1)
+                if latest_msgs and contact:
+                    top_msg = latest_msgs[0]
+                    if top_msg and top_msg.id:
+                        latest_ref = f"{eid}:{top_msg.id}"
+                        existing = await db.execute(
+                            select(Interaction.id).where(
+                                Interaction.raw_reference_id == latest_ref,
+                                Interaction.user_id == user.id,
+                            ).limit(1)
+                        )
+                        if existing.scalar_one_or_none():
+                            continue
+            except Exception:
+                pass  # On error, fall through to full sync
+
             try:
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
                     if message.message is None:
@@ -681,6 +753,7 @@ async def sync_telegram_chats_batch(
                     if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
                         contact.last_interaction_at = occurred_at
             except FloodWaitError as e:
+                await _set_rate_gate(str(user.id), e.seconds)
                 logger.warning("FloodWaitError in sync_telegram_chats_batch: waiting %d seconds", e.seconds)
                 await asyncio.sleep(e.seconds + 5)
                 continue
@@ -779,6 +852,7 @@ async def sync_telegram_contact_messages(
                 if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
                     contact.last_interaction_at = occurred_at
         except FloodWaitError as e:
+            await _set_rate_gate(str(user.id), e.seconds)
             logger.warning("FloodWaitError in sync_telegram_contact_messages: waiting %d seconds", e.seconds)
             await asyncio.sleep(e.seconds + 5)
 
@@ -809,6 +883,11 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
     """
     if not user.telegram_session:
         logger.warning("User %s has no telegram_session; skipping group member sync.", user.id)
+        return {"new_contacts": 0, "updated_contacts": 0, "groups_scanned": 0}
+
+    gate_ttl = await _check_rate_gate(str(user.id))
+    if gate_ttl:
+        logger.info("sync_telegram_group_members: user %s is rate-gated (%ds remaining), skipping.", user.id, gate_ttl)
         return {"new_contacts": 0, "updated_contacts": 0, "groups_scanned": 0}
 
     client = _make_client(user.telegram_session)
@@ -864,6 +943,7 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
             try:
                 participants = await client.get_participants(entity, limit=MAX_MEMBERS_PER_GROUP)
             except FloodWaitError as e:
+                await _set_rate_gate(str(user.id), e.seconds)
                 logger.warning("FloodWaitError in sync_telegram_group_members: waiting %d seconds", e.seconds)
                 await asyncio.sleep(e.seconds + 5)
                 try:
@@ -1056,21 +1136,31 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
     Creates notifications for bio changes. Returns counts.
     """
     from app.models.notification import Notification
-    from sqlalchemy import or_
     from telethon.tl.functions.users import GetFullUserRequest
 
     if not user.telegram_session:
         return {"bios_updated": 0, "bio_changes": 0}
 
+    gate_ttl = await _check_rate_gate(str(user.id))
+    if gate_ttl:
+        logger.info("sync_telegram_bios: user %s is rate-gated (%ds remaining), skipping.", user.id, gate_ttl)
+        return {"bios_updated": 0, "bio_changes": 0}
+
     client = _make_client(user.telegram_session)
     await _ensure_connected(client)
 
+    # Only fetch contacts whose bios haven't been checked in 7 days
+    bio_stale_cutoff = datetime.now(UTC) - timedelta(days=7)
     result = await db.execute(
         select(Contact).where(
             Contact.user_id == user.id,
             or_(
                 Contact.telegram_username.isnot(None),
                 Contact.telegram_user_id.isnot(None),
+            ),
+            or_(
+                Contact.telegram_bio_checked_at.is_(None),
+                Contact.telegram_bio_checked_at < bio_stale_cutoff,
             ),
         ).order_by(
             # Prioritize contacts missing avatars
@@ -1098,16 +1188,22 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
                 full = await client(GetFullUserRequest(input_user))
                 current_bio = getattr(full.full_user, "about", None) or ""
             except FloodWaitError as e:
+                await _set_rate_gate(str(user.id), e.seconds)
                 logger.warning("FloodWaitError in sync_telegram_bios: waiting %d seconds", e.seconds)
+                contact.telegram_bio_checked_at = datetime.now(UTC)
                 await asyncio.sleep(e.seconds + 5)
                 continue
             except Exception:
                 logger.debug("sync_telegram_bios: failed to fetch bio for @%s", username)
+                contact.telegram_bio_checked_at = datetime.now(UTC)
                 await asyncio.sleep(random.uniform(0.5, 1.0))
                 continue
 
             # Throttle between Telegram API calls to avoid rate limits
             await asyncio.sleep(random.uniform(0.5, 1.0))
+
+            # Mark bio as checked regardless of whether it changed
+            contact.telegram_bio_checked_at = datetime.now(UTC)
 
             # Download avatar if missing
             if not contact.avatar_url:

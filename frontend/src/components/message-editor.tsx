@@ -73,15 +73,31 @@ export function MessageEditor({
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [showSchedule, setShowSchedule] = useState(false);
   const [scheduledFor, setScheduledFor] = useState("");
+  const [rateLimitEnd, setRateLimitEnd] = useState<number | null>(null);
+  const [rateLimitRemaining, setRateLimitRemaining] = useState(0);
 
   const config = channelConfig[channel] ?? channelConfig.email;
   const charCount = message.length;
   const isOverLimit = charCount > config.maxChars;
   const charPercent = Math.min((charCount / config.maxChars) * 100, 100);
+  const isRateLimited = rateLimitEnd !== null && rateLimitRemaining > 0;
 
   useEffect(() => {
     if (autoFocus) textareaRef.current?.focus();
   }, [autoFocus]);
+
+  // Countdown timer for rate limit
+  useEffect(() => {
+    if (!rateLimitEnd) return;
+    const tick = () => {
+      const remaining = Math.max(0, Math.ceil((rateLimitEnd - Date.now()) / 1000));
+      setRateLimitRemaining(remaining);
+      if (remaining <= 0) setRateLimitEnd(null);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [rateLimitEnd]);
 
   const handleRegenerate = async () => {
     setIsRegenerating(true);
@@ -118,11 +134,18 @@ export function MessageEditor({
   };
 
   const handleSend = async () => {
-    if (!message.trim() || isOverLimit || isSending) return;
+    if (!message.trim() || isOverLimit || isSending || isRateLimited) return;
     const iso = scheduledFor ? new Date(scheduledFor).toISOString() : undefined;
     setIsSending(true);
     try {
       await onSend?.(message.trim(), channel, iso);
+    } catch (err: unknown) {
+      // Detect 429 rate limit from fetch errors
+      if (err && typeof err === "object" && "status" in err && (err as { status: number }).status === 429) {
+        const body = "body" in err ? (err as { body: { meta?: { retry_after?: number } } }).body : undefined;
+        const retryAfter = body?.meta?.retry_after ?? 3600;
+        setRateLimitEnd(Date.now() + retryAfter * 1000);
+      }
     } finally {
       setIsSending(false);
     }
@@ -224,6 +247,14 @@ export function MessageEditor({
         </div>
       )}
 
+      {/* Rate limit banner */}
+      {isRateLimited && (
+        <div className="flex items-center gap-2 px-3 py-2 text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-md">
+          <Clock className="w-4 h-4 shrink-0" />
+          Rate limited — retry in {rateLimitRemaining >= 60 ? `${Math.ceil(rateLimitRemaining / 60)}m` : `${rateLimitRemaining}s`}
+        </div>
+      )}
+
       {/* Actions */}
       <div className="flex items-center justify-between">
         <button
@@ -239,7 +270,7 @@ export function MessageEditor({
 
         <button
           onClick={handleSend}
-          disabled={!message.trim() || isOverLimit || isSending || (showSchedule && !scheduledFor)}
+          disabled={!message.trim() || isOverLimit || isSending || isRateLimited || (showSchedule && !scheduledFor)}
           className={cn(
             "inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
             showSchedule && scheduledFor

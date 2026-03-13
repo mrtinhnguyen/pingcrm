@@ -1479,6 +1479,14 @@ async def send_message(
                     link="/settings",
                 ))
                 await db.flush()
+                # Return 429 with Retry-After header
+                retry_after = exc.args[1] if len(exc.args) > 1 else 3600
+                from starlette.responses import JSONResponse
+                return JSONResponse(
+                    status_code=429,
+                    headers={"Retry-After": str(retry_after)},
+                    content={"data": None, "error": str(exc), "meta": {"retry_after": retry_after}},
+                )
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
         except Exception as exc:
             logger.exception("Failed to send Telegram message to %s", username)

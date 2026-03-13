@@ -417,8 +417,8 @@ function ContactsPageContent() {
   const contacts = data?.data ?? [];
   const meta = data?.meta;
   const activeFilterCount = [tagFilter, sourceFilter, dateFrom, dateTo, scoreFilter, priorityFilter].filter(Boolean).length;
-  const stats = statsQuery.data;
-  const activeRelationships = stats ? stats.strong + stats.active : 0;
+  const stats = statsQuery.data?.total != null ? statsQuery.data : null;
+  const activeRelationships = stats ? (stats.strong ?? 0) + (stats.active ?? 0) : 0;
 
   // Bulk mutations
   const bulkUpdate = useMutation({

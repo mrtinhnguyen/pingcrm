@@ -1503,7 +1503,7 @@ export default function ContactDetailPage() {
               <button
                 onClick={() => {
                   updateContact.mutate({ id, input: { priority_level: "archived" } });
-                  router.push("/contacts");
+                  router.back();
                 }}
                 className="p-2 rounded-lg text-stone-400 hover:text-amber-600 hover:bg-amber-50 transition-colors"
                 title="Archive contact"

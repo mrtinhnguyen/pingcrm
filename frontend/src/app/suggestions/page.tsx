@@ -219,9 +219,13 @@ function SuggestionCard({
     >
       <div className="flex items-start gap-3">
         {/* Avatar */}
-        <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", avatarColor(name))}>
-          {getInitials(name)}
-        </div>
+        {c?.avatar_url ? (
+          <img src={c.avatar_url} alt={name ?? ""} className="w-10 h-10 rounded-full object-cover shrink-0" />
+        ) : (
+          <div className={cn("w-10 h-10 rounded-full flex items-center justify-center text-sm font-semibold shrink-0", avatarColor(name))}>
+            {getInitials(name)}
+          </div>
+        )}
 
         <div className="flex-1 min-w-0">
           {/* Header row */}

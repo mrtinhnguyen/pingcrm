@@ -40,6 +40,7 @@ STALE_CONTACT_DAYS = 365
 # Priority scoring constants
 COOLING_RECENT_DAYS = 14
 COOLING_WINDOW_DAYS = 90
+FOLLOWUP_COOLDOWN_DAYS = 14  # Don't re-suggest a contact within N days of last follow-up
 RICH_HISTORY_THRESHOLD = 10
 EVENT_TRIGGER_BONUS = 200
 
@@ -530,6 +531,17 @@ async def generate_suggestions(
         )
     )
     queued_contact_ids: set[uuid.UUID] = {row[0] for row in existing_result.all()}
+
+    # Skip contacts that were recently followed up (cooldown period)
+    cooldown_cutoff = now - timedelta(days=FOLLOWUP_COOLDOWN_DAYS)
+    recently_followed_up = await db.execute(
+        select(Contact.id).where(
+            Contact.user_id == user_id,
+            Contact.last_followup_at.isnot(None),
+            Contact.last_followup_at >= cooldown_cutoff,
+        )
+    )
+    queued_contact_ids.update(row[0] for row in recently_followed_up.all())
 
     # Collect candidates from both pools
     pool_a = await _collect_pool_a_candidates(user_id, db, now, queued_contact_ids, priority_settings)

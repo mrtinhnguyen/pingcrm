@@ -25,6 +25,9 @@ class User(Base):
     twitter_username: Mapped[str | None] = mapped_column(String, nullable=True)
     telegram_session: Mapped[str | None] = mapped_column(EncryptedString, nullable=True)
     telegram_username: Mapped[str | None] = mapped_column(String, nullable=True)
+    telegram_last_synced_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

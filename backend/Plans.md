@@ -1,4 +1,4 @@
-# Add Per-Contact Message Sync to "Refresh Details"
+# Fix Telegram Sync Timeouts (Issue #30)
 
 Created: 2026-03-13
 Completed: 2026-03-13
@@ -7,44 +7,56 @@ Completed: 2026-03-13
 
 ## Context
 
-The kebab menu "Refresh details" on the contact detail page currently syncs:
-- ✅ Twitter + Telegram bios (`POST /contacts/{id}/refresh-bios`)
-- ✅ Avatar from Telegram/Twitter (`POST /contacts/{id}/refresh-avatar`)
-- ✅ Gmail threads (`POST /contacts/{id}/sync-emails`, if contact has emails)
+`sync_telegram_chats_for_user` iterates ALL dialogs (~1000 for this user) with no cap.
+At ~4.5s/dialog, that's ~75 min — far exceeding the 20-min hard limit.
 
-**Missing:** Telegram DMs and Twitter DMs for the specific contact. The existing sync functions (`sync_telegram_chats`, `sync_twitter_dms`) are user-wide (all contacts at once), designed for Celery beat. We need per-contact variants that fetch messages for just one contact.
+**Strategy:** Chunked initial sync + incremental daily sync (most recent 100 dialogs).
 
----
-
-## Phase 1: Backend — Per-contact Telegram message sync
-
-| Task | Description | DoD | Depends | Status |
-|------|-------------|-----|---------|--------|
-| 1.1 | Create `sync_telegram_contact_messages(user, contact, db)` in `telegram.py` — connect via MTProto, resolve entity by `telegram_user_id` (fallback to username), fetch last 50 messages, create/dedup Interaction rows | Function returns `{"new_interactions": N}`; no duplicate interactions created | - | cc:完了 |
-| 1.2 | Add `POST /contacts/{contact_id}/sync-telegram` endpoint in `contacts.py` — call the new function, 1h Redis rate limit with `force` bypass, require `telegram_username` on contact + `telegram_session` on user | Endpoint returns interaction count; 404 if contact not found; skip if no Telegram | 1.1 | cc:完了 |
+- First run: chunk all dialogs into batches of 50, each batch is a separate Celery task
+- Subsequent runs: only process 100 most-recent dialogs (fast, fits in time limit)
+- Track `telegram_last_synced_at` on User to distinguish first vs. incremental sync
 
 ---
 
-## Phase 2: Backend — Per-contact Twitter DM sync
+## Phase 1: Track sync state
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| 2.1 | Create `sync_twitter_contact_dms(user, contact, db)` in `twitter.py` — get bearer headers, build contact ID map for just this contact, fetch DM events, filter to this contact's Twitter ID, create/dedup Interaction rows | Function returns `{"new_interactions": N}`; no duplicate interactions | - | cc:完了 |
-| 2.2 | Add `POST /contacts/{contact_id}/sync-twitter` endpoint in `contacts.py` — call the new function, 1h Redis rate limit with `force` bypass, require `twitter_handle` on contact + valid OAuth token | Endpoint returns interaction count; 404 if contact not found; skip if no Twitter | 2.1 | cc:完了 |
+| 1.1 | Add `telegram_last_synced_at: DateTime` column to User model + Alembic migration | Migration runs; column exists in DB | - | cc:完了 |
 
 ---
 
-## Phase 3: Frontend — Wire new endpoints into Refresh Details
+## Phase 2: Chunked initial sync
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| 3.1 | In `handleRefreshDetails()` in `contacts/[id]/page.tsx` — add `sync-telegram` and `sync-twitter` calls to the `Promise.allSettled` array, conditional on contact having `telegram_username` / `twitter_handle` | Both endpoints called on refresh; spinner shown during all calls | 1.2, 2.2 | cc:完了 |
+| 2.1 | Create `collect_dialog_ids(user)` helper in `telegram.py` — iterate all dialogs, return list of dicts with entity_id/username/name/phone, filtering bots/channels. No message fetching. | Returns list; completes in <60s for 1000 dialogs | 1.1 | cc:完了 |
+| 2.2 | Create `sync_telegram_chats_batch(user, entity_ids, db)` in `telegram.py` + `sync_telegram_chats_batch_task` Celery task — process a batch of ~50 dialogs (message fetch + upsert + avatar queue). | Task completes within 5 min for 50 dialogs | 2.1 | cc:完了 |
+| 2.3 | Refactor `sync_telegram_for_user()` — if `telegram_last_synced_at` is NULL (first sync): collect all dialog IDs, chunk into batches of 50, dispatch as a Celery chain of batch tasks + groups + bios + notify. | First sync dispatches N/50 batch tasks; all complete without timeout | 2.2 | cc:完了 |
+
+---
+
+## Phase 3: Incremental daily sync
+
+| Task | Description | DoD | Depends | Status |
+|------|-------------|-----|---------|--------|
+| 3.1 | Modify `sync_telegram_chats()` to accept `max_dialogs: int` parameter — break out of `iter_dialogs()` after processing N dialogs. Update `telegram_last_synced_at` on completion. | Incremental sync processes ≤100 dialogs; completes in <8 min | 2.3 | cc:完了 |
+| 3.2 | Update `sync_telegram_for_user()` — if `telegram_last_synced_at` is set (incremental): use existing single-task flow with `max_dialogs=100` | Daily beat sync runs fast; no timeout | 3.1 | cc:完了 |
+
+---
+
+## Phase 4: Groups & bios time limit fix
+
+| Task | Description | DoD | Depends | Status |
+|------|-------------|-----|---------|--------|
+| 4.1 | Increase `sync_telegram_groups_for_user` limits to `soft_time_limit=600, time_limit=900`. Increase `sync_telegram_bios_for_user` to `soft_time_limit=600, time_limit=900`. | Tasks don't timeout for accounts with up to 30 groups / 100 contacts | - | cc:完了 |
 
 ---
 
 ## Notes
 
-- Per-contact sync functions reuse existing dedup logic (content-hash for Telegram, external_id for Twitter)
-- Rate limit: 1h Redis TTL per contact (same as email sync), bypassed by `force=true` from manual refresh
-- User-wide Celery sync tasks are unchanged — they continue running on beat schedule
-- Telegram entity resolution uses `telegram_user_id` first (cached numeric ID) to avoid `ResolveUsernameRequest` rate limits
+- Dialog collection (`iter_dialogs()`) is fast (~30s for 1000) — it's the message fetching per dialog that's slow
+- Batches of 50 dialogs ≈ 3.5–4.5 min each (within 5-min soft limit with margin)
+- Incremental sync (100 most-recent dialogs) ≈ 7.5 min — fits in current 15-min soft limit
+- `telegram_last_synced_at` also useful for showing "Last synced: X hours ago" in Settings UI
+- Avatar downloads stay batched per-task (already post-loop)

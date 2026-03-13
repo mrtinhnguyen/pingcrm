@@ -141,8 +141,8 @@ def sync_gmail_all() -> dict:
 
 
 @shared_task(name="app.services.tasks.sync_telegram_chats_for_user", bind=True, max_retries=3, soft_time_limit=900, time_limit=1200)
-def sync_telegram_chats_for_user(self, user_id: str) -> dict:
-    """Sync Telegram DM chats for a single user."""
+def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> dict:
+    """Sync Telegram DM chats for a single user (incremental: most recent N dialogs)."""
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.telegram import sync_telegram_chats
         from app.services.scoring import calculate_score
@@ -153,7 +153,7 @@ def sync_telegram_chats_for_user(self, user_id: str) -> dict:
             if user is None:
                 return {"status": "user_not_found"}
 
-            chat_result = await sync_telegram_chats(user, db)
+            chat_result = await sync_telegram_chats(user, db, max_dialogs=max_dialogs)
             chat_info = chat_result if isinstance(chat_result, dict) else {
                 "new_interactions": chat_result, "new_contacts": 0, "affected_contact_ids": [],
             }
@@ -164,6 +164,9 @@ def sync_telegram_chats_for_user(self, user_id: str) -> dict:
                 except Exception:
                     logger.warning("telegram_chats: score recalc failed for contact %s", cid)
 
+            # Mark sync timestamp
+            from datetime import UTC, datetime
+            user.telegram_last_synced_at = datetime.now(UTC)
             await db.commit()
 
         return {
@@ -186,7 +189,51 @@ def sync_telegram_chats_for_user(self, user_id: str) -> dict:
         raise self.retry(exc=exc, countdown=60) from exc
 
 
-@shared_task(name="app.services.tasks.sync_telegram_groups_for_user", bind=True, max_retries=3, soft_time_limit=300, time_limit=420)
+BATCH_SIZE = 50  # dialogs per batch for initial Telegram sync
+
+
+@shared_task(name="app.services.tasks.sync_telegram_chats_batch_task", bind=True, max_retries=2, soft_time_limit=300, time_limit=420)
+def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int]) -> dict:
+    """Sync a batch of Telegram dialogs by entity ID (for chunked initial sync)."""
+    async def _sync(uid: uuid.UUID) -> dict:
+        from app.integrations.telegram import sync_telegram_chats_batch
+        from app.services.scoring import calculate_score
+
+        async with task_session() as db:
+            result = await db.execute(select(User).where(User.id == uid))
+            user = result.scalar_one_or_none()
+            if user is None:
+                return {"status": "user_not_found"}
+
+            batch_result = await sync_telegram_chats_batch(user, entity_ids, db)
+
+            for cid in batch_result.get("affected_contact_ids", []):
+                try:
+                    await calculate_score(cid, db)
+                except Exception:
+                    logger.warning("telegram_chats_batch: score recalc failed for %s", cid)
+
+            await db.commit()
+
+        return {
+            "status": "ok",
+            "new_interactions": batch_result.get("new_interactions", 0),
+            "new_contacts": batch_result.get("new_contacts", 0),
+        }
+
+    try:
+        uid = uuid.UUID(user_id)
+    except ValueError:
+        return {"status": "invalid_user_id"}
+
+    try:
+        return _run(_sync(uid))
+    except Exception as exc:
+        logger.exception("sync_telegram_chats_batch failed for %s (batch of %d), retrying.", user_id, len(entity_ids))
+        raise self.retry(exc=exc, countdown=60) from exc
+
+
+@shared_task(name="app.services.tasks.sync_telegram_groups_for_user", bind=True, max_retries=3, soft_time_limit=600, time_limit=900)
 def sync_telegram_groups_for_user(self, user_id: str) -> dict:
     """Sync Telegram group members for a single user."""
     async def _sync(uid: uuid.UUID) -> dict:
@@ -229,7 +276,7 @@ def sync_telegram_groups_for_user(self, user_id: str) -> dict:
         raise self.retry(exc=exc, countdown=60) from exc
 
 
-@shared_task(name="app.services.tasks.sync_telegram_bios_for_user", bind=True, max_retries=3, soft_time_limit=300, time_limit=420)
+@shared_task(name="app.services.tasks.sync_telegram_bios_for_user", bind=True, max_retries=3, soft_time_limit=600, time_limit=900)
 def sync_telegram_bios_for_user(self, user_id: str) -> dict:
     """Sync Telegram bios (about text, birthdays, Twitter handles) for a single user."""
     async def _sync(uid: uuid.UUID) -> dict:
@@ -300,10 +347,10 @@ def sync_telegram_notify(sub_results: list, user_id: str) -> dict:
 def sync_telegram_for_user(user_id: str) -> None:
     """Orchestrate Telegram sync as sequential sub-tasks with a summary notification.
 
-    This is NOT a Celery task itself — it dispatches a chain of 3 tasks
-    (chats → groups → bios) that run sequentially to avoid overwhelming
-    Telegram's API rate limits, followed by a callback that sends the
-    summary notification.
+    First sync (telegram_last_synced_at is NULL): collect all dialogs, chunk into
+    batches of BATCH_SIZE, dispatch as a chain of batch tasks + groups + bios + notify.
+
+    Incremental sync: process most recent 100 dialogs + groups + bios + notify.
     """
     from app.core.config import settings
     if not settings.TELEGRAM_API_ID or not settings.TELEGRAM_API_HASH:
@@ -312,12 +359,55 @@ def sync_telegram_for_user(user_id: str) -> None:
 
     from celery import chain
 
-    chain(
-        sync_telegram_chats_for_user.s(user_id),
-        sync_telegram_groups_for_user.si(user_id),
-        sync_telegram_bios_for_user.si(user_id),
-        sync_telegram_notify.si([], user_id),
-    ).apply_async()
+    # Check if this is first sync
+    async def _check_first_sync() -> bool:
+        async with task_session() as db:
+            result = await db.execute(select(User.telegram_last_synced_at).where(User.id == uuid.UUID(user_id)))
+            last_synced = result.scalar_one_or_none()
+            return last_synced is None
+
+    is_first_sync = _run(_check_first_sync())
+
+    if is_first_sync:
+        # First sync: collect dialog IDs and chunk into batches
+        async def _collect() -> list[int]:
+            async with task_session() as db:
+                result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+                user = result.scalar_one_or_none()
+                if not user:
+                    return []
+                from app.integrations.telegram import collect_dialog_ids
+                dialogs = await collect_dialog_ids(user)
+                return [d["entity_id"] for d in dialogs]
+
+        all_entity_ids = _run(_collect())
+        if not all_entity_ids:
+            logger.info("sync_telegram_for_user: no dialogs found for %s, skipping.", user_id)
+            return
+
+        # Chunk into batches
+        batches = [all_entity_ids[i:i + BATCH_SIZE] for i in range(0, len(all_entity_ids), BATCH_SIZE)]
+        logger.info(
+            "sync_telegram_for_user: first sync for %s — %d dialogs in %d batches.",
+            user_id, len(all_entity_ids), len(batches),
+        )
+
+        # Build chain: batch1 → batch2 → ... → groups → bios → notify
+        tasks = [sync_telegram_chats_batch_task.si(user_id, batch) for batch in batches]
+        tasks.extend([
+            sync_telegram_groups_for_user.si(user_id),
+            sync_telegram_bios_for_user.si(user_id),
+            sync_telegram_notify.si([], user_id),
+        ])
+        chain(*tasks).apply_async()
+    else:
+        # Incremental sync: most recent 100 dialogs
+        chain(
+            sync_telegram_chats_for_user.s(user_id, 100),
+            sync_telegram_groups_for_user.si(user_id),
+            sync_telegram_bios_for_user.si(user_id),
+            sync_telegram_notify.si([], user_id),
+        ).apply_async()
 
 
 @shared_task(name="app.services.tasks.sync_telegram_all")

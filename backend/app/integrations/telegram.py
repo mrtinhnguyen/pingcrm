@@ -384,9 +384,50 @@ async def _upsert_interaction(
     return interaction, True
 
 
-async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
+async def collect_dialog_ids(user: User) -> list[dict[str, Any]]:
+    """Collect all DM dialog entity info without fetching messages.
+
+    Returns a list of dicts: ``[{"entity_id": int, "username": str|None}, ...]``
+    Filters out bots and non-user dialogs (channels, groups).
+    Typically completes in <60s even for 1000+ dialogs.
+    """
+    if not user.telegram_session:
+        return []
+
+    client = _make_client(user.telegram_session)
+    await _ensure_connected(client)
+
+    dialogs: list[dict[str, Any]] = []
+    try:
+        if not await client.is_user_authorized():
+            return []
+        async for dialog in client.iter_dialogs():
+            entity = dialog.entity
+            if not isinstance(entity, TelegramUser):
+                continue
+            if getattr(entity, "bot", False):
+                continue
+            dialogs.append({
+                "entity_id": entity.id,
+                "username": getattr(entity, "username", None),
+                "first_name": getattr(entity, "first_name", None) or "",
+                "last_name": getattr(entity, "last_name", None) or "",
+                "phone": getattr(entity, "phone", None),
+            })
+    finally:
+        await client.disconnect()
+
+    logger.info("collect_dialog_ids: found %d user dialogs for user %s.", len(dialogs), user.id)
+    return dialogs
+
+
+async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int = 0) -> int:
     """
     Sync Telegram DM conversations for *user* as Interaction records.
+
+    Args:
+        max_dialogs: If >0, stop after processing this many dialogs (for
+            incremental syncs). 0 means no limit (full sync).
 
     For each dialog:
     - Fetches the last MAX_MESSAGES messages.
@@ -394,7 +435,7 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
     - Creates Interaction records (platform="telegram").
     - Updates contact.last_interaction_at when appropriate.
 
-    Returns the number of new interactions created.
+    Returns a dict with new_interactions, new_contacts, affected_contact_ids.
     """
     if not user.telegram_session:
         logger.warning("User %s has no telegram_session; skipping Telegram sync.", user.id)
@@ -428,6 +469,10 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
             if getattr(entity, "bot", False):
                 continue
             dialogs_checked += 1
+
+            if max_dialogs > 0 and dialogs_checked > max_dialogs:
+                logger.info("sync_telegram_chats: hit max_dialogs=%d, stopping.", max_dialogs)
+                break
 
             # Resolve the contact in our database
             contact: Contact | None = None
@@ -519,6 +564,132 @@ async def sync_telegram_chats(user: User, db: AsyncSession) -> int:
     logger.info(
         "Telegram sync for user %s: %d new interaction(s), %d new contacts, %d dialogs checked.",
         user.id, new_count, created_contacts, dialogs_checked,
+    )
+    return {
+        "new_interactions": new_count,
+        "new_contacts": created_contacts,
+        "affected_contact_ids": list(affected_contact_ids),
+    }
+
+
+async def sync_telegram_chats_batch(
+    user: User, entity_ids: list[int], db: AsyncSession
+) -> dict[str, Any]:
+    """Sync Telegram DMs for a specific batch of entity IDs.
+
+    This processes a fixed list of dialogs (by numeric Telegram user ID),
+    used for chunked initial sync. Same logic as sync_telegram_chats inner
+    loop but only for the given entities.
+
+    Returns ``{"new_interactions": N, "new_contacts": N, "affected_contact_ids": [...]}``.
+    """
+    if not user.telegram_session or not entity_ids:
+        return {"new_interactions": 0, "new_contacts": 0, "affected_contact_ids": []}
+
+    client = _make_client(user.telegram_session)
+    await _ensure_connected(client)
+
+    if not await client.is_user_authorized():
+        await client.disconnect()
+        raise RuntimeError("Telegram session expired.")
+
+    me = await client.get_me()
+    my_id: int = me.id
+
+    new_count = 0
+    created_contacts = 0
+    affected_contact_ids: set[str] = set()
+    avatar_queue: list[tuple[object, Contact]] = []
+
+    try:
+        for eid in entity_ids:
+            try:
+                entity = await client.get_input_entity(eid)
+            except Exception:
+                logger.debug("sync_telegram_chats_batch: could not resolve entity %d", eid)
+                continue
+
+            # Resolve contact
+            contact: Contact | None = await _find_contact_by_telegram_user_id(str(eid), user.id, db)
+            if contact is None:
+                # Try to get full entity for name/username
+                try:
+                    full_entity = await client.get_entity(eid)
+                    username = getattr(full_entity, "username", None)
+                    first_name = getattr(full_entity, "first_name", None) or ""
+                    last_name = getattr(full_entity, "last_name", None) or ""
+                    phone = getattr(full_entity, "phone", None)
+                except Exception:
+                    username, first_name, last_name, phone = None, str(eid), "", None
+
+                if username:
+                    contact = await _find_contact_by_username(username, user.id, db)
+                if contact is None and phone:
+                    contact = await _find_contact_by_phone(phone, user.id, db)
+
+                if contact is None:
+                    full = f"{first_name} {last_name}".strip() or username or str(eid)
+                    contact = Contact(
+                        user_id=user.id,
+                        given_name=first_name or username or str(eid),
+                        family_name=last_name or None,
+                        full_name=full,
+                        telegram_username=(username or "").lower().lstrip("@") or None,
+                        telegram_user_id=str(eid),
+                        phones=[phone] if phone else [],
+                        source="telegram",
+                    )
+                    db.add(contact)
+                    await db.flush()
+                    created_contacts += 1
+                else:
+                    if not contact.telegram_user_id:
+                        contact.telegram_user_id = str(eid)
+
+            if not contact.avatar_url:
+                avatar_queue.append((entity, contact))
+
+            async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
+                if message.message is None:
+                    continue
+                direction = "outbound" if message.sender_id == my_id else "inbound"
+                message_id = f"{eid}:{message.id}"
+                occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
+
+                _interaction, is_new = await _upsert_interaction(
+                    contact=contact,
+                    user_id=user.id,
+                    message_id=message_id,
+                    direction=direction,
+                    content_preview=message.message,
+                    occurred_at=occurred_at,
+                    db=db,
+                )
+                if is_new:
+                    new_count += 1
+                    affected_contact_ids.add(str(contact.id))
+
+                if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
+                    contact.last_interaction_at = occurred_at
+
+            await asyncio.sleep(random.uniform(0.5, 1.0))
+
+        # Batch avatar downloads
+        for av_entity, av_contact in avatar_queue:
+            try:
+                avatar_path = await _download_avatar(client, av_entity, av_contact.id)
+                if avatar_path:
+                    av_contact.avatar_url = avatar_path
+            except Exception:
+                logger.debug("Avatar download failed for contact %s", av_contact.id)
+
+    finally:
+        await client.disconnect()
+
+    await db.flush()
+    logger.info(
+        "sync_telegram_chats_batch: user %s — %d entities, %d new interactions, %d new contacts.",
+        user.id, len(entity_ids), new_count, created_contacts,
     )
     return {
         "new_interactions": new_count,

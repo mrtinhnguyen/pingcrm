@@ -18,37 +18,49 @@ logger = logging.getLogger(__name__)
 
 def _run(coro):
     """Run an async coroutine synchronously inside a Celery task."""
-    return asyncio.run(coro)
+    loop = asyncio.new_event_loop()
+    try:
+        return loop.run_until_complete(coro)
+    finally:
+        loop.close()
 
 
-async def _notify_sync_failure(user_id: uuid.UUID, platform: str, error: str) -> None:
+@shared_task(name="app.services.tasks.notify_sync_failure")
+def notify_sync_failure(user_id: str, platform: str, error: str) -> None:
     """Create a notification when a background sync exhausts retries."""
     from app.models.notification import Notification
 
-    async with task_session() as db:
-        db.add(Notification(
-            user_id=user_id,
-            notification_type="sync",
-            title=f"{platform} sync failed",
-            body=f"Sync failed after multiple retries: {error[:200]}",
-            link="/settings",
-        ))
-        await db.commit()
+    async def _create(uid: uuid.UUID) -> None:
+        async with task_session() as db:
+            db.add(Notification(
+                user_id=uid,
+                notification_type="sync",
+                title=f"{platform} sync failed",
+                body=f"Sync failed after multiple retries: {error[:200]}",
+                link="/settings",
+            ))
+            await db.commit()
+
+    _run(_create(uuid.UUID(user_id)))
 
 
-async def _notify_tagging_failure(user_id: uuid.UUID, error: str) -> None:
+@shared_task(name="app.services.tasks.notify_tagging_failure")
+def notify_tagging_failure(user_id: str, error: str) -> None:
     """Create a notification when auto-tagging fails outside the main loop."""
     from app.models.notification import Notification
 
-    async with task_session() as db:
-        db.add(Notification(
-            user_id=user_id,
-            notification_type="tagging",
-            title="Auto-tagging failed",
-            body=error[:500],
-            link="/settings?tab=tags",
-        ))
-        await db.commit()
+    async def _create(uid: uuid.UUID) -> None:
+        async with task_session() as db:
+            db.add(Notification(
+                user_id=uid,
+                notification_type="tagging",
+                title="Auto-tagging failed",
+                body=error[:500],
+                link="/settings?tab=tags",
+            ))
+            await db.commit()
+
+    _run(_create(uuid.UUID(user_id)))
 
 
 # ---------------------------------------------------------------------------
@@ -185,7 +197,7 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> 
     except Exception as exc:
         logger.exception("sync_telegram_chats failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Telegram chats", str(exc)))
+            notify_sync_failure.delay(str(uid), "Telegram chats", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
@@ -272,7 +284,7 @@ def sync_telegram_groups_for_user(self, user_id: str) -> dict:
     except Exception as exc:
         logger.exception("sync_telegram_groups failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Telegram groups", str(exc)))
+            notify_sync_failure.delay(str(uid), "Telegram groups", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
@@ -303,7 +315,7 @@ def sync_telegram_bios_for_user(self, user_id: str) -> dict:
     except Exception as exc:
         logger.exception("sync_telegram_bios failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Telegram bios", str(exc)))
+            notify_sync_failure.delay(str(uid), "Telegram bios", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
@@ -697,7 +709,7 @@ def poll_twitter_activity(self, user_id: str) -> dict:
     except Exception as exc:
         logger.exception("poll_twitter_activity failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Twitter activity", str(exc)))
+            notify_sync_failure.delay(str(uid), "Twitter activity", str(exc))
         raise self.retry(exc=exc, countdown=120) from exc
 
 
@@ -774,7 +786,7 @@ def sync_twitter_dms_for_user(self, user_id: str) -> dict:
     except Exception as exc:
         logger.exception("sync_twitter_dms_for_user failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Twitter", str(exc)))
+            notify_sync_failure.delay(str(uid), "Twitter", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
@@ -995,7 +1007,7 @@ def sync_google_contacts_for_user(self, user_id: str) -> dict:
     except Exception as exc:
         logger.exception("sync_google_contacts_for_user failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Google Contacts", str(exc)))
+            notify_sync_failure.delay(str(uid), "Google Contacts", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
@@ -1080,7 +1092,7 @@ def sync_google_calendar_for_user(self, user_id: str) -> dict:
     except Exception as exc:
         logger.exception("sync_google_calendar_for_user failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_sync_failure(uid, "Google Calendar", str(exc)))
+            notify_sync_failure.delay(str(uid), "Google Calendar", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
 
@@ -1330,9 +1342,9 @@ def apply_tags_to_contacts(self, user_id: str, contact_ids: list[str] | None = N
         if isinstance(exc, SoftTimeLimitExceeded):
             logger.warning("apply_tags_to_contacts: soft time limit hit for %s", user_id)
             # Notify user — partial progress was saved via periodic commits
-            _run(_notify_tagging_failure(uid, "Tagging timed out. Partial progress was saved. Try again to tag remaining contacts."))
+            notify_tagging_failure.delay(str(uid), "Tagging timed out. Partial progress was saved. Try again to tag remaining contacts.")
             return {"status": "timeout", "tagged_count": 0}
         logger.exception("apply_tags_to_contacts failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
-            _run(_notify_tagging_failure(uid, f"Tagging failed after retries: {str(exc)[:200]}"))
+            notify_tagging_failure.delay(str(uid), f"Tagging failed after retries: {str(exc)[:200]}")
         raise self.retry(exc=exc, countdown=30) from exc

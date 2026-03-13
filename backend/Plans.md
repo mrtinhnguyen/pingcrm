@@ -1,4 +1,4 @@
-# Fix Telegram Sync Timeouts (Issue #30)
+# Fix "Event loop is closed" in sync task retries (Issue #32)
 
 Created: 2026-03-13
 Completed: 2026-03-13
@@ -7,56 +7,38 @@ Completed: 2026-03-13
 
 ## Context
 
-`sync_telegram_chats_for_user` iterates ALL dialogs (~1000 for this user) with no cap.
-At ~4.5s/dialog, that's ~75 min — far exceeding the 20-min hard limit.
+When a sync task (Twitter, Telegram, Gmail) fails on the final retry, the exception handler calls `_run(_notify_sync_failure(...))` to create a user notification. But `_run()` uses `asyncio.run()` which closes the event loop after each call. The first `_run()` (the sync itself) already closed the loop, so the second `_run()` (notification) fails with `RuntimeError: Event loop is closed`.
 
-**Strategy:** Chunked initial sync + incremental daily sync (most recent 100 dialogs).
+**Strategy:** Two-pronged fix:
+1. Make `_run()` defensively create a fresh event loop each time (belt)
+2. Convert notification helpers into proper Celery tasks using `.delay()` (suspenders)
 
-- First run: chunk all dialogs into batches of 50, each batch is a separate Celery task
-- Subsequent runs: only process 100 most-recent dialogs (fast, fits in time limit)
-- Track `telegram_last_synced_at` on User to distinguish first vs. incremental sync
-
----
-
-## Phase 1: Track sync state
-
-| Task | Description | DoD | Depends | Status |
-|------|-------------|-----|---------|--------|
-| 1.1 | Add `telegram_last_synced_at: DateTime` column to User model + Alembic migration | Migration runs; column exists in DB | - | cc:完了 |
+**Affected tasks:** 7 sync tasks + 2 tagging tasks = 9 exception handlers total.
 
 ---
 
-## Phase 2: Chunked initial sync
+## Phase 1: Fix `_run()` helper
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| 2.1 | Create `collect_dialog_ids(user)` helper in `telegram.py` — iterate all dialogs, return list of dicts with entity_id/username/name/phone, filtering bots/channels. No message fetching. | Returns list; completes in <60s for 1000 dialogs | 1.1 | cc:完了 |
-| 2.2 | Create `sync_telegram_chats_batch(user, entity_ids, db)` in `telegram.py` + `sync_telegram_chats_batch_task` Celery task — process a batch of ~50 dialogs (message fetch + upsert + avatar queue). | Task completes within 5 min for 50 dialogs | 2.1 | cc:完了 |
-| 2.3 | Refactor `sync_telegram_for_user()` — if `telegram_last_synced_at` is NULL (first sync): collect all dialog IDs, chunk into batches of 50, dispatch as a Celery chain of batch tasks + groups + bios + notify. | First sync dispatches N/50 batch tasks; all complete without timeout | 2.2 | cc:完了 |
+| 1.1 | Rewrite `_run()` to use `asyncio.new_event_loop()` + `try/finally close()` instead of `asyncio.run()` | Sequential `_run()` calls in same thread don't raise "Event loop is closed" | - | cc:完了 |
 
 ---
 
-## Phase 3: Incremental daily sync
+## Phase 2: Decouple notifications into Celery tasks
 
 | Task | Description | DoD | Depends | Status |
 |------|-------------|-----|---------|--------|
-| 3.1 | Modify `sync_telegram_chats()` to accept `max_dialogs: int` parameter — break out of `iter_dialogs()` after processing N dialogs. Update `telegram_last_synced_at` on completion. | Incremental sync processes ≤100 dialogs; completes in <8 min | 2.3 | cc:完了 |
-| 3.2 | Update `sync_telegram_for_user()` — if `telegram_last_synced_at` is set (incremental): use existing single-task flow with `max_dialogs=100` | Daily beat sync runs fast; no timeout | 3.1 | cc:完了 |
-
----
-
-## Phase 4: Groups & bios time limit fix
-
-| Task | Description | DoD | Depends | Status |
-|------|-------------|-----|---------|--------|
-| 4.1 | Increase `sync_telegram_groups_for_user` limits to `soft_time_limit=600, time_limit=900`. Increase `sync_telegram_bios_for_user` to `soft_time_limit=600, time_limit=900`. | Tasks don't timeout for accounts with up to 30 groups / 100 contacts | - | cc:完了 |
+| 2.1 | Create `notify_sync_failure` as `@shared_task` — accepts `user_id`, `platform`, `error` strings, creates Notification row. Remove async `_notify_sync_failure()` helper. | Task runs independently; notification row created in DB | 1.1 | cc:完了 |
+| 2.2 | Create `notify_tagging_failure` as `@shared_task` — accepts `user_id`, `error` strings, creates Notification row. Remove async `_notify_tagging_failure()` helper. | Task runs independently; notification row created in DB | 1.1 | cc:完了 |
+| 2.3 | Replace all 7 `_run(_notify_sync_failure(...))` calls in exception handlers with `notify_sync_failure.delay(str(uid), platform, str(exc))` | No `_run()` calls remain in exception handlers for sync tasks | 2.1 | cc:完了 |
+| 2.4 | Replace 2 `_run(_notify_tagging_failure(...))` calls in exception handlers with `notify_tagging_failure.delay(str(uid), str(exc))` | No `_run()` calls remain in exception handlers for tagging tasks | 2.2 | cc:完了 |
 
 ---
 
 ## Notes
 
-- Dialog collection (`iter_dialogs()`) is fast (~30s for 1000) — it's the message fetching per dialog that's slow
-- Batches of 50 dialogs ≈ 3.5–4.5 min each (within 5-min soft limit with margin)
-- Incremental sync (100 most-recent dialogs) ≈ 7.5 min — fits in current 15-min soft limit
-- `telegram_last_synced_at` also useful for showing "Last synced: X hours ago" in Settings UI
-- Avatar downloads stay batched per-task (already post-loop)
+- Notification tasks are fire-and-forget (`.delay()`), so even if the sync task crashes hard the notification is enqueued
+- The new tasks are synchronous (use `_run()` internally) — simple and consistent with existing pattern
+- `_run()` fix is belt-and-suspenders: prevents the same class of bug from hitting any future `_run()` calls
+- No new dependencies needed (no `nest_asyncio`)

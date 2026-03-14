@@ -351,6 +351,59 @@ async def test_common_groups_requires_auth(client: AsyncClient):
 
 
 @pytest.mark.asyncio
+async def test_common_groups_force_bypasses_cache(
+    client: AsyncClient,
+    db: AsyncSession,
+    test_user: User,
+):
+    """common-groups with ?force=true skips the Redis cache check."""
+    from unittest.mock import AsyncMock, patch, MagicMock
+    from app.models.contact import Contact
+
+    test_user.telegram_session = "session_string"
+    db.add(test_user)
+    await db.commit()
+
+    contact = Contact(
+        user_id=test_user.id,
+        full_name="Force Test",
+        telegram_username="force_user",
+        telegram_common_groups=[{"id": 1, "title": "Cached Group"}],
+    )
+    db.add(contact)
+    await db.commit()
+    await db.refresh(contact)
+
+    token = create_access_token(data={"sub": str(test_user.id)})
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Simulate Redis reporting the cache key as present (i.e., a cache hit).
+    # With force=True the endpoint must NOT return early from cache —
+    # it should call get_common_groups_cached instead.
+    fake_redis = AsyncMock()
+    fake_redis.exists = AsyncMock(return_value=1)   # key exists in cache
+    fake_redis.setex = AsyncMock(return_value=True)
+
+    fresh_groups = [{"id": 2, "title": "Fresh Group"}]
+
+    with patch("app.core.redis.get_redis", return_value=fake_redis), \
+         patch(
+             "app.services.telegram_service.get_common_groups_cached",
+             new=AsyncMock(return_value=fresh_groups),
+         ) as mock_fetch:
+        response = await client.get(
+            f"/api/v1/contacts/{contact.id}/telegram/common-groups?force=true",
+            headers=headers,
+        )
+
+    assert response.status_code == 200
+    # The cache-bypass path must have called the live fetch function
+    mock_fetch.assert_called_once()
+    # And the response should contain the freshly fetched data, not the cached value
+    assert response.json()["data"] == fresh_groups
+
+
+@pytest.mark.asyncio
 async def test_sync_telegram_without_session_returns_400(
     client: AsyncClient,
     auth_headers: dict[str, str],

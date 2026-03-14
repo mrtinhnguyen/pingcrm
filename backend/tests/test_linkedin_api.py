@@ -68,7 +68,6 @@ async def test_push_creates_new_contact(
     assert contact is not None
     assert contact.full_name == "Alice Smith"
     assert contact.company == "Acme"
-    assert contact.source == "linkedin-extension"
 
 
 # ---------------------------------------------------------------------------

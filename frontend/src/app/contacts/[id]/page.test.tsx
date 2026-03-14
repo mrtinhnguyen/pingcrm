@@ -146,6 +146,7 @@ function makeActivityData() {
       count_90d: 6,
       platforms: ["email"],
       interaction_count: 12,
+      first_interaction_at: "2025-01-15T00:00:00Z",
     },
     monthly_trend: [],
   };
@@ -345,6 +346,14 @@ describe("ContactDetailPage", () => {
     expect(screen.getByText("2 months ago")).toBeInTheDocument();
   });
 
+  /* 16b — Activity: Since date from first_interaction_at */
+  it("renders Since date from first_interaction_at in health card", () => {
+    renderPage();
+    expect(screen.getByText("Since")).toBeInTheDocument();
+    // date-fns format mock returns "Jan 2025" for "MMM yyyy"
+    expect(screen.getByText("Jan 2025")).toBeInTheDocument();
+  });
+
   /* 17 — Activity: loading state */
   it("shows activity skeleton while activity is loading", () => {
     mockUseContactActivity.mockReturnValue({ data: undefined, isLoading: true });
@@ -535,6 +544,33 @@ describe("ContactDetailPage", () => {
     renderPage();
     await waitFor(() => {
       expect(screen.getByText("Hello from Alice")).toBeInTheDocument();
+    });
+  });
+
+  /* 30b — Timeline: HTML entities in content_preview are decoded */
+  it("decodes HTML entities in interaction content", async () => {
+    const { client } = await import("@/lib/api-client");
+    (client.GET as ReturnType<typeof vi.fn>).mockImplementation((url: string) => {
+      if (url === "/api/v1/contacts/{contact_id}/interactions") {
+        return Promise.resolve({
+          data: {
+            data: [
+              {
+                id: "i2",
+                platform: "email",
+                direction: "inbound",
+                content_preview: "it&#39;s great to meet you",
+                occurred_at: "2025-01-15T10:00:00Z",
+              },
+            ],
+          },
+        });
+      }
+      return Promise.resolve({ data: { data: [] } });
+    });
+    renderPage();
+    await waitFor(() => {
+      expect(screen.getByText("it's great to meet you")).toBeInTheDocument();
     });
   });
 

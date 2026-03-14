@@ -338,6 +338,41 @@ async def test_activity_endpoint_returns_breakdown(client: AsyncClient, auth_hea
     assert dims["recency"]["max"] == 3
     assert dims["frequency"]["max"] == 2
     assert dims["breadth"]["max"] == 1
+    assert "first_interaction_at" in data["stats"]
+
+
+@pytest.mark.asyncio
+async def test_activity_first_interaction_at(
+    client: AsyncClient, auth_headers: dict, test_contact: Contact, db
+):
+    """stats.first_interaction_at matches the earliest interaction date; None when no interactions."""
+    from datetime import UTC, datetime, timezone
+    from app.models.interaction import Interaction
+
+    # No interactions yet — first_interaction_at should be None
+    resp = await client.get(f"/api/v1/contacts/{test_contact.id}/activity", headers=auth_headers)
+    assert resp.status_code == 200
+    assert resp.json()["data"]["stats"]["first_interaction_at"] is None
+
+    # Create an interaction with a known occurred_at
+    known_dt = datetime(2024, 6, 15, 12, 0, 0, tzinfo=UTC)
+    db.add(Interaction(
+        contact_id=test_contact.id,
+        user_id=test_contact.user_id,
+        platform="email",
+        direction="inbound",
+        content_preview="First message",
+        occurred_at=known_dt,
+    ))
+    await db.commit()
+
+    resp = await client.get(f"/api/v1/contacts/{test_contact.id}/activity", headers=auth_headers)
+    assert resp.status_code == 200
+    first_at = resp.json()["data"]["stats"]["first_interaction_at"]
+    assert first_at is not None
+    # The returned value should be an ISO string that parses back to the same moment
+    parsed = datetime.fromisoformat(first_at)
+    assert parsed.astimezone(UTC).replace(tzinfo=UTC) == known_dt
 
 
 @pytest.mark.asyncio

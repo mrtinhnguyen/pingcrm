@@ -195,6 +195,11 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> 
     try:
         return _run(_sync(uid))
     except Exception as exc:
+        from telethon.errors import FloodWaitError
+        if isinstance(exc, FloodWaitError):
+            # FloodWait: return partial result so the chain (groups → bios → notify) continues
+            logger.warning("sync_telegram_chats: FloodWait for %s (%ds) — returning partial result to preserve chain.", user_id, exc.seconds)
+            return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
         logger.exception("sync_telegram_chats failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
             notify_sync_failure.delay(str(uid), "Telegram chats", str(exc))
@@ -241,6 +246,10 @@ def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int]) ->
     try:
         return _run(_sync(uid))
     except Exception as exc:
+        from telethon.errors import FloodWaitError
+        if isinstance(exc, FloodWaitError):
+            logger.warning("sync_telegram_chats_batch: FloodWait for %s (%ds) — returning partial result to preserve chain.", user_id, exc.seconds)
+            return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
         logger.exception("sync_telegram_chats_batch failed for %s (batch of %d), retrying.", user_id, len(entity_ids))
         if self.request.retries >= self.max_retries:
             notify_sync_failure.delay(user_id, "telegram", str(exc))

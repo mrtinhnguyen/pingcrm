@@ -138,6 +138,17 @@ async def poll_contacts_activity(
                 link=f"/contacts/{contact.id}",
             )
             db.add(notif)
+            from datetime import UTC, datetime
+            from app.models.interaction import Interaction
+            db.add(Interaction(
+                contact_id=contact.id,
+                user_id=user.id,
+                platform="twitter",
+                direction="event",
+                content_preview=f"Bio updated: {current_bio[:500]}",
+                raw_reference_id=f"bio_change:twitter:{contact.id}:{datetime.now(UTC).isoformat()}",
+                occurred_at=datetime.now(UTC),
+            ))
             await db.flush()
         elif current_bio and not contact.twitter_bio:
             # First time we see a bio — store it without notification

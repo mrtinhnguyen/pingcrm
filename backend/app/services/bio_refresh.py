@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.contact import Contact
+from app.models.interaction import Interaction
 from app.models.notification import Notification
 from app.models.user import User
 
@@ -80,6 +81,7 @@ async def refresh_contact_bios(
                     contact.twitter_bio = new_bio
                     changes["twitter_bio_changed"] = True
                     if old_bio:
+                        from datetime import UTC, datetime
                         db.add(Notification(
                             user_id=current_user.id,
                             notification_type="bio_change",
@@ -89,6 +91,15 @@ async def refresh_contact_bios(
                                 f"{new_bio[:200]}"
                             ),
                             link=f"/contacts/{contact.id}",
+                        ))
+                        db.add(Interaction(
+                            contact_id=contact.id,
+                            user_id=current_user.id,
+                            platform="twitter",
+                            direction="event",
+                            content_preview=f"Bio updated: {new_bio[:500]}",
+                            raw_reference_id=f"bio_change:twitter:{contact.id}:{datetime.now(UTC).isoformat()}",
+                            occurred_at=datetime.now(UTC),
                         ))
         except Exception:
             logger.warning(
@@ -155,6 +166,7 @@ async def refresh_contact_bios(
                         contact.telegram_bio = new_bio
                         changes["telegram_bio_changed"] = True
                         if old_bio:
+                            from datetime import UTC, datetime
                             db.add(Notification(
                                 user_id=current_user.id,
                                 notification_type="bio_change",
@@ -164,6 +176,15 @@ async def refresh_contact_bios(
                                     f"{new_bio[:200]}"
                                 ),
                                 link=f"/contacts/{contact.id}",
+                            ))
+                            db.add(Interaction(
+                                contact_id=contact.id,
+                                user_id=current_user.id,
+                                platform="telegram",
+                                direction="event",
+                                content_preview=f"Bio updated: {new_bio[:500]}",
+                                raw_reference_id=f"bio_change:telegram:{contact.id}:{datetime.now(UTC).isoformat()}",
+                                occurred_at=datetime.now(UTC),
                             ))
                 finally:
                     await client.disconnect()

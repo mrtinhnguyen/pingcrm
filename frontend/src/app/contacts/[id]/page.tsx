@@ -58,7 +58,7 @@ import { cn } from "@/lib/utils";
 interface InteractionResponse {
   id: string;
   platform: "email" | "telegram" | "twitter" | "linkedin" | "manual" | "meeting";
-  direction: "inbound" | "outbound" | "mutual";
+  direction: "inbound" | "outbound" | "mutual" | "event";
   content_preview: string | null;
   occurred_at: string;
 }
@@ -1077,6 +1077,7 @@ function ChatTimeline({
         const showSeparator = needsSeparator(item.occurred_at, prevItem?.occurred_at ?? null);
         const isManual = item.platform === "manual";
         const isMeeting = item.platform === "meeting";
+        const isEvent = item.direction === "event";
         const isOutbound = item.direction === "outbound";
         const time = format(new Date(item.occurred_at), "h:mm a");
 
@@ -1128,8 +1129,21 @@ function ChatTimeline({
               </div>
             )}
 
+            {/* Event (bio change, etc.) */}
+            {isEvent && (
+              <div className="flex justify-center py-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-violet-50 border border-violet-100">
+                  {platformIconMap[item.platform] ?? <Sparkles className="w-3.5 h-3.5 text-violet-500" />}
+                  <span className="text-[11px] text-violet-600">
+                    {item.content_preview || "Profile updated"}
+                  </span>
+                  <span className="text-[10px] text-stone-400">&middot; {format(new Date(item.occurred_at), "MMM d")}</span>
+                </div>
+              </div>
+            )}
+
             {/* Regular message */}
-            {!isManual && !isMeeting && (
+            {!isManual && !isMeeting && !isEvent && (
               isOutbound ? (
                 <div className="flex items-end gap-2 max-w-[85%] ml-auto flex-row-reverse">
                   <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-semibold shrink-0">You</div>

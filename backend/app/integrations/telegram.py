@@ -1252,6 +1252,15 @@ async def sync_telegram_bios(user: User, db: AsyncSession) -> dict[str, int]:
                     link=f"/contacts/{contact.id}",
                 )
                 db.add(notif)
+                db.add(Interaction(
+                    contact_id=contact.id,
+                    user_id=user.id,
+                    platform="telegram",
+                    direction="event",
+                    content_preview=f"Bio updated: {current_bio[:500]}",
+                    raw_reference_id=f"bio_change:telegram:{contact.id}:{datetime.now(UTC).isoformat()}",
+                    occurred_at=datetime.now(UTC),
+                ))
     finally:
         await client.disconnect()
 

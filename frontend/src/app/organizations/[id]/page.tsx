@@ -371,10 +371,8 @@ export default function OrganizationDetailPage() {
           Details
         </h2>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
-          <OrgInlineField icon={Globe} label="Domain" value={org.domain} onSave={(v) => saveField("domain", v)} href={org.domain ? `https://${org.domain}` : undefined} />
-          <OrgInlineField icon={Building2} label="Industry" value={org.industry} onSave={(v) => saveField("industry", v)} />
+          <OrgInlineField icon={Globe} label="Website" value={org.website ?? org.domain} onSave={(v) => saveField("website", v)} href={safeHref(org.website ?? org.domain)} />
           <OrgInlineField icon={MapPin} label="Location" value={org.location} onSave={(v) => saveField("location", v)} />
-          <OrgInlineField icon={Globe} label="Website" value={org.website} onSave={(v) => saveField("website", v)} href={safeHref(org.website)} />
           <OrgInlineField icon={Linkedin} label="LinkedIn" value={org.linkedin_url} onSave={(v) => saveField("linkedin_url", v)} href={safeHref(org.linkedin_url)} />
           <OrgInlineField icon={Twitter} label="Twitter" value={org.twitter_handle} onSave={(v) => saveField("twitter_handle", v)} href={org.twitter_handle ? safeHref(org.twitter_handle.startsWith("http") ? org.twitter_handle : `https://x.com/${org.twitter_handle.replace(/^@/, "")}`) : undefined} />
         </div>

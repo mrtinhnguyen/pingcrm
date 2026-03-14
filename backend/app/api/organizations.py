@@ -206,10 +206,28 @@ async def list_organizations(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Return organizations with stats from materialized view."""
+    """Return organizations with stats from materialized view.
+
+    Excludes orgs that have zero active (non-archived) contacts.
+    """
+    # Subquery: orgs that have at least one non-archived contact
+    active_org_ids = (
+        select(Contact.organization_id)
+        .where(
+            Contact.organization_id.isnot(None),
+            Contact.priority_level != "archived",
+        )
+        .group_by(Contact.organization_id)
+        .correlate(None)
+        .scalar_subquery()
+    )
+
     stmt = (
         select(Organization)
-        .where(Organization.user_id == current_user.id)
+        .where(
+            Organization.user_id == current_user.id,
+            Organization.id.in_(active_org_ids),
+        )
         .order_by(Organization.name)
     )
 
@@ -220,7 +238,10 @@ async def list_organizations(
     count_stmt = (
         select(func.count())
         .select_from(Organization)
-        .where(Organization.user_id == current_user.id)
+        .where(
+            Organization.user_id == current_user.id,
+            Organization.id.in_(active_org_ids),
+        )
     )
     if search:
         count_stmt = count_stmt.where(Organization.name.ilike(f"%{search}%"))

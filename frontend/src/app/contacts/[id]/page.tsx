@@ -1297,6 +1297,26 @@ export default function ContactDetailPage() {
     refetchOnWindowFocus: false,
   });
 
+  // Background Telegram message sync (on page visit, 1h cache on backend)
+  const contactTelegram = contact?.telegram_username || contact?.telegram_user_id;
+  useQuery({
+    queryKey: ["sync-telegram", id],
+    queryFn: async () => {
+      const res = await client.POST("/api/v1/contacts/{contact_id}/sync-telegram" as any, { params: { path: { contact_id: id } } });
+      const data = (res.data as any)?.data;
+      if (data?.new_interactions > 0) {
+        void queryClient.invalidateQueries({ queryKey: ["interactions", id] });
+        void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+      }
+      return true;
+    },
+    enabled: Boolean(id) && Boolean(contactTelegram),
+    staleTime: Infinity,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+
   const handleRefreshDetails = async () => {
     if (!id || isRefreshing) return;
     setIsRefreshing(true);

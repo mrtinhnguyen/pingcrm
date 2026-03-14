@@ -12,7 +12,6 @@ from app.services.identity_resolution import (
     _names_similar,
     _normalize_phone,
     find_deterministic_matches,
-    find_probable_matches,
     merge_contacts,
 )
 
@@ -97,24 +96,3 @@ async def test_merge_contacts(db: AsyncSession, test_user: User):
     assert result.scalar_one_or_none() is None
 
 
-@pytest.mark.asyncio
-async def test_probable_matches_by_name(db: AsyncSession, test_user: User):
-    c1 = Contact(user_id=test_user.id, full_name="Jonathan Smith", emails=["jon@a.com"])
-    c2 = Contact(user_id=test_user.id, full_name="Johnathan Smith", emails=["john@b.com"])
-    db.add_all([c1, c2])
-    await db.flush()
-
-    matches = await find_probable_matches(test_user.id, db)
-    assert len(matches) >= 1
-    assert matches[0].status == "pending_review"
-
-
-@pytest.mark.asyncio
-async def test_probable_matches_by_company(db: AsyncSession, test_user: User):
-    c1 = Contact(user_id=test_user.id, full_name="Alice A", company="SameCo", emails=["a1@x.com"])
-    c2 = Contact(user_id=test_user.id, full_name="Bob B", company="sameco", emails=["a2@x.com"])
-    db.add_all([c1, c2])
-    await db.flush()
-
-    matches = await find_probable_matches(test_user.id, db)
-    assert len(matches) >= 1

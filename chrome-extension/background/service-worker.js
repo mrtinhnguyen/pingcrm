@@ -160,6 +160,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     }
     flushBatch(sendResponse);
     return true; // async sendResponse
+  } else if (message.type === 'LOGIN') {
+    // Route login through service worker to bypass CORS
+    (async () => {
+      try {
+        const body = new URLSearchParams();
+        body.append('username', message.email);
+        body.append('password', message.password);
+        const response = await fetch(`${message.apiUrl}/api/v1/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        });
+        if (response.status === 401) {
+          sendResponse({ error: 'Incorrect email or password' });
+          return;
+        }
+        if (!response.ok) {
+          sendResponse({ error: `Login failed: ${response.status}` });
+          return;
+        }
+        const result = await response.json();
+        sendResponse({ token: result.data.access_token });
+      } catch (e) {
+        sendResponse({ error: e.message });
+      }
+    })();
+    return true; // async sendResponse
   }
   return false;
 });

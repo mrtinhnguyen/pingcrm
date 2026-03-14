@@ -131,7 +131,22 @@
 
     try {
       const cleanUrl = apiUrl.replace(/\/+$/, '');
-      const token = await Api.login(cleanUrl, email, password);
+      // Route login through service worker to bypass CORS restrictions
+      const loginResult = await new Promise((resolve, reject) => {
+        chrome.runtime.sendMessage(
+          { type: 'LOGIN', apiUrl: cleanUrl, email, password },
+          (response) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else if (response && response.error) {
+              reject(new Error(response.error));
+            } else {
+              resolve(response);
+            }
+          }
+        );
+      });
+      const token = loginResult.token;
       await Storage.saveConfig({ apiUrl: cleanUrl, token });
       // Task 3.3: persist the email for display in the connected state
       await Storage.set({ userEmail: email });

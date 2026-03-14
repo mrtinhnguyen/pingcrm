@@ -114,8 +114,7 @@ export function TagTaxonomyPanel() {
       if (error || !response.ok) {
         throw new Error((error as any)?.detail || "Apply failed");
       }
-      const json = await res.json();
-      return json.data as { tagged_count: number; task_id: string | null };
+      return (data as any)?.data as { tagged_count: number; task_id: string | null };
     },
     onSuccess: (data) => {
       if (data.task_id) {

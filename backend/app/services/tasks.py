@@ -386,24 +386,36 @@ def recheck_telegram_bios_all() -> dict:
 
 
 @shared_task(name="app.services.tasks.sync_telegram_notify", ignore_result=True)
-def sync_telegram_notify(sub_results: list, user_id: str) -> dict:
-    """Send a summary notification after all Telegram sub-tasks complete."""
-    async def _notify(uid: uuid.UUID) -> None:
-        from app.models.notification import Notification
+def sync_telegram_notify(user_id: str) -> dict:
+    """Send a summary notification and release the sync lock.
 
-        parts = []
-        for r in sub_results:
-            if not isinstance(r, dict) or r.get("status") != "ok":
-                continue
-            if r.get("new_interactions"):
-                parts.append(f"{r['new_interactions']} messages")
-            if r.get("new_contacts"):
-                dm_or_group = "from groups" if r.get("groups_scanned") else "from DMs"
-                parts.append(f"{r['new_contacts']} new contacts {dm_or_group}")
-            if r.get("groups_scanned"):
-                parts.append(f"{r['groups_scanned']} groups scanned")
+    Since Celery chain with .si() does not forward results, this task
+    queries the DB directly to build the notification body.
+    """
+    async def _notify(uid: uuid.UUID) -> None:
+        from datetime import UTC, datetime, timedelta
+        from sqlalchemy import func as sa_func
+        from app.models.notification import Notification
+        from app.models.interaction import Interaction
 
         async with task_session() as db:
+            # Count interactions created in the last hour (this sync window)
+            one_hour_ago = datetime.now(UTC) - timedelta(hours=1)
+            new_count_result = await db.execute(
+                select(sa_func.count())
+                .select_from(Interaction)
+                .where(
+                    Interaction.user_id == uid,
+                    Interaction.platform == "telegram",
+                    Interaction.created_at >= one_hour_ago,
+                )
+            )
+            new_interactions = new_count_result.scalar_one() or 0
+
+            parts = []
+            if new_interactions:
+                parts.append(f"{new_interactions} messages")
+
             db.add(Notification(
                 user_id=uid,
                 notification_type="sync",
@@ -429,6 +441,16 @@ def sync_telegram_notify(sub_results: list, user_id: str) -> dict:
 
     _run(_notify(uid))
     _run(_mark_synced(uid))
+
+    # Release the sync lock so the next sync is not blocked
+    try:
+        from app.core.config import settings
+        import redis as _redis
+        _r = _redis.from_url(settings.REDIS_URL)
+        _r.delete(f"tg_sync_lock:{user_id}")
+    except Exception:
+        logger.warning("sync_telegram_notify: failed to release lock for %s", user_id)
+
     return {"status": "ok"}
 
 
@@ -478,6 +500,7 @@ def sync_telegram_for_user(user_id: str) -> None:
         all_entity_ids = _run(_collect())
         if not all_entity_ids:
             logger.info("sync_telegram_for_user: no dialogs found for %s, skipping.", user_id)
+            _r.delete(lock_key)  # Release lock on early return
             return
 
         # Chunk into batches
@@ -487,12 +510,12 @@ def sync_telegram_for_user(user_id: str) -> None:
             user_id, len(all_entity_ids), len(batches),
         )
 
-        # Build chain: batch1 → batch2 → ... → groups → bios → notify
+        # Build chain: batch1 → batch2 → ... → groups → bios → notify (releases lock)
         tasks = [sync_telegram_chats_batch_task.si(user_id, batch) for batch in batches]
         tasks.extend([
             sync_telegram_groups_for_user.si(user_id),
             sync_telegram_bios_for_user.si(user_id),
-            sync_telegram_notify.si([], user_id),
+            sync_telegram_notify.si(user_id),
         ])
         chain(*tasks).apply_async()
     else:
@@ -500,8 +523,8 @@ def sync_telegram_for_user(user_id: str) -> None:
         # Groups and bios are fetched on-demand (contact detail page visit / Refresh Details)
         # and via periodic recheck tasks — not in the daily chain.
         chain(
-            sync_telegram_chats_for_user.s(user_id, 100),
-            sync_telegram_notify.si([], user_id),
+            sync_telegram_chats_for_user.si(user_id, 100),
+            sync_telegram_notify.si(user_id),
         ).apply_async()
 
 

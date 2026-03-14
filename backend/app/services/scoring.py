@@ -145,21 +145,13 @@ async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> 
 
     score = min(10, reciprocity + recency + frequency + breadth)
 
-    # Total interaction count for persistence
+    # Total interaction count
     total_result = await db.execute(
         select(func.count())
         .select_from(Interaction)
         .where(Interaction.contact_id == contact_id)
     )
     interaction_count = total_result.scalar_one()
-
-    # Persist updated score
-    contact_result = await db.execute(select(Contact).where(Contact.id == contact_id))
-    contact = contact_result.scalar_one_or_none()
-    if contact:
-        contact.relationship_score = score
-        contact.interaction_count = interaction_count
-        await db.flush()
 
     return ScoreBreakdown(
         total=score,
@@ -177,6 +169,14 @@ async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> 
 
 
 async def calculate_score(contact_id: uuid.UUID, db: AsyncSession) -> int:
-    """Calculate relationship score (0-10). Thin wrapper around calculate_score_breakdown."""
+    """Calculate and persist relationship score (0-10) for a contact."""
     breakdown = await calculate_score_breakdown(contact_id, db)
+
+    contact_result = await db.execute(select(Contact).where(Contact.id == contact_id))
+    contact = contact_result.scalar_one_or_none()
+    if contact:
+        contact.relationship_score = breakdown.total
+        contact.interaction_count = breakdown.interaction_count
+        await db.flush()
+
     return breakdown.total

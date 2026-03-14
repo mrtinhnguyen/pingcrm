@@ -56,9 +56,10 @@ The main screen provides a real-time overview of your networking activity:
 - **Inline editing** -- click any field to edit directly (name, email, company, title, phone, tags, notes, Twitter handle, Telegram username, LinkedIn URL)
 - **Company autocomplete** -- when editing the Company field, search existing organizations with a dropdown. Select an org to link the contact, or type a new name
 - **Quick message composer** -- always-visible collapsed bar above the timeline. Click to expand into a full message editor with channel selection (email, Telegram, Twitter)
-- **Interaction timeline** -- chronological feed of all touchpoints across email, Telegram, Twitter, and manual notes, with platform icons and direction indicators
+- **Interaction timeline** -- chronological feed of all touchpoints across email, Telegram, Twitter, and manual notes, with platform icons and direction indicators. Bio changes appear as event pills in the timeline.
 - **Add manual notes** -- record offline conversations or meetings
-- **Telegram common groups** -- view shared Telegram groups with a contact (cached for 24 hours)
+- **Telegram common groups** -- sidebar card showing shared Telegram groups with a contact (cached for 24 hours)
+- **Rate limit handling** -- Telegram send shows countdown timer on 429 with Retry-After header
 - **Duplicate detection** -- find and merge potential duplicate contacts
 - **Relationship score badge** -- color-coded score with label (Active, Warm, Cooling, At Risk)
 - **Delete contact** with confirmation dialog
@@ -85,10 +86,11 @@ The main screen provides a real-time overview of your networking activity:
 - MTProto client integration (accesses your actual chat history, not bot API)
 - Phone number + OTP verification flow
 - Two-step verification (2FA) support for accounts with cloud passwords
-- **Chat sync** -- imports DM conversations as interactions
+- **Chat sync** -- imports DM conversations as interactions (skips unchanged dialogs to reduce API calls)
 - **Group member sync** -- discovers contacts from shared Telegram groups
-- **Bio sync** -- captures Telegram bios for your contacts
+- **Bio sync** -- captures Telegram bios for your contacts (7-day freshness filter to reduce API calls)
 - **Common groups** -- view which Telegram groups you share with a specific contact
+- **Rate gate** -- Redis-based cross-operation coordination prevents FloodWaitError cascades
 - Background sync with progress notifications
 
 #### Twitter/X (`Settings > Twitter`)
@@ -96,7 +98,7 @@ The main screen provides a real-time overview of your networking activity:
 - OAuth 2.0 PKCE authentication flow
 - **DM sync** -- imports direct message conversations as interactions
 - **Mention sync** -- tracks @mentions and replies
-- **Bio monitoring** -- detects bio changes (job changes, milestones) and stores them as events
+- **Bio monitoring** -- detects bio changes (job changes, milestones), stores them as events, and adds them to the contact timeline
 - Background sync with retry logic and failure notifications
 
 ### Identity Resolution (`/identity`)
@@ -133,9 +135,10 @@ Manage companies and organizations your contacts belong to:
 
 #### Organization Detail (`/organizations/[id]`)
 
-- **Inline editing** -- hover any field to reveal pencil icon, click to edit in place (name, domain, industry, location, website, LinkedIn, Twitter, notes)
-- **Stats cards** -- contacts count, avg relationship score, total interactions, last activity
-- **Contacts table** -- sortable list of contacts in the organization with score badges
+- **Inline editing** -- hover any field to reveal pencil icon, click to edit in place (name, location, website, LinkedIn, Twitter, notes)
+- **Stats cards** -- contacts count, avg relationship score, total interactions, last activity (from materialized view, refreshed hourly)
+- **Contacts table** -- sortable list of active contacts in the organization with score badges
+- **Auto-hidden** -- organizations with zero active (non-archived) contacts are hidden from the list
 - **Delete organization** -- unlinks contacts but does not delete them
 
 ### Smart Follow-Up Suggestions (`/suggestions`)
@@ -692,13 +695,14 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 | Task | Interval |
 |------|----------|
 | Gmail sync (all users) | Every 6 hours |
-| Google Calendar sync (all users) | Every 30 minutes |
-| Telegram sync (all users) | Every 12 hours |
-| Twitter activity + DM poll | Every 12 hours |
-| Relationship score recalculation | Daily |
-| Follow-up suggestion generation | Weekly (Monday 9:00 UTC) |
-| Weekly digest email | Weekly (Monday 9:00 UTC) |
+| Google Calendar sync (all users) | Daily (06:00 UTC) |
+| Telegram sync (all users) | Daily (03:00 UTC) |
+| Twitter activity + DM poll | Daily (04:00 UTC) |
+| Relationship score recalculation | Daily (02:00 UTC) |
+| Follow-up suggestion generation | Daily (08:00 UTC) |
+| Weekly digest email | Weekly (Monday 09:00 UTC) |
 | Snooze reactivation | Hourly |
+| Organization stats refresh | Hourly |
 
 ---
 

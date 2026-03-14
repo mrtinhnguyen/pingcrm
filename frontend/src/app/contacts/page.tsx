@@ -388,7 +388,7 @@ function ContactsPageContent() {
   const { data: allTags = [] } = useQuery({
     queryKey: ["tags"],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/tags");
+      const { data } = await client.GET("/api/v1/contacts/tags", {});
       return (data?.data as string[]) ?? [];
     },
   });
@@ -396,7 +396,7 @@ function ContactsPageContent() {
   const statsQuery = useQuery({
     queryKey: ["contacts", "stats"],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/stats");
+      const { data } = await client.GET("/api/v1/contacts/stats", {});
       return data?.data as { total: number; strong: number; active: number; dormant: number } | undefined;
     },
   });

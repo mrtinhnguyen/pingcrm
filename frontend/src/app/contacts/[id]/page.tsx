@@ -1249,7 +1249,7 @@ export default function ContactDetailPage() {
   const { data: allTagsData } = useQuery({
     queryKey: ["tags"],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/contacts/tags");
+      const { data } = await client.GET("/api/v1/contacts/tags", {});
       return (data?.data as string[]) ?? [];
     },
   });

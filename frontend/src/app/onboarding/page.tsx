@@ -24,7 +24,7 @@ function OnboardingInner() {
 
   const handleConnectGoogle = async () => {
     try {
-      const { data, error } = await client.GET("/api/v1/auth/google/url");
+      const { data, error } = await client.GET("/api/v1/auth/google/url", {});
       if (error || !data?.data) {
         setSyncError("Google OAuth not configured yet. Add GOOGLE_CLIENT_ID to .env");
         return;
@@ -43,7 +43,7 @@ function OnboardingInner() {
     setGoogleSyncing(true);
     setSyncError(null);
     try {
-      const { data, error } = await client.POST("/api/v1/contacts/sync/google");
+      const { data, error } = await client.POST("/api/v1/contacts/sync/google", {});
       if (error) {
         setSyncError("Failed to sync Google Contacts");
       } else {

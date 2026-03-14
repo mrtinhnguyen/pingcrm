@@ -1,0 +1,66 @@
+#!/bin/bash
+# Pre-push hook: run tests for changed files before pushing.
+# Install: git config core.hooksPath .githooks
+
+set -e
+
+echo "🧪 Running pre-push tests..."
+
+# Get changed files vs remote
+REMOTE_REF=$(git rev-parse @{upstream} 2>/dev/null || echo "HEAD~1")
+CHANGED=$(git diff --name-only "$REMOTE_REF"..HEAD 2>/dev/null || git diff --name-only HEAD~1..HEAD)
+
+RUN_BACKEND=false
+RUN_FRONTEND=false
+
+for f in $CHANGED; do
+  case "$f" in
+    backend/*) RUN_BACKEND=true ;;
+    frontend/*) RUN_FRONTEND=true ;;
+  esac
+done
+
+FAILED=false
+
+if $RUN_BACKEND; then
+  echo ""
+  echo "━━━ Backend tests (pytest) ━━━"
+  cd backend
+  if [ -d .venv ]; then
+    source .venv/bin/activate
+  fi
+  if pytest -x -q 2>&1; then
+    echo "✅ Backend tests passed"
+  else
+    echo "❌ Backend tests failed"
+    FAILED=true
+  fi
+  cd ..
+fi
+
+if $RUN_FRONTEND; then
+  echo ""
+  echo "━━━ Frontend tests (vitest) ━━━"
+  cd frontend
+  if npx vitest run --reporter=dot 2>&1; then
+    echo "✅ Frontend tests passed"
+  else
+    echo "❌ Frontend tests failed"
+    FAILED=true
+  fi
+  cd ..
+fi
+
+if ! $RUN_BACKEND && ! $RUN_FRONTEND; then
+  echo "No backend/frontend changes — skipping tests."
+fi
+
+if $FAILED; then
+  echo ""
+  echo "❌ Push blocked: tests failed. Fix and try again."
+  echo "   To skip: git push --no-verify"
+  exit 1
+fi
+
+echo ""
+echo "✅ All tests passed — pushing."

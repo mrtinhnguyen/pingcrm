@@ -32,7 +32,7 @@ export function useIdentityMatches() {
   return useQuery({
     queryKey: ["identity", "matches"],
     queryFn: async () => {
-      const { data } = await client.GET("/api/v1/identity/matches");
+      const { data } = await client.GET("/api/v1/identity/matches", {});
       return data;
     },
   });

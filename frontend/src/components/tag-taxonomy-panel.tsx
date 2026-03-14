@@ -52,7 +52,7 @@ export function TagTaxonomyPanel() {
   const { data: taxonomyData, isLoading } = useQuery({
     queryKey: ["taxonomy"],
     queryFn: async () => {
-      const { data, error } = await client.GET("/api/v1/contacts/tags/taxonomy" as any);
+      const { data, error } = await client.GET("/api/v1/contacts/tags/taxonomy" as any, {});
       if (error) return null;
       return (data as any)?.data as TaxonomyResult | null;
     },
@@ -67,7 +67,7 @@ export function TagTaxonomyPanel() {
   // Discover mutation
   const discoverMutation = useMutation({
     mutationFn: async () => {
-      const { data, error, response } = await client.POST("/api/v1/contacts/tags/discover" as any);
+      const { data, error, response } = await client.POST("/api/v1/contacts/tags/discover" as any, {});
       if (error || !response.ok) {
         throw new Error((error as any)?.detail || "Discovery failed");
       }

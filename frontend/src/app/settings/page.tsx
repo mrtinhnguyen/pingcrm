@@ -683,7 +683,7 @@ function AccountTab() {
   useEffect(() => {
     (async () => {
       try {
-        const result = await client.GET("/api/v1/auth/me");
+        const result = await client.GET("/api/v1/auth/me", {});
         const user = (result.data as any)?.data;
         if (user) {
           setDisplayName(user.display_name || user.email || "");
@@ -863,7 +863,7 @@ function SettingsPageInner() {
 
   const fetchConnectionStatus = useCallback(async () => {
     try {
-      const result = await client.GET("/api/v1/auth/me");
+      const result = await client.GET("/api/v1/auth/me", {});
       if (result.error) {
         const status = (result as { response?: { status?: number } }).response?.status;
         if (status === 401) window.location.href = "/auth/login";
@@ -913,7 +913,7 @@ function SettingsPageInner() {
     const interval = setInterval(async () => {
       attempts++;
       try {
-        const { data } = await client.GET("/api/v1/notifications/unread-count");
+        const { data } = await client.GET("/api/v1/notifications/unread-count", {});
         const count = (data as { data?: { count?: number } })?.data?.count ?? 0;
         if (baselineCount === null) {
           baselineCount = count;
@@ -932,7 +932,7 @@ function SettingsPageInner() {
   const handleGoogleConnect = async () => {
     setGoogleConnect({ status: "loading", message: "" });
     try {
-      const { data, error } = await client.GET("/api/v1/auth/google/url");
+      const { data, error } = await client.GET("/api/v1/auth/google/url", {});
       if (error || !data?.data) {
         setGoogleConnect({ status: "error", message: "Google OAuth not configured. Set GOOGLE_CLIENT_ID in .env" });
         return;
@@ -1034,7 +1034,7 @@ function SettingsPageInner() {
 
   const handleTelegramSync = async () => {
     setTelegramSync({ status: "loading", message: "" });
-    const { error } = await client.POST("/api/v1/contacts/sync/telegram");
+    const { error } = await client.POST("/api/v1/contacts/sync/telegram", {});
     if (error) {
       setTelegramSync({ status: "error", message: (error as { detail?: string })?.detail ?? "Telegram sync failed." });
     } else {
@@ -1046,7 +1046,7 @@ function SettingsPageInner() {
   /* ── Twitter handlers ── */
   const handleTwitterConnect = async () => {
     setTwitterConnect({ status: "loading", message: "" });
-    const { data, error } = await client.GET("/api/v1/auth/twitter/url");
+    const { data, error } = await client.GET("/api/v1/auth/twitter/url", {});
     if (error || !data?.data) {
       setTwitterConnect({ status: "error", message: "Twitter OAuth not configured. Set TWITTER_CLIENT_ID in .env" });
       return;
@@ -1058,7 +1058,7 @@ function SettingsPageInner() {
 
   const handleTwitterSync = async () => {
     setTwitterSync({ status: "loading", message: "" });
-    const { error } = await client.POST("/api/v1/contacts/sync/twitter");
+    const { error } = await client.POST("/api/v1/contacts/sync/twitter", {});
     if (error) {
       setTwitterSync({ status: "error", message: (error as { detail?: string })?.detail ?? "Sync failed." });
     } else {

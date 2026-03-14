@@ -574,7 +574,7 @@ function RelationshipHealth({ activityData, contact }: { activityData: ActivityD
         <div className="flex items-center justify-between">
           <span className="text-xs text-stone-500">Since</span>
           <span className="text-xs font-medium text-stone-900">
-            {format(new Date(contact.created_at), "MMM yyyy")}
+            {format(new Date(stats.first_interaction_at || contact.created_at), "MMM yyyy")}
           </span>
         </div>
       </div>

@@ -650,6 +650,14 @@ async def get_contact_activity(
 
     breakdown = await calculate_score_breakdown(contact_id, db)
 
+    # Earliest interaction date
+    from sqlalchemy import func as sa_func
+    first_interaction_result = await db.execute(
+        select(sa_func.min(Interaction.occurred_at))
+        .where(Interaction.contact_id == contact_id)
+    )
+    first_interaction_at = first_interaction_result.scalar_one_or_none()
+
     # Monthly trend: last 6 months
     six_months_ago = datetime.now(UTC) - timedelta(days=183)
     month_col = func.date_trunc("month", Interaction.occurred_at).label("month")
@@ -682,6 +690,7 @@ async def get_contact_activity(
             "count_90d": breakdown.count_90d,
             "platforms": breakdown.platforms,
             "interaction_count": breakdown.interaction_count,
+            "first_interaction_at": first_interaction_at.isoformat() if first_interaction_at else None,
         },
         "monthly_trend": monthly_trend,
     })

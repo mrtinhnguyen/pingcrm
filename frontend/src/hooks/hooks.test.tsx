@@ -493,7 +493,7 @@ describe("useIdentityMatches", () => {
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
-    expect(mockClient.GET).toHaveBeenCalledWith("/api/v1/identity/matches");
+    expect(mockClient.GET).toHaveBeenCalledWith("/api/v1/identity/matches", {});
     expect(result.current.data?.data).toEqual(matches);
   });
 
@@ -505,7 +505,7 @@ describe("useIdentityMatches", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     // Key is ["identity", "matches"] — does NOT conflict with contacts keys
-    expect(mockClient.GET).toHaveBeenCalledWith("/api/v1/identity/matches");
+    expect(mockClient.GET).toHaveBeenCalledWith("/api/v1/identity/matches", {});
   });
 
   it("returns error state on API failure", async () => {

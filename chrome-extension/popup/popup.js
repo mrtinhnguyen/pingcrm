@@ -55,6 +55,11 @@
 
       // Task 3.4: show sync error if present
       if (config.lastSyncError) {
+        if (config.lastSyncError === 'AUTH_EXPIRED') {
+          // Token was cleared — re-render to show login form
+          await Storage.set({ lastSyncError: null });
+          return render();
+        }
         syncErrorMsgEl.textContent = config.lastSyncError;
         syncErrorEl.classList.remove('hidden');
       } else {
@@ -66,6 +71,10 @@
 
       if (config.apiUrl) {
         apiUrlInput.value = config.apiUrl;
+      }
+      // Show re-auth message if we had a previous session (apiUrl set but no token)
+      if (config.apiUrl && config.profileCount > 0) {
+        showError('Session expired. Please log in again.');
       }
     }
   }

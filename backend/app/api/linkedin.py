@@ -123,9 +123,7 @@ async def push_linkedin_data(
                 )
                 if local_path:
                     contact.avatar_url = local_path
-                elif not contact.avatar_url:
-                    # Fall back to the remote URL only when there is nothing stored yet
-                    contact.avatar_url = profile.avatar_url
+                # Don't fall back to remote LinkedIn URLs — they return 403 from servers
             contacts_updated += 1
         else:
             contact = Contact(
@@ -146,7 +144,8 @@ async def push_linkedin_data(
                 local_path = await download_linkedin_avatar(
                     profile.avatar_url, str(contact.id)
                 )
-                contact.avatar_url = local_path or profile.avatar_url
+                if local_path:
+                    contact.avatar_url = local_path
 
     # --- Messages ---
     for msg in body.messages:

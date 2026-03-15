@@ -53,33 +53,51 @@
       }
     }
 
+    // Helper: extract company from "Title @ Company | Other" or "Title at Company"
+    function extractCompany(text) {
+      const atMatch = text.match(/(?:\s@\s|\sat\s)(.+)/i);
+      if (!atMatch) return null;
+      // Take first segment before | or · separators
+      return atMatch[1].split(/\s*[|·]\s*/)[0].trim() || null;
+    }
+
     // Pass 2: assign headline and company from remaining texts
     for (const text of meaningful) {
       if (text === location) continue;
       if (!headline && text.length > 5) {
         headline = text;
       } else if (!company && text.length > 2 && text !== headline) {
-        // If text looks like "Title @ Company" or "Title at Company", extract company
-        const atMatch = text.match(/(?:@|at)\s+(.+)/i);
-        if (atMatch) {
-          company = atMatch[1].trim();
-        } else {
-          company = text;
-        }
+        const extracted = extractCompany(text);
+        company = extracted || text;
       }
     }
 
     // If headline contains "@ Company" or "at Company", extract company from it
     if (headline && !company) {
-      const atMatch = headline.match(/(?:@|at)\s+(.+)/i);
-      if (atMatch) {
-        company = atMatch[1].trim();
-      }
+      company = extractCompany(headline);
     }
 
-    // Avatar: second img in topcard (first is cover photo)
+    // Avatar: find profile photo (not company logo or cover)
     const imgs = Array.from(topcard.querySelectorAll('img'));
-    const avatarImg = imgs.length > 1 ? imgs[1] : null;
+    let avatarImg = null;
+    for (const img of imgs) {
+      const src = img.src || '';
+      // Skip cover photos, company logos, and tiny icons
+      if (src.includes('company-logo') || src.includes('background-cover') || src.includes('/li-default-avatar')) continue;
+      // Profile photos contain "profile-displayphoto" or are in a photo container
+      if (src.includes('profile-displayphoto') || src.includes('/dms/image/') && !src.includes('company-logo')) {
+        avatarImg = img;
+        break;
+      }
+    }
+    // Fallback: use first non-cover img if no profile photo found
+    if (!avatarImg && imgs.length > 1) {
+      const fallback = imgs[1];
+      const fbSrc = fallback?.src || '';
+      if (!fbSrc.includes('company-logo') && !fbSrc.includes('background-cover')) {
+        avatarImg = fallback;
+      }
+    }
 
     // About section
     const aboutEl = querySelector('about');

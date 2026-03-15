@@ -56,7 +56,7 @@ export function useDashboardStats() {
       const { data } = await client.GET("/api/v1/contacts/overdue" as any, {
         params: { query: { limit: 5 } },
       });
-      return data;
+      return data ?? { data: [], error: null };
     },
   });
 
@@ -66,7 +66,7 @@ export function useDashboardStats() {
       const { data } = await client.GET("/api/v1/activity/recent" as any, {
         params: { query: { limit: 5 } },
       });
-      return data;
+      return data ?? { data: [], error: null };
     },
   });
 

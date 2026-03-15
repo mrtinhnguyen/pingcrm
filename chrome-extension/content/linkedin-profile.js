@@ -38,16 +38,42 @@
     let company = null;
     let location = null;
 
-    for (const text of paragraphs) {
-      if (/^·/.test(text) || /followers?$/i.test(text) || text === 'Contact info') continue;
-      if (/Profile enhanced/i.test(text)) continue;
-      // Location pattern: "City, State/Region, Country"
-      if (!location && /,.*,/.test(text) && !/·/.test(text) && text.length < 80) {
+    // Filter out noise paragraphs
+    const meaningful = paragraphs.filter(text => {
+      if (/^·/.test(text) || /followers?$/i.test(text) || text === 'Contact info') return false;
+      if (/Profile enhanced/i.test(text)) return false;
+      return true;
+    });
+
+    // Pass 1: identify location (City, State, Country pattern — at least 2 commas, short)
+    for (const text of meaningful) {
+      if (/,.*,/.test(text) && text.length < 80 && !/[@|]/.test(text)) {
         location = text;
-      } else if (!headline && text.length > 5) {
+        break;
+      }
+    }
+
+    // Pass 2: assign headline and company from remaining texts
+    for (const text of meaningful) {
+      if (text === location) continue;
+      if (!headline && text.length > 5) {
         headline = text;
       } else if (!company && text.length > 2 && text !== headline) {
-        company = text;
+        // If text looks like "Title @ Company" or "Title at Company", extract company
+        const atMatch = text.match(/(?:@|at)\s+(.+)/i);
+        if (atMatch) {
+          company = atMatch[1].trim();
+        } else {
+          company = text;
+        }
+      }
+    }
+
+    // If headline contains "@ Company" or "at Company", extract company from it
+    if (headline && !company) {
+      const atMatch = headline.match(/(?:@|at)\s+(.+)/i);
+      if (atMatch) {
+        company = atMatch[1].trim();
       }
     }
 

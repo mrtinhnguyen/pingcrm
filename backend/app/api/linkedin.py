@@ -100,6 +100,12 @@ async def push_linkedin_data(
                 contact.full_name = profile.full_name
             if profile.headline:
                 contact.linkedin_headline = profile.headline
+                # Extract title from headline if contact has no title
+                if not contact.title:
+                    # "Title @ Company" or "Title at Company" → extract title part
+                    title_part = profile.headline.split(" @ ")[0].split(" at ")[0].strip()
+                    if title_part and len(title_part) < 100:
+                        contact.title = title_part
             if profile.company:
                 contact.company = profile.company
             if profile.location:

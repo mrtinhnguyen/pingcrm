@@ -2,6 +2,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +13,10 @@ from app.models.interaction import Interaction
 from app.models.user import User
 from app.schemas.interaction import InteractionCreate, InteractionResponse
 from app.schemas.responses import Envelope
+
+
+class InteractionUpdate(BaseModel):
+    content_preview: str
 
 router = APIRouter(prefix="/api/v1/contacts", tags=["interactions"])
 
@@ -79,3 +84,57 @@ async def create_interaction(
     await db.flush()
     await db.refresh(interaction)
     return envelope(InteractionResponse.model_validate(interaction).model_dump())
+
+
+@router.patch("/{contact_id}/interactions/{interaction_id}", response_model=Envelope[InteractionResponse])
+async def update_interaction(
+    contact_id: uuid.UUID,
+    interaction_id: uuid.UUID,
+    body: InteractionUpdate,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[InteractionResponse]:
+    """Update a manual note's content. Only platform='manual' interactions are editable."""
+    result = await db.execute(
+        select(Interaction).where(
+            Interaction.id == interaction_id,
+            Interaction.contact_id == contact_id,
+            Interaction.user_id == current_user.id,
+        )
+    )
+    interaction = result.scalar_one_or_none()
+    if not interaction:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interaction not found")
+    if interaction.platform != "manual":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only manual notes can be edited")
+
+    interaction.content_preview = body.content_preview
+    await db.flush()
+    await db.refresh(interaction)
+    return envelope(InteractionResponse.model_validate(interaction).model_dump())
+
+
+@router.delete("/{contact_id}/interactions/{interaction_id}", status_code=status.HTTP_200_OK)
+async def delete_interaction(
+    contact_id: uuid.UUID,
+    interaction_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Delete a manual note. Only platform='manual' interactions can be deleted."""
+    result = await db.execute(
+        select(Interaction).where(
+            Interaction.id == interaction_id,
+            Interaction.contact_id == contact_id,
+            Interaction.user_id == current_user.id,
+        )
+    )
+    interaction = result.scalar_one_or_none()
+    if not interaction:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Interaction not found")
+    if interaction.platform != "manual":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only manual notes can be deleted")
+
+    await db.delete(interaction)
+    await db.flush()
+    return envelope({"deleted": True})

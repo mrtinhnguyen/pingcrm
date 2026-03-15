@@ -1050,6 +1050,83 @@ function MessageComposerCard({ contact, contactId }: { contact: Contact; contact
 
 const TIMELINE_PAGE_SIZE = 50;
 
+function NoteItem({ item, contactId }: { item: TimelineItem; contactId: string }) {
+  const queryClient = useQueryClient();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(item.content_preview || "");
+
+  const updateMutation = useMutation({
+    mutationFn: async (content: string) => {
+      const { error } = await client.PATCH(
+        "/api/v1/contacts/{contact_id}/interactions/{interaction_id}" as any,
+        { params: { path: { contact_id: contactId, interaction_id: item.id } }, body: { content_preview: content } },
+      );
+      if (error) throw new Error((error as any)?.detail || "Update failed");
+    },
+    onSuccess: () => {
+      setEditing(false);
+      void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await client.DELETE(
+        "/api/v1/contacts/{contact_id}/interactions/{interaction_id}" as any,
+        { params: { path: { contact_id: contactId, interaction_id: item.id } } },
+      );
+      if (error) throw new Error((error as any)?.detail || "Delete failed");
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["interactions", contactId] });
+    },
+  });
+
+  return (
+    <div className="my-3 ml-2 pl-3 border-l-2 border-amber-300 py-1.5 group/note">
+      <div className="flex items-start justify-between">
+        {editing ? (
+          <div className="flex-1 mr-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="w-full text-[13px] text-stone-700 leading-relaxed border border-stone-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-amber-400 resize-none"
+              rows={2}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); updateMutation.mutate(draft); }
+                if (e.key === "Escape") { setEditing(false); setDraft(item.content_preview || ""); }
+              }}
+            />
+            <div className="flex gap-1.5 mt-1">
+              <button onClick={() => updateMutation.mutate(draft)} disabled={updateMutation.isPending} className="text-[11px] px-2 py-0.5 bg-amber-500 text-white rounded hover:bg-amber-600 disabled:opacity-50">Save</button>
+              <button onClick={() => { setEditing(false); setDraft(item.content_preview || ""); }} className="text-[11px] px-2 py-0.5 text-stone-500 hover:text-stone-700">Cancel</button>
+            </div>
+          </div>
+        ) : (
+          <>
+            {item.content_preview && (
+              <p className="text-[13px] text-stone-700 leading-relaxed flex-1">
+                <Linkify text={item.content_preview} className="text-amber-700 hover:text-amber-900" />
+              </p>
+            )}
+            <div className="flex items-center gap-1 opacity-0 group-hover/note:opacity-100 transition-opacity shrink-0 ml-2">
+              <button onClick={() => setEditing(true)} className="p-1 rounded text-stone-400 hover:text-stone-600 hover:bg-stone-100"><Pencil className="w-3 h-3" /></button>
+              <button onClick={() => { if (confirm("Delete this note?")) deleteMutation.mutate(); }} className="p-1 rounded text-stone-400 hover:text-red-500 hover:bg-red-50"><Trash2 className="w-3 h-3" /></button>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex items-center gap-1.5 mt-1">
+        {platformIconMap.manual}
+        <span className="text-[10px] text-stone-400">
+          Note &middot; {format(new Date(item.occurred_at), "MMM d")}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function ChatTimeline({
   interactions,
   contactName,
@@ -1104,21 +1181,7 @@ function ChatTimeline({
 
             {/* Note */}
             {isManual && (
-              <div className="my-3 ml-2 pl-3 border-l-2 border-amber-300 py-1.5 group/note">
-                <div className="flex items-start justify-between">
-                  {item.content_preview && (
-                    <p className="text-[13px] text-stone-700 leading-relaxed">
-                      <Linkify text={item.content_preview} className="text-amber-700 hover:text-amber-900" />
-                    </p>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5 mt-1">
-                  {platformIconMap.manual}
-                  <span className="text-[10px] text-stone-400">
-                    Note &middot; {format(new Date(item.occurred_at), "MMM d")}
-                  </span>
-                </div>
-              </div>
+              <NoteItem item={item} contactId={id} />
             )}
 
             {/* Meeting event */}

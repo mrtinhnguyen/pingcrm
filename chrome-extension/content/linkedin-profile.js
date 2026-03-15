@@ -68,13 +68,15 @@
         headline = text;
       } else if (!company && text.length > 2 && text !== headline) {
         const extracted = extractCompany(text);
-        company = extracted || text;
+        // Split on · or | separators (LinkedIn combines company + education)
+        company = (extracted || text.split(/\s*[|·]\s*/)[0]).trim();
       }
     }
 
     // If headline contains "@ Company" or "at Company", extract company from it
     if (headline && !company) {
-      company = extractCompany(headline);
+      const extracted = extractCompany(headline);
+      if (extracted) company = extracted.split(/\s*[|·]\s*/)[0].trim();
     }
 
     // Avatar: find profile photo (not company logo or cover)

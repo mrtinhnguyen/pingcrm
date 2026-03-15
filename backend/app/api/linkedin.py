@@ -116,14 +116,16 @@ async def push_linkedin_data(
                 contact.linkedin_url = profile_url_normalized
             if not contact.linkedin_profile_id:
                 contact.linkedin_profile_id = profile.profile_id
-            # Download avatar only when the contact does not already have a local copy
+            # Clear broken remote LinkedIn URLs (403 from servers, can't be displayed)
+            if contact.avatar_url and not _has_local_avatar(contact.avatar_url):
+                contact.avatar_url = None
+            # Download avatar when no local copy exists
             if profile.avatar_url and not _has_local_avatar(contact.avatar_url):
                 local_path = await download_linkedin_avatar(
                     profile.avatar_url, str(contact.id)
                 )
                 if local_path:
                     contact.avatar_url = local_path
-                # Don't fall back to remote LinkedIn URLs — they return 403 from servers
             contacts_updated += 1
         else:
             contact = Contact(

@@ -149,12 +149,13 @@ async function flushBatch(sendResponse) {
 
     if (sendResponse) sendResponse({ ok: true, profiles: profilesSynced, messages: messagesSynced });
   } catch (e) {
-    console.error('[PingCRM] Push failed:', e.message);
-    await Storage.set({ lastSyncError: e.message });
-
     if (e.message === 'AUTH_EXPIRED') {
+      console.warn('[PingCRM] Session expired — please re-login in extension popup');
+      await Storage.set({ lastSyncError: e.message });
       setBadge('!', '#F44336');
     } else {
+      console.error('[PingCRM] Push failed:', e.message);
+      await Storage.set({ lastSyncError: e.message });
       setBadge('X', '#FF9800');
       pendingProfiles.unshift(...profiles);
       pendingMessages.unshift(...messages);

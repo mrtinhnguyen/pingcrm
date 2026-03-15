@@ -30,6 +30,7 @@ const sidebars: SidebarsConfig = {
       ],
     },
     'api-reference',
+    'contributing',
   ],
 };
 

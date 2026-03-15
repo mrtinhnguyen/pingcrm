@@ -338,6 +338,7 @@ describe("DashboardPage", () => {
           type: "message",
           contact_name: "Diana Prince",
           contact_id: "c-diana",
+          contact_avatar_url: null,
           platform: "email",
           direction: "inbound",
           content_preview: "Hello there",
@@ -352,7 +353,7 @@ describe("DashboardPage", () => {
     );
   });
 
-  it("shows platform name in activity event ('email from ...')", () => {
+  it("shows contact name and fallback text in activity card", () => {
     mockDashboard({
       stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
       recentActivity: [
@@ -360,6 +361,7 @@ describe("DashboardPage", () => {
           type: "message",
           contact_name: "Frank Castle",
           contact_id: "c-frank",
+          contact_avatar_url: null,
           platform: "email",
           direction: "inbound",
           content_preview: null,
@@ -368,8 +370,8 @@ describe("DashboardPage", () => {
       ],
     });
     renderPage();
-    // Platform is rendered lowercase in a <strong> tag with capitalize CSS class
-    expect(screen.getByText("email")).toBeInTheDocument();
+    expect(screen.getByText("Frank Castle")).toBeInTheDocument();
+    expect(screen.getByText("email message received")).toBeInTheDocument();
   });
 
   // --- Header subtitle message -------------------------------------------

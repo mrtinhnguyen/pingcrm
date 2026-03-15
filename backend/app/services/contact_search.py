@@ -64,6 +64,7 @@ def build_contact_filter_query(
                 Contact.full_name.ilike(pattern),
                 Contact.given_name.ilike(pattern),
                 Contact.family_name.ilike(pattern),
+                func.concat(func.coalesce(Contact.given_name, ""), " ", func.coalesce(Contact.family_name, "")).ilike(pattern),
                 Contact.company.ilike(pattern),
                 Contact.title.ilike(pattern),
                 Contact.twitter_handle.ilike(pattern),

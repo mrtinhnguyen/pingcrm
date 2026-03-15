@@ -55,6 +55,11 @@ const config: Config = {
           label: 'Docs',
         },
         {
+          href: 'https://pingcrm.xyz',
+          label: 'Waitlist',
+          position: 'right',
+        },
+        {
           href: 'https://github.com/sneg55/pingcrm',
           label: 'GitHub',
           position: 'right',
@@ -87,8 +92,16 @@ const config: Config = {
             { label: 'Twitter/X', to: '/features/twitter' },
           ],
         },
+        {
+          title: 'Community',
+          items: [
+            { label: 'Contributing', to: '/contributing' },
+            { label: 'GitHub', href: 'https://github.com/sneg55/pingcrm' },
+            { label: 'Waitlist (Hosted)', href: 'https://pingcrm.xyz' },
+          ],
+        },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Ping CRM. Built with Docusaurus.`,
+      copyright: `Copyright © ${new Date().getFullYear()} Ping CRM. Licensed under AGPL-3.0.`,
     },
     prism: {
       theme: prismThemes.github,

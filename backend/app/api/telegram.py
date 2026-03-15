@@ -288,6 +288,6 @@ async def get_common_groups(
 
     from app.services.telegram_service import get_common_groups_cached
 
-    groups = await get_common_groups_cached(contact, current_user, db)
+    groups = await get_common_groups_cached(contact, current_user, db, force=force)
     await r.setex(cache_key, 86400, "1")  # 24h
     return {"data": groups, "error": None}

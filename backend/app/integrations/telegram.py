@@ -1140,10 +1140,10 @@ async def fetch_common_groups(
                 "participants_count": getattr(chat, "participants_count", None),
             })
         return groups
-    except Exception:
-        logger.warning(
-            "fetch_common_groups: failed for user %s / @%s",
-            user.id, telegram_username,
+    except Exception as exc:
+        logger.exception(
+            "fetch_common_groups: failed for user %s / @%s: %s",
+            user.id, telegram_username, exc,
         )
         return []
     finally:

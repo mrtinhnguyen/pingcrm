@@ -14,6 +14,8 @@ async def get_common_groups_cached(
     contact: Contact,
     current_user: User,
     db: AsyncSession,
+    *,
+    force: bool = False,
 ) -> list[dict[str, Any]]:
     """Return Telegram groups in common with *contact*, using a 24-hour cache.
 
@@ -23,16 +25,16 @@ async def get_common_groups_cached(
 
     Args:
         contact: The contact whose common groups should be retrieved.
-                 Must already have ``telegram_username`` or ``telegram_user_id`` set.
         current_user: Authenticated user (must have ``telegram_session``).
         db: Database session.
+        force: Bypass the 24h cache and re-fetch from Telegram.
 
     Returns:
         A list of group dicts as returned by ``fetch_common_groups``.
     """
     now = datetime.now(UTC)
 
-    if (
+    if not force and (
         contact.telegram_common_groups is not None
         and contact.telegram_groups_fetched_at is not None
         and (now - contact.telegram_groups_fetched_at) < timedelta(hours=24)

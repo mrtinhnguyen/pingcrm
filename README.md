@@ -50,6 +50,7 @@ The main screen provides a real-time overview of your networking activity:
 - Filter by tags
 - Relationship strength color indicators (green/yellow/red)
 - Avatar display with fallback initials
+- **Bulk actions** -- multi-select contacts to add/remove tags, set priority level, set company, archive, merge, or delete
 
 #### Contact Detail (`/contacts/[id]`)
 
@@ -62,6 +63,9 @@ The main screen provides a real-time overview of your networking activity:
 - **Rate limit handling** -- Telegram send shows countdown timer on 429 with Retry-After header
 - **Duplicate detection** -- find and merge potential duplicate contacts
 - **Relationship score badge** -- color-coded score with label (Active, Warm, Cooling, At Risk)
+- **Edit and delete notes** -- hover pencil/trash icons on manual notes in the timeline
+- **Auto-sync on visit** -- Telegram and Twitter messages sync automatically when viewing a contact
+- **Auto-dismiss suggestions** -- pending follow-up suggestions dismissed when new interactions are synced
 - **Delete contact** with confirmation dialog
 
 #### Import Methods
@@ -96,10 +100,20 @@ The main screen provides a real-time overview of your networking activity:
 #### Twitter/X (`Settings > Twitter`)
 
 - OAuth 2.0 PKCE authentication flow
-- **DM sync** -- imports direct message conversations as interactions
+- **Bird CLI** (`@steipete/bird`) -- cookie-based tweet/profile fetching bypassing API rate limits, with Twitter API as fallback
+- **DM sync** -- imports direct message conversations using per-conversation API (`/dm_conversations/with/:id`)
 - **Mention sync** -- tracks @mentions and replies
 - **Bio monitoring** -- detects bio changes (job changes, milestones), stores them as events, and adds them to the contact timeline
 - Background sync with retry logic and failure notifications
+
+#### LinkedIn (`Chrome Extension`)
+
+- Companion Chrome extension (`chrome-extension/`) for passive LinkedIn data capture
+- **Profile sync** -- captures name, headline, company, location, avatar when visiting profiles
+- **Message sync** -- captures DM conversations from full-page messaging and overlay chat
+- **Avatar download** -- high-res profile photos saved locally with SSRF domain allowlist
+- Content-hash deduplication prevents duplicate messages
+- Settings persist across browser sessions via chrome.storage.local
 
 ### Identity Resolution (`/identity`)
 
@@ -256,7 +270,7 @@ Guided 4-step setup flow for new users:
 | **Google APIs** | google-api-python-client + google-auth-oauthlib |
 | **Auth** | python-jose (JWT) + passlib (bcrypt) |
 | **HTTP Client** | httpx (async) + openapi-fetch (frontend) |
-| **Testing** | pytest (backend, 245 tests) + Vitest (frontend, 479 tests) |
+| **Testing** | pytest (backend, 631 tests) + Vitest (frontend, 481 tests) |
 
 ---
 
@@ -453,6 +467,22 @@ celery -A worker.celery_app worker --loglevel=info
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### Docker Setup (Alternative)
+
+```bash
+# Set required env vars
+export POSTGRES_PASSWORD=your_password
+export SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(64))")
+
+# Start all services
+docker compose up
+
+# Run migrations
+docker compose exec backend alembic upgrade head
+```
+
+For production, use `docker-compose.prod.yml` which adds Caddy reverse proxy with automatic HTTPS.
+
 ---
 
 ## Environment Variables
@@ -466,6 +496,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 | `ACCESS_TOKEN_EXPIRE_MINUTES` | No | JWT token lifetime in minutes (default: `1440`, i.e. 24 hours) |
 | `ENCRYPTION_KEY` | No | Fernet key for encrypting stored OAuth tokens. Generate with: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
 | `CORS_ORIGINS` | No | JSON array of allowed CORS origins (default: `["http://localhost:3000","http://127.0.0.1:3000"]`) |
+| `AUTH_TOKEN` | No | `auth_token` cookie from x.com for Bird CLI |
+| `CT0` | No | `ct0` CSRF cookie from x.com for Bird CLI |
+| `CHROME_EXTENSION_ID` | No | Chrome extension ID for CORS (auto-detected in dev) |
 | `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
 | `GOOGLE_REDIRECT_URI` | No | Google OAuth callback URL (default: `http://localhost:3000/auth/google/callback`) |
@@ -488,8 +521,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 pingcrm/
 ├── README.md
 ├── CLAUDE.md                  # AI assistant instructions
-├── Plans.md                   # Task tracking
 ├── mvp.md                     # Product specification
+├── chrome-extension/          # LinkedIn companion Chrome extension (MV3)
+├── docs/                      # Docusaurus documentation site
 │
 ├── backend/                   # Python/FastAPI backend
 │   ├── app/
@@ -503,7 +537,8 @@ pingcrm/
 │   │   │   ├── twitter.py           # Twitter OAuth PKCE + sync
 │   │   │   ├── organizations.py      # Organization CRUD + merge
 │   │   │   ├── identity.py          # Identity resolution endpoints
-│   │   │   └── notifications.py     # Notification management
+│   │   │   ├── notifications.py     # Notification management
+│   │   │   └── linkedin.py          # LinkedIn push endpoint + avatar download
 │   │   ├── models/                  # SQLAlchemy ORM models
 │   │   │   ├── user.py
 │   │   │   ├── contact.py
@@ -534,10 +569,12 @@ pingcrm/
 │   │   │   ├── google_auth.py       # Google OAuth helpers
 │   │   │   ├── google_calendar.py   # Calendar event sync
 │   │   │   ├── telegram.py          # Telethon MTProto client
-│   │   │   └── twitter.py           # Twitter API v2 client
+│   │   │   ├── twitter.py           # Twitter API v2 client
+│   │   │   ├── bird.py              # Bird CLI (@steipete/bird) wrapper
+│   │   │   └── linkedin.py          # LinkedIn avatar download
 │   │   └── core/                    # Config, auth, database, encryption, Redis, Celery
 │   ├── alembic/                     # Database migrations
-│   ├── tests/                       # 245 pytest tests
+│   ├── tests/                       # 631 pytest tests
 │   ├── worker.py                    # Celery entry point
 │   ├── requirements.txt
 │   └── .env.example
@@ -643,6 +680,8 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 |--------|----------|-------------|
 | GET | `/api/v1/contacts/{id}/interactions` | Get interaction timeline for a contact |
 | POST | `/api/v1/contacts/{id}/interactions` | Add a manual interaction/note |
+| PATCH | `/api/v1/contacts/{id}/interactions/{iid}` | Update a manual note |
+| DELETE | `/api/v1/contacts/{id}/interactions/{iid}` | Delete a manual note |
 
 ### Suggestions
 
@@ -696,7 +735,8 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 |------|----------|
 | Gmail sync (all users) | Every 6 hours |
 | Google Calendar sync (all users) | Daily (06:00 UTC) |
-| Telegram sync (all users) | Daily (03:00 UTC) |
+| Telegram sync (all users) | Daily (03:00 UTC) -- chats only; groups/bios on-demand |
+| Telegram bio recheck (non-2nd-tier) | Every 3 days (05:00 UTC) |
 | Twitter activity + DM poll | Daily (04:00 UTC) |
 | Relationship score recalculation | Daily (02:00 UTC) |
 | Follow-up suggestion generation | Daily (08:00 UTC) |
@@ -709,7 +749,7 @@ All sync endpoints dispatch Celery tasks and return immediately with `{ "status"
 ## Testing
 
 ```bash
-# Backend tests (245 tests)
+# Backend tests (631 tests)
 cd backend
 pytest
 

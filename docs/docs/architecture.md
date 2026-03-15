@@ -34,7 +34,7 @@ Ping CRM is a three-tier application: a Next.js frontend communicates with a Fas
                           └──────────────────────┘
 ```
 
-External services: Gmail API (OAuth), Telegram MTProto (Telethon), Twitter/X via Bird CLI (primary, cookie-based) with Twitter API v2 (OAuth 2.0 PKCE) as fallback, Anthropic Claude API (event classification and message composition).
+External services: Gmail API (OAuth), Telegram MTProto (Telethon), Twitter/X via Bird CLI (primary, cookie-based) with Twitter API v2 (OAuth 2.0 PKCE) as fallback, Anthropic Claude API (event classification and message composition), and a Chrome extension for LinkedIn profile data ingestion.
 
 ---
 
@@ -110,6 +110,7 @@ async def get_contact(contact_id: uuid.UUID, db: AsyncSession = Depends(get_db))
 | Telegram | MTProto via Telethon | Phone number + session string (encrypted at rest) |
 | Twitter/X | Bird CLI (primary) + X API v2 (fallback) | Cookie-based (`AUTH_TOKEN` + `CT0`) / OAuth 2.0 PKCE |
 | Google Calendar | Calendar API (REST) | Shared OAuth tokens with Gmail |
+| LinkedIn | Chrome extension (browser-side scrape) | Extension ID (`CHROME_EXTENSION_ID`); no LinkedIn API key required |
 
 ---
 

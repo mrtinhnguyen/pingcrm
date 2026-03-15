@@ -31,6 +31,17 @@ The list can be sorted by:
 
 Results are paginated to keep the interface responsive. Navigate between pages using the controls at the bottom of the list.
 
+### Bulk Actions
+
+Select multiple contacts from the list to apply actions in one operation:
+
+- **Set priority level** -- change priority for all selected contacts at once.
+- **Set company** -- assign a company to multiple contacts.
+- **Add or remove tags** -- apply tag changes across a selection.
+- **Archive** -- move selected contacts to archived status.
+- **Merge** -- combine duplicate contacts from the selection.
+- **Delete** -- permanently remove selected contacts.
+
 ## Contact Detail
 
 The `/contacts/[id]` page shows the full profile for a single contact.
@@ -74,6 +85,14 @@ A chronological timeline of all interactions with the contact, including:
 - Manually added notes.
 - Logged meetings.
 - Bio change events (detected from Twitter).
+
+Notes added manually can be edited or deleted directly from the timeline by hovering over the entry to reveal inline action buttons.
+
+When new interactions are synced for a contact, any pending follow-up suggestions for that contact are automatically dismissed, since the sync itself represents a recent touchpoint.
+
+### Auto-Sync on Page Visit
+
+Visiting a contact's detail page automatically triggers a background sync of Telegram and Twitter DMs for that contact, so the timeline is up to date without manual intervention.
 
 ### Telegram Common Groups
 

@@ -13,7 +13,7 @@ Twitter uses the OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code
 
 ## DM Sync
 
-Direct message conversations are imported as interactions. Each conversation captures participants, message content, and timestamps. Conversations are deduplicated by Twitter conversation ID.
+Direct message conversations are imported as interactions. Each conversation captures participants, message content, and timestamps. Conversations are deduplicated by Twitter conversation ID. Per-contact sync uses the targeted `/dm_conversations/with/:participant_id` endpoint for efficiency.
 
 ## Mention Sync
 

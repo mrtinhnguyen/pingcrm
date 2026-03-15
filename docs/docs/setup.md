@@ -261,6 +261,7 @@ Key differences from dev:
 | `ANTHROPIC_API_KEY` | No | Anthropic API key for Claude |
 | `AUTH_TOKEN` | No | `auth_token` cookie from x.com for Bird CLI |
 | `CT0` | No | `ct0` CSRF cookie from x.com for Bird CLI |
+| `CHROME_EXTENSION_ID` | No | Chrome extension ID for LinkedIn data ingestion via the browser extension |
 | `NEXT_PUBLIC_API_URL` | No | Backend URL for frontend (default: `http://localhost:8000`) |
 
 ## Running Tests

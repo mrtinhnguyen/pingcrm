@@ -85,6 +85,10 @@ All sync endpoints return immediately. A notification is created upon completion
 |--------|----------|-------------|
 | GET | `/api/v1/contacts/{id}/interactions` | Get interaction timeline for a contact |
 | POST | `/api/v1/contacts/{id}/interactions` | Add a note interaction for a contact |
+| PATCH | `/api/v1/contacts/{id}/interactions/{iid}` | Update a manual note |
+| DELETE | `/api/v1/contacts/{id}/interactions/{iid}` | Delete a manual note |
+| POST | `/api/v1/contacts/{id}/sync-telegram` | Sync Telegram DMs for a specific contact |
+| POST | `/api/v1/contacts/{id}/sync-twitter` | Sync Twitter DMs for a specific contact |
 
 ---
 

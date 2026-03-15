@@ -1,0 +1,167 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { AlertTriangle, Camera, Download, Trash2 } from "lucide-react";
+import { client } from "@/lib/api-client";
+
+export function AccountTab() {
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+
+  // Load profile
+  useEffect(() => {
+    (async () => {
+      try {
+        const result = await client.GET("/api/v1/auth/me", {});
+        const user = (result.data as any)?.data;
+        if (user) {
+          setDisplayName(user.display_name || user.email || "");
+          setEmail(user.email || "");
+        }
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const initials = displayName
+    ? displayName
+        .split(" ")
+        .map((w: string) => w[0])
+        .slice(0, 2)
+        .join("")
+        .toUpperCase()
+    : "?";
+
+  return (
+    <div className="space-y-6">
+      {/* Profile */}
+      <div className="bg-white rounded-xl border border-stone-200 p-5">
+        <h3 className="text-sm font-semibold text-stone-900 mb-1">Profile</h3>
+        <p className="text-xs text-stone-500 mb-5">
+          Your personal information and preferences.
+        </p>
+
+        <div className="flex items-start gap-5 mb-6">
+          <div className="relative group/avatar shrink-0">
+            <div className="w-16 h-16 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xl font-bold">
+              {initials}
+            </div>
+            <div className="absolute inset-0 w-16 h-16 rounded-full bg-black/50 flex items-center justify-center opacity-0 group-hover/avatar:opacity-100 transition-opacity cursor-pointer">
+              <Camera className="w-4 h-4 text-white" />
+            </div>
+          </div>
+          <div className="flex-1 space-y-3">
+            <div>
+              <label className="text-xs font-medium text-stone-500 mb-1 block">
+                Display name
+              </label>
+              <input
+                type="text"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400"
+              />
+            </div>
+            <div>
+              <label className="text-xs font-medium text-stone-500 mb-1 block">Email</label>
+              <input
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-4 border-t border-stone-100">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+            Save profile
+          </button>
+        </div>
+      </div>
+
+      {/* Change Password */}
+      <div className="bg-white rounded-xl border border-stone-200 p-5">
+        <h3 className="text-sm font-semibold text-stone-900 mb-1">Change Password</h3>
+        <p className="text-xs text-stone-500 mb-5">Update your account password.</p>
+
+        <div className="space-y-3 max-w-sm">
+          <div>
+            <label className="text-xs font-medium text-stone-500 mb-1 block">
+              Current password
+            </label>
+            <input
+              type="password"
+              placeholder="Enter current password"
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-stone-500 mb-1 block">
+              New password
+            </label>
+            <input
+              type="password"
+              placeholder="Enter new password"
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300"
+            />
+          </div>
+          <div>
+            <label className="text-xs font-medium text-stone-500 mb-1 block">
+              Confirm new password
+            </label>
+            <input
+              type="password"
+              placeholder="Confirm new password"
+              className="w-full text-sm border border-stone-200 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300"
+            />
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-4 mt-4 border-t border-stone-100">
+          <button className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm">
+            Update password
+          </button>
+        </div>
+      </div>
+
+      {/* Danger Zone */}
+      <div className="bg-white rounded-xl border border-red-200 p-5">
+        <div className="flex items-center gap-2 mb-1">
+          <AlertTriangle className="w-4 h-4 text-red-500" />
+          <h3 className="text-sm font-semibold text-red-700">Danger Zone</h3>
+        </div>
+        <p className="text-xs text-stone-500 mb-5">
+          Irreversible actions. Proceed with caution.
+        </p>
+
+        <div className="space-y-4">
+          <div className="flex items-center justify-between p-4 border border-stone-200 rounded-lg">
+            <div>
+              <p className="text-sm font-medium text-stone-700">Export all data</p>
+              <p className="text-xs text-stone-400">
+                Download all your contacts, interactions, and notes as a ZIP archive
+              </p>
+            </div>
+            <button className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-stone-200 text-stone-600 hover:bg-stone-50 transition-colors">
+              <Download className="w-3.5 h-3.5" /> Export
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-4 border border-red-200 rounded-lg bg-red-50/50">
+            <div>
+              <p className="text-sm font-medium text-red-700">Delete account</p>
+              <p className="text-xs text-red-500/80">
+                Permanently delete your account and all data. This cannot be undone.
+              </p>
+            </div>
+            <button className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors">
+              <Trash2 className="w-3.5 h-3.5" /> Delete account
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

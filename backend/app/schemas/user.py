@@ -34,7 +34,7 @@ class UserResponse(BaseModel):
 
     @classmethod
     def from_user(cls, user: "User") -> "UserResponse":
-        from app.api.settings import get_priority_settings
+        from app.services.user_settings import get_priority_settings
 
         return cls(
             id=user.id,

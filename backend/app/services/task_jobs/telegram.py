@@ -51,6 +51,12 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> 
             user.telegram_last_synced_at = datetime.now(UTC)
             await db.commit()
 
+            from app.services.sync_progress import increment_progress
+            await increment_progress(user_id, "batches_completed")
+            await increment_progress(user_id, "dialogs_processed", max_dialogs)
+            await increment_progress(user_id, "messages_synced", chat_info.get("new_interactions", 0))
+            await increment_progress(user_id, "contacts_found", chat_info.get("new_contacts", 0))
+
         return {
             "status": "ok",
             "new_interactions": chat_info.get("new_interactions", 0),
@@ -67,11 +73,25 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100) -> 
     except Exception as exc:
         from telethon.errors import FloodWaitError
         if isinstance(exc, FloodWaitError):
-            # FloodWait: return partial result so the chain (groups → bios → notify) continues
-            logger.warning("sync_telegram_chats: FloodWait for %s (%ds) — returning partial result to preserve chain.", user_id, exc.seconds)
+            # FloodWait: release lock and return partial result so the chain (groups → bios → notify) continues
+            logger.warning("sync_telegram_chats: FloodWait for %s (%ds) — releasing lock and returning partial result to preserve chain.", user_id, exc.seconds)
+            try:
+                from app.core.config import settings
+                import redis as _redis
+                _r = _redis.from_url(settings.REDIS_URL)
+                _r.delete(f"tg_sync_lock:{user_id}")
+            except Exception:
+                logger.warning("sync_telegram_chats: failed to release lock for %s on FloodWait", user_id, exc_info=True)
             return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
         logger.exception("sync_telegram_chats failed for %s, retrying.", user_id)
         if self.request.retries >= self.max_retries:
+            try:
+                from app.core.config import settings
+                import redis as _redis
+                _r = _redis.from_url(settings.REDIS_URL)
+                _r.delete(f"tg_sync_lock:{user_id}")
+            except Exception:
+                logger.warning("sync_telegram_chats: failed to release lock for %s on max retries", user_id, exc_info=True)
             notify_sync_failure.delay(str(uid), "Telegram chats", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
@@ -125,10 +145,25 @@ def sync_telegram_chats_batch_task(self, user_id: str, entity_ids: list[int]) ->
     except Exception as exc:
         from telethon.errors import FloodWaitError
         if isinstance(exc, FloodWaitError):
-            logger.warning("sync_telegram_chats_batch: FloodWait for %s (%ds) — returning partial result to preserve chain.", user_id, exc.seconds)
+            # FloodWait: release lock and return partial result so the chain continues
+            logger.warning("sync_telegram_chats_batch: FloodWait for %s (%ds) — releasing lock and returning partial result to preserve chain.", user_id, exc.seconds)
+            try:
+                from app.core.config import settings
+                import redis as _redis
+                _r = _redis.from_url(settings.REDIS_URL)
+                _r.delete(f"tg_sync_lock:{user_id}")
+            except Exception:
+                logger.warning("sync_telegram_chats_batch: failed to release lock for %s on FloodWait", user_id, exc_info=True)
             return {"status": "partial_flood_wait", "new_interactions": 0, "new_contacts": 0}
         logger.exception("sync_telegram_chats_batch failed for %s (batch of %d), retrying.", user_id, len(entity_ids))
         if self.request.retries >= self.max_retries:
+            try:
+                from app.core.config import settings
+                import redis as _redis
+                _r = _redis.from_url(settings.REDIS_URL)
+                _r.delete(f"tg_sync_lock:{user_id}")
+            except Exception:
+                logger.warning("sync_telegram_chats_batch: failed to release lock for %s on max retries", user_id, exc_info=True)
             notify_sync_failure.delay(user_id, "telegram", str(exc))
         raise self.retry(exc=exc, countdown=60) from exc
 
@@ -331,7 +366,7 @@ def sync_telegram_for_user(user_id: str) -> None:
     import redis as _redis
     _r = _redis.from_url(settings.REDIS_URL)
     lock_key = f"tg_sync_lock:{user_id}"
-    if not _r.set(lock_key, "1", nx=True, ex=21600):  # 6 hour TTL
+    if not _r.set(lock_key, "1", nx=True, ex=3600):  # 1 hour TTL
         logger.info("sync_telegram_for_user: skipping user %s — sync already in progress", user_id)
         return
 
@@ -408,6 +443,9 @@ def sync_telegram_for_user(user_id: str) -> None:
         # Incremental sync: most recent 100 dialogs
         # Groups and bios are fetched on-demand (contact detail page visit / Refresh Details)
         # and via periodic recheck tasks — not in the daily chain.
+        from app.services.sync_progress import set_progress
+        from datetime import UTC, datetime as _dt
+        _run(set_progress(user_id, phase="messages", total_dialogs=100, dialogs_processed=0, batches_total=1, batches_completed=0, contacts_found=0, messages_synced=0, started_at=_dt.now(UTC).isoformat()))
         chain(
             sync_telegram_chats_for_user.si(user_id, 100),
             sync_telegram_notify.si(user_id),

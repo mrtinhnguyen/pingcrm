@@ -572,7 +572,35 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
             try:
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
                     if message.message is None:
-                        continue  # skip service messages
+                        # Check for phone/video calls
+                        from telethon.tl.types import MessageActionPhoneCall
+                        if hasattr(message, 'action') and isinstance(message.action, MessageActionPhoneCall):
+                            direction = "outbound" if message.out else "inbound"
+                            is_video = getattr(message.action, 'video', False)
+                            call_type = "Video call" if is_video else "Phone call"
+                            duration = getattr(message.action, 'duration', None)
+                            preview = f"{call_type}" + (f" ({duration}s)" if duration else "")
+                            message_id = f"{entity.id}:{message.id}"
+                            if message_id not in existing_refs:
+                                occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
+                                _interaction, is_new = await _upsert_interaction(
+                                    contact=contact,
+                                    user_id=user.id,
+                                    message_id=message_id,
+                                    direction=direction,
+                                    content_preview=preview,
+                                    occurred_at=occurred_at,
+                                    db=db,
+                                )
+                                if is_new:
+                                    new_count += 1
+                                    affected_contact_ids.add(str(contact.id))
+                                if (
+                                    contact.last_interaction_at is None
+                                    or contact.last_interaction_at < occurred_at
+                                ):
+                                    contact.last_interaction_at = occurred_at
+                        continue  # skip other service messages
 
                     direction = "outbound" if message.sender_id == my_id else "inbound"
                     message_id = f"{entity.id}:{message.id}"
@@ -750,7 +778,33 @@ async def sync_telegram_chats_batch(
             try:
                 async for message in client.iter_messages(entity, limit=MAX_MESSAGES):
                     if message.message is None:
+                        # Check for phone/video calls
+                        from telethon.tl.types import MessageActionPhoneCall
+                        if hasattr(message, 'action') and isinstance(message.action, MessageActionPhoneCall):
+                            direction = "outbound" if message.out else "inbound"
+                            is_video = getattr(message.action, 'video', False)
+                            call_type = "Video call" if is_video else "Phone call"
+                            duration = getattr(message.action, 'duration', None)
+                            preview = f"{call_type}" + (f" ({duration}s)" if duration else "")
+                            message_id = f"{eid}:{message.id}"
+                            if message_id not in existing_refs:
+                                occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
+                                _interaction, is_new = await _upsert_interaction(
+                                    contact=contact,
+                                    user_id=user.id,
+                                    message_id=message_id,
+                                    direction=direction,
+                                    content_preview=preview,
+                                    occurred_at=occurred_at,
+                                    db=db,
+                                )
+                                if is_new:
+                                    new_count += 1
+                                    affected_contact_ids.add(str(contact.id))
+                                if contact.last_interaction_at is None or contact.last_interaction_at < occurred_at:
+                                    contact.last_interaction_at = occurred_at
                         continue
+
                     direction = "outbound" if message.sender_id == my_id else "inbound"
                     message_id = f"{eid}:{message.id}"
 

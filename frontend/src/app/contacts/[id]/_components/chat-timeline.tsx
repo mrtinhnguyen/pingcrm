@@ -7,10 +7,12 @@ import {
   Mail,
   MessageCircle,
   Pencil,
+  Phone,
   Sparkles,
   StickyNote,
   Trash2,
   Twitter,
+  Video,
 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -191,6 +193,10 @@ export function ChatTimeline({
         const showSeparator = needsSeparator(item.occurred_at, prevItem?.occurred_at ?? null);
         const isManual = item.platform === "manual";
         const isMeeting = item.platform === "meeting";
+        const isCall =
+          item.content_preview?.startsWith("Phone call") === true ||
+          item.content_preview?.startsWith("Video call") === true;
+        const isVideoCall = item.content_preview?.startsWith("Video call") === true;
         const isEvent = item.direction === "event";
         const isOutbound = item.direction === "outbound";
         const time = format(new Date(item.occurred_at), "h:mm a");
@@ -223,6 +229,31 @@ export function ChatTimeline({
               </div>
             )}
 
+            {/* Call event */}
+            {isCall && !isMeeting && !isEvent && (
+              <div className="flex justify-center py-1">
+                <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-stone-50 border border-stone-100">
+                  {isVideoCall ? (
+                    <Video className="w-3.5 h-3.5 text-teal-500" />
+                  ) : (
+                    <Phone className="w-3.5 h-3.5 text-teal-500" />
+                  )}
+                  <span className="text-[11px] text-stone-500">
+                    {(() => {
+                      const preview = item.content_preview ?? "";
+                      const label = isVideoCall ? "Video Call" : "Call";
+                      // Extract duration if present, e.g. "Phone call · 12 min"
+                      const afterPrefix = isVideoCall
+                        ? preview.slice("Video call".length)
+                        : preview.slice("Phone call".length);
+                      const duration = afterPrefix.replace(/^[\s·\-:]+/, "").trim();
+                      return duration ? `${label} · ${duration}` : label;
+                    })()}
+                  </span>
+                </div>
+              </div>
+            )}
+
             {/* Event (bio change, etc.) */}
             {isEvent && (
               <div className="flex justify-center py-1">
@@ -241,7 +272,7 @@ export function ChatTimeline({
             )}
 
             {/* Regular message */}
-            {!isManual && !isMeeting && !isEvent &&
+            {!isManual && !isMeeting && !isCall && !isEvent &&
               (isOutbound ? (
                 <div className="flex items-end gap-2 max-w-[85%] ml-auto flex-row-reverse">
                   <div className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-[10px] font-semibold shrink-0">

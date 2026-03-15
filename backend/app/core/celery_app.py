@@ -72,5 +72,10 @@ celery_app.conf.update(
             "task": "app.services.tasks.recheck_telegram_bios_all",
             "schedule": crontab(minute=0, hour=5, day_of_month="1,4,7,10,13,16,19,22,25,28"),
         },
+        # Watchdog: remove orphaned Telegram sync locks every hour at :15
+        "cleanup-stale-telegram-locks-hourly": {
+            "task": "app.services.tasks.cleanup_stale_telegram_locks",
+            "schedule": crontab(minute=15),
+        },
     },
 )

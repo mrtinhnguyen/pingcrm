@@ -7,10 +7,9 @@ from app.core.auth import get_current_user
 from app.core.database import get_db
 from app.models.user import User
 from app.schemas.responses import Envelope
+from app.services.user_settings import DEFAULT_PRIORITY_SETTINGS, get_priority_settings
 
 router = APIRouter(prefix="/api/v1/settings", tags=["settings"])
-
-DEFAULT_PRIORITY_SETTINGS = {"high": 30, "medium": 60, "low": 180}
 
 
 class PrioritySettingsInput(BaseModel):
@@ -30,13 +29,6 @@ class PrioritySettingsData(BaseModel):
     high: int
     medium: int
     low: int
-
-
-def get_priority_settings(user: User) -> dict:
-    """Return priority settings with defaults fallback."""
-    if user.priority_settings:
-        return {**DEFAULT_PRIORITY_SETTINGS, **user.priority_settings}
-    return dict(DEFAULT_PRIORITY_SETTINGS)
 
 
 @router.get("/priority", response_model=Envelope[PrioritySettingsData])

@@ -74,6 +74,17 @@ export function FollowUpRulesTab() {
     );
   }
 
+  const THRESHOLD_MIN = 7;
+  const THRESHOLD_MAX = 365;
+
+  const validationErrors: Partial<Record<keyof PrioritySettings, string>> = {};
+  for (const key of ["high", "medium", "low"] as const) {
+    if (settings[key] < THRESHOLD_MIN) {
+      validationErrors[key] = "Minimum 7 days";
+    }
+  }
+  const hasValidationErrors = Object.keys(validationErrors).length > 0;
+
   const levels: {
     key: keyof PrioritySettings;
     label: string;
@@ -81,9 +92,9 @@ export function FollowUpRulesTab() {
     min: number;
     max: number;
   }[] = [
-    { key: "high", label: "High priority", color: "bg-red-500", min: 1, max: 30 },
-    { key: "medium", label: "Medium priority", color: "bg-amber-500", min: 7, max: 90 },
-    { key: "low", label: "Low priority", color: "bg-blue-500", min: 14, max: 365 },
+    { key: "high", label: "High priority", color: "bg-red-500", min: THRESHOLD_MIN, max: 30 },
+    { key: "medium", label: "Medium priority", color: "bg-amber-500", min: THRESHOLD_MIN, max: 90 },
+    { key: "low", label: "Low priority", color: "bg-blue-500", min: THRESHOLD_MIN, max: THRESHOLD_MAX },
   ];
 
   return (
@@ -126,6 +137,12 @@ export function FollowUpRulesTab() {
                 </span>
                 <span className="text-[10px] text-stone-300">{max} days</span>
               </div>
+              {validationErrors[key] && (
+                <p className="text-[11px] text-red-500 flex items-center gap-1 mt-0.5">
+                  <AlertCircle className="w-3 h-3" />
+                  {validationErrors[key]}
+                </p>
+              )}
             </div>
           ))}
         </div>
@@ -148,7 +165,7 @@ export function FollowUpRulesTab() {
           )}
           <button
             onClick={() => void handleSave()}
-            disabled={isSaving}
+            disabled={isSaving || hasValidationErrors}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
           >
             {isSaving ? (

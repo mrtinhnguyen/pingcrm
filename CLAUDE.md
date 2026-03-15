@@ -74,6 +74,14 @@ cd backend && celery -A worker.celery_app worker --loglevel=info
 - Database models use UUID primary keys
 - Environment variables in `.env` (never commit)
 
+## Exception Handling Policy
+- No `except Exception` without `logger.exception()` with structured context
+- Prefer typed exceptions for known provider errors (e.g., `FloodWaitError`, `httpx.HTTPStatusError`)
+- Use `logger.warning(..., exc_info=True)` for expected/recoverable failures
+- Use `logger.exception(...)` for unexpected failures
+- Never `except: pass` — always log at minimum
+- `except Exception` in transaction boundary (database.py `get_db`) is intentional and excluded
+
 ## Platform Integrations (MVP)
 1. **Gmail** - OAuth + Gmail API for email thread sync
 2. **Telegram** - MTProto client for chat history access

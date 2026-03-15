@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, status
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -1092,10 +1092,13 @@ async def recalculate_scores(
     return envelope({"updated": updated})
 
 
+VALID_PRIORITY_LEVELS = {"low", "normal", "high", "archived"}
+
+
 class BulkUpdateBody(BaseModel):
-    contact_ids: list[uuid.UUID]
-    add_tags: list[str] | None = None
-    remove_tags: list[str] | None = None
+    contact_ids: list[uuid.UUID] = Field(max_length=500)
+    add_tags: list[str] | None = Field(default=None, max_length=50)
+    remove_tags: list[str] | None = Field(default=None, max_length=50)
     priority_level: str | None = None
     company: str | None = None
 
@@ -1114,6 +1117,9 @@ async def bulk_update_contacts(
         )
     )
     contacts = result.scalars().all()
+
+    if body.priority_level is not None and body.priority_level not in VALID_PRIORITY_LEVELS:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Invalid priority_level. Must be one of: {', '.join(sorted(VALID_PRIORITY_LEVELS))}")
 
     archive_contact_ids: list[uuid.UUID] = []
     for contact in contacts:

@@ -772,6 +772,10 @@ async def sync_twitter_contact_dms(
     if not contact_twitter_id:
         return {"new_interactions": 0, "skipped": True, "reason": "no_twitter_id"}
 
+    import re
+    if not re.fullmatch(r"\d+", contact_twitter_id):
+        return {"new_interactions": 0, "skipped": True, "reason": "invalid_twitter_id"}
+
     # Use per-conversation endpoint (more efficient, targeted)
     try:
         dm_events = await fetch_dm_conversation_with(contact_twitter_id, headers)

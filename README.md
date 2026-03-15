@@ -530,12 +530,21 @@ pingcrm/
 │   │   ├── main.py                  # FastAPI app entry point + middleware
 │   │   ├── api/                     # Route handlers
 │   │   │   ├── auth.py              # Google OAuth + email/password auth
-│   │   │   ├── contacts.py          # CRUD, CSV import, sync dispatch
+│   │   │   ├── contacts.py          # Composition root — includes sub-routers
+│   │   │   ├── contacts_routes/     # Contact route sub-modules
+│   │   │   │   ├── crud.py          # Create, read, update, delete
+│   │   │   │   ├── listing.py       # Paginated list + search
+│   │   │   │   ├── taxonomy.py      # Tags + stats
+│   │   │   │   ├── imports.py       # CSV + LinkedIn import
+│   │   │   │   ├── sync.py          # Google/Telegram/Twitter sync dispatch
+│   │   │   │   ├── duplicates.py    # Duplicate detection + merge
+│   │   │   │   ├── messaging.py     # Interaction timeline + message send
+│   │   │   │   └── shared.py        # Shared dependencies (router guards etc.)
 │   │   │   ├── interactions.py      # Interaction timeline endpoints
 │   │   │   ├── suggestions.py       # Follow-up suggestions
 │   │   │   ├── telegram.py          # Telegram auth + sync + common groups
 │   │   │   ├── twitter.py           # Twitter OAuth PKCE + sync
-│   │   │   ├── organizations.py      # Organization CRUD + merge
+│   │   │   ├── organizations.py     # Organization CRUD + merge
 │   │   │   ├── identity.py          # Identity resolution endpoints
 │   │   │   ├── notifications.py     # Notification management
 │   │   │   └── linkedin.py          # LinkedIn push endpoint + avatar download
@@ -552,7 +561,17 @@ pingcrm/
 │   │   │   └── google_account.py
 │   │   ├── schemas/                 # Pydantic request/response schemas (typed Envelope[T])
 │   │   ├── services/                # Business logic
-│   │   │   ├── tasks.py             # Celery background tasks (all syncs)
+│   │   │   ├── tasks.py             # Re-export shim — backward-compatible Celery task names
+│   │   │   ├── task_jobs/           # Celery task sub-modules by domain
+│   │   │   │   ├── common.py        # Shared notify helpers
+│   │   │   │   ├── gmail.py         # Gmail sync tasks
+│   │   │   │   ├── telegram.py      # Telegram sync tasks
+│   │   │   │   ├── twitter.py       # Twitter poll + DM sync tasks
+│   │   │   │   ├── google.py        # Google Contacts + Calendar tasks
+│   │   │   │   ├── scoring.py       # Relationship score tasks
+│   │   │   │   ├── followups.py     # Suggestion generation tasks
+│   │   │   │   ├── maintenance.py   # Snooze reactivation + org stats
+│   │   │   │   └── tagging.py       # Auto-tagging tasks
 │   │   │   ├── followup_engine.py   # Follow-up suggestion generation
 │   │   │   ├── identity_resolution.py  # Cross-platform matching
 │   │   │   ├── message_composer.py  # AI message drafting via Claude
@@ -583,12 +602,18 @@ pingcrm/
     ├── src/
     │   ├── app/                     # App Router pages
     │   │   ├── dashboard/           # Main dashboard
-    │   │   ├── contacts/            # Contact list + detail + new
+    │   │   ├── contacts/            # Contact list + new
+    │   │   │   └── [id]/            # Contact detail page
+    │   │   │       ├── _components/ # Detail UI components (timeline, panels, cards)
+    │   │   │       ├── _hooks/      # Controller hook (use-contact-detail-controller)
+    │   │   │       └── _lib/        # Helper utilities (formatters)
     │   │   ├── organizations/       # Organization list + detail (inline editing)
     │   │   ├── suggestions/         # Follow-up suggestions
     │   │   ├── identity/            # Identity resolution UI
     │   │   ├── notifications/       # Notification center
     │   │   ├── settings/            # Platform connections + CSV import
+    │   │   │   ├── _components/     # Per-tab UI components (platform cards, import, tags)
+    │   │   │   └── _hooks/          # Controller hooks (settings, Telegram connect flow)
     │   │   ├── onboarding/          # New user guided setup
     │   │   ├── auth/                # Login, register, OAuth callbacks
     │   │   ├── error.tsx            # Error boundary

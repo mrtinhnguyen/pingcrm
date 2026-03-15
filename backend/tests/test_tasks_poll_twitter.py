@@ -57,9 +57,9 @@ def test_poll_twitter_all_only_queues_connected_users():
     mock_session = _make_mock_session([uid_with])
 
     with (
-        patch("app.services.tasks.task_session", return_value=mock_session),
-        patch("app.services.tasks.poll_twitter_activity") as mock_activity,
-        patch("app.services.tasks.sync_twitter_dms_for_user") as mock_dms,
+        patch("app.services.task_jobs.twitter.task_session", return_value=mock_session),
+        patch("app.services.task_jobs.twitter.poll_twitter_activity") as mock_activity,
+        patch("app.services.task_jobs.twitter.sync_twitter_dms_for_user") as mock_dms,
     ):
         mock_activity.delay = MagicMock(return_value=None)
         mock_dms.delay = MagicMock(return_value=None)
@@ -76,9 +76,9 @@ def test_poll_twitter_all_no_connected_users():
     mock_session = _make_mock_session([])
 
     with (
-        patch("app.services.tasks.task_session", return_value=mock_session),
-        patch("app.services.tasks.poll_twitter_activity") as mock_activity,
-        patch("app.services.tasks.sync_twitter_dms_for_user") as mock_dms,
+        patch("app.services.task_jobs.twitter.task_session", return_value=mock_session),
+        patch("app.services.task_jobs.twitter.poll_twitter_activity") as mock_activity,
+        patch("app.services.task_jobs.twitter.sync_twitter_dms_for_user") as mock_dms,
     ):
         mock_activity.delay = MagicMock(return_value=None)
         mock_dms.delay = MagicMock(return_value=None)
@@ -96,9 +96,9 @@ def test_poll_twitter_all_queues_all_connected_users():
     mock_session = _make_mock_session(uids)
 
     with (
-        patch("app.services.tasks.task_session", return_value=mock_session),
-        patch("app.services.tasks.poll_twitter_activity") as mock_activity,
-        patch("app.services.tasks.sync_twitter_dms_for_user") as mock_dms,
+        patch("app.services.task_jobs.twitter.task_session", return_value=mock_session),
+        patch("app.services.task_jobs.twitter.poll_twitter_activity") as mock_activity,
+        patch("app.services.task_jobs.twitter.sync_twitter_dms_for_user") as mock_dms,
     ):
         mock_activity.delay = MagicMock(return_value=None)
         mock_dms.delay = MagicMock(return_value=None)
@@ -129,9 +129,9 @@ def test_poll_twitter_all_query_filters_by_refresh_token():
     mock_session.__aenter__.return_value.execute = capture_execute
 
     with (
-        patch("app.services.tasks.task_session", return_value=mock_session),
-        patch("app.services.tasks.poll_twitter_activity"),
-        patch("app.services.tasks.sync_twitter_dms_for_user"),
+        patch("app.services.task_jobs.twitter.task_session", return_value=mock_session),
+        patch("app.services.task_jobs.twitter.poll_twitter_activity"),
+        patch("app.services.task_jobs.twitter.sync_twitter_dms_for_user"),
     ):
         poll_twitter_all()
 

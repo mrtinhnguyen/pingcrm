@@ -241,8 +241,12 @@ async def _collect_pool_a_candidates(
 
     # ------------------------------------------------------------------
     # Trigger 2: Event-based — DetectedEvents in last 7 days, confidence > 0.7, not dormant
+    # Skip contacts contacted in the last COOLING_RECENT_DAYS — even with
+    # a noteworthy event, a follow-up 5 days after the last conversation
+    # is too soon.
     # ------------------------------------------------------------------
     event_cutoff = now - timedelta(days=EVENT_BASED_WINDOW_DAYS)
+    cooling_cutoff = now - timedelta(days=COOLING_RECENT_DAYS)
     events_result = await db.execute(
         select(DetectedEvent, Contact)
         .join(Contact, DetectedEvent.contact_id == Contact.id)
@@ -253,6 +257,7 @@ async def _collect_pool_a_candidates(
             _has_interactions,
             _not_archived,
             Contact.last_interaction_at >= dormancy_cutoff,
+            Contact.last_interaction_at < cooling_cutoff,  # respect cooldown
             DetectedEvent.detected_at >= event_cutoff,
             DetectedEvent.confidence > EVENT_CONFIDENCE_THRESHOLD,
         )

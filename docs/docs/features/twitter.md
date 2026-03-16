@@ -28,9 +28,9 @@ Ping CRM periodically checks the Twitter bios of your contacts for changes. When
 
 Bio changes are a valuable signal for identifying career moves, fundraising activity, and other networking-relevant events.
 
-## Event Classification
+## Event Classification (On-Demand)
 
-When bio changes or notable tweets are detected, Ping CRM uses Claude to classify the event into one of the following categories:
+When composing follow-up suggestions, Ping CRM fetches recent tweets for the specific contact and uses Claude to classify events into:
 
 | Category | Example |
 |---|---|
@@ -41,7 +41,7 @@ When bio changes or notable tweets are detected, Ping CRM uses Claude to classif
 | Milestone | "10 years in the industry" |
 | Conference | "Speaking at @conference next week" |
 
-Classified events appear on the contact timeline and can trigger follow-up suggestions from the AI engine.
+Tweet fetching and classification are **not** run on a daily cron. Instead, they happen lazily when the follow-up engine needs context for a specific contact. This avoids unnecessary API calls for contacts that don't need suggestions. Fetched tweets are cached in Redis for 12 hours.
 
 ## Bird CLI (`@steipete/bird`)
 
@@ -92,4 +92,9 @@ The backend checks for Bird availability at runtime via `shutil.which("bird")`. 
 
 ## Sync Schedule
 
-All Twitter syncs (DMs, mentions, bio checks) run daily at **04:00 UTC**.
+| Task | Schedule | What it does |
+|---|---|---|
+| Bio + profile polling | Daily (cron) | Fetches profiles via Bird CLI, detects bio changes, downloads avatars |
+| DM sync | Daily (cron) | Imports DM conversations via Twitter OAuth |
+| Mention sync | Daily (cron) | Imports @mentions and replies via Twitter OAuth |
+| Tweet fetching + classification | On-demand | Fetched when composing follow-up suggestions (12h Redis cache) |

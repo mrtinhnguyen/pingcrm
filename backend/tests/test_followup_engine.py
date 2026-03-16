@@ -235,6 +235,12 @@ async def test_generate_suggestions_event_based_created(
     db: AsyncSession, test_user, test_contact, test_detected_event
 ):
     """A high-confidence recent event should trigger an event_based suggestion."""
+    # Ensure last interaction is beyond the 14-day cooldown so event triggers fire
+    test_contact.last_interaction_at = datetime.now(UTC) - timedelta(days=20)
+    db.add(test_contact)
+    await db.commit()
+    await db.refresh(test_contact)
+
     with _patch_compose():
         suggestions = await generate_suggestions(test_user.id, db)
 
@@ -865,7 +871,7 @@ async def test_event_trigger_gets_priority_bonus(db: AsyncSession, test_user):
         emails=["event@test.com"],
         relationship_score=2,
         interaction_count=3,
-        last_interaction_at=datetime.now(UTC) - timedelta(days=5),
+        last_interaction_at=datetime.now(UTC) - timedelta(days=20),
         source="manual",
     )
     standard_contact = Contact(

@@ -43,6 +43,8 @@ When composing follow-up suggestions, Ping CRM fetches recent tweets for the spe
 
 Tweet fetching and classification are **not** run on a daily cron. Instead, they happen lazily when the follow-up engine needs context for a specific contact. This avoids unnecessary API calls for contacts that don't need suggestions. Fetched tweets are cached in Redis for 12 hours.
 
+See [Follow-Up Suggestions](./suggestions.md) for the full suggestion algorithm, including how Twitter events feed into it.
+
 ## Bird CLI (`@steipete/bird`)
 
 Ping CRM uses the [Bird CLI](https://www.npmjs.com/package/@anthropic-ai/bird) (`@steipete/bird v0.8.0`) as the **primary** data source for Twitter/X. Bird authenticates via browser cookies rather than API keys, bypassing X API rate limits and credit restrictions.

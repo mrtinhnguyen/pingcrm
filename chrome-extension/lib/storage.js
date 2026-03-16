@@ -1,5 +1,15 @@
 /**
- * Chrome storage wrapper for PingCRM extension settings.
+ * Chrome storage wrapper for PingCRM LinkedIn Companion v2.
+ *
+ * Keys:
+ *   token           - Bearer token received on successful pairing
+ *   apiUrl          - PingCRM instance base URL (no trailing slash)
+ *   watermark       - ISO timestamp of the newest Voyager message processed
+ *   cookiesValid    - boolean; false when LinkedIn cookies are missing/expired
+ *   _pairingCode    - active pairing code (removed on successful pair)
+ *   lastVoyagerSync - ISO timestamp of when the last Voyager sync completed
+ *   profileCount    - cumulative number of profiles synced
+ *   messageCount    - cumulative number of messages synced
  */
 const Storage = {
   async get(keys) {
@@ -11,43 +21,56 @@ const Storage = {
   },
 
   async getConfig() {
-    const { apiUrl, token, autoSync, lastSync, profileCount, messageCount, lastSyncError, userEmail } =
-      await this.get(['apiUrl', 'token', 'autoSync', 'lastSync', 'profileCount', 'messageCount', 'lastSyncError', 'userEmail']);
+    const {
+      token,
+      apiUrl,
+      watermark,
+      cookiesValid,
+      _pairingCode,
+      lastVoyagerSync,
+      profileCount,
+      messageCount,
+    } = await this.get([
+      "token",
+      "apiUrl",
+      "watermark",
+      "cookiesValid",
+      "_pairingCode",
+      "lastVoyagerSync",
+      "profileCount",
+      "messageCount",
+    ]);
+
     return {
-      apiUrl: apiUrl || '',
-      token: token || '',
-      autoSync: autoSync !== false,
-      lastSync: lastSync || null,
+      token: token || "",
+      apiUrl: apiUrl || "",
+      watermark: watermark || null,
+      cookiesValid: cookiesValid !== false,
+      pairingCode: _pairingCode || null,
+      lastVoyagerSync: lastVoyagerSync || null,
       profileCount: profileCount || 0,
       messageCount: messageCount || 0,
-      lastSyncError: lastSyncError || null,
-      userEmail: userEmail || null,
     };
   },
 
-  async saveConfig({ apiUrl, token }) {
-    await this.set({ apiUrl: apiUrl.replace(/\/+$/, ''), token });
-  },
-
-  async setAutoSync(enabled) {
-    await this.set({ autoSync: enabled });
-  },
-
   async recordSync({ profilesSynced = 0, messagesSynced = 0 }) {
-    const config = await this.getConfig();
+    const { profileCount = 0, messageCount = 0 } = await this.get([
+      "profileCount",
+      "messageCount",
+    ]);
     await this.set({
-      lastSync: new Date().toISOString(),
-      profileCount: config.profileCount + profilesSynced,
-      messageCount: config.messageCount + messagesSynced,
+      lastVoyagerSync: new Date().toISOString(),
+      profileCount: profileCount + profilesSynced,
+      messageCount: messageCount + messagesSynced,
     });
   },
 
   async clearToken() {
-    await this.set({ token: '' });
+    await this.set({ token: "" });
   },
 
   async isConfigured() {
-    const { apiUrl, token } = await this.getConfig();
-    return Boolean(apiUrl && token);
+    const { token, apiUrl } = await this.getConfig();
+    return Boolean(token && apiUrl);
   },
 };

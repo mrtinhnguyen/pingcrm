@@ -87,11 +87,17 @@ class LinkedInMessagesImportResult(BaseModel):
     unmatched_names: list[str]
 
 
+class BackfillItem(BaseModel):
+    contact_id: str
+    linkedin_profile_id: str
+
+
 class LinkedInPushResult(BaseModel):
     contacts_created: int
     contacts_updated: int
     interactions_created: int
     interactions_skipped: int
+    backfill_needed: list[BackfillItem] = []
 
 
 class SyncStartedData(BaseModel):

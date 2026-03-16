@@ -17,7 +17,7 @@ from app.models.contact import Contact
 from app.models.follow_up import FollowUpSuggestion
 from app.models.interaction import Interaction
 from app.models.user import User
-from app.schemas.responses import Envelope, LinkedInPushResult
+from app.schemas.responses import BackfillItem, Envelope, LinkedInPushResult
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,8 @@ async def push_linkedin_data(
     interactions_created = 0
     interactions_skipped = 0
     contacts_with_new_interactions: set[uuid.UUID] = set()
+    # Track all contacts touched in this push for backfill detection
+    touched_contacts: list[Contact] = []
 
     # --- Profiles ---
     for profile in body.profiles:
@@ -179,6 +181,7 @@ async def push_linkedin_data(
             local_path = await _save_avatar(profile, str(contact.id))
             if local_path:
                 contact.avatar_url = local_path
+        touched_contacts.append(contact)
 
     # --- Messages ---
     for msg in body.messages:
@@ -232,6 +235,8 @@ async def push_linkedin_data(
             await db.flush()
             contacts_created += 1
 
+        touched_contacts.append(contact)
+
         try:
             occurred_at = datetime.fromisoformat(msg.timestamp)
         except ValueError:
@@ -266,12 +271,31 @@ async def push_linkedin_data(
 
     await db.flush()
 
+    # Collect contacts that need backfill: have a linkedin_profile_id but are
+    # missing title, company, or avatar_url after this push.
+    seen_ids: set[uuid.UUID] = set()
+    backfill_needed: list[BackfillItem] = []
+    for contact in touched_contacts:
+        if contact.id in seen_ids:
+            continue
+        seen_ids.add(contact.id)
+        if contact.linkedin_profile_id and (
+            not contact.title or not contact.company or not contact.avatar_url
+        ):
+            backfill_needed.append(
+                BackfillItem(
+                    contact_id=str(contact.id),
+                    linkedin_profile_id=contact.linkedin_profile_id,
+                )
+            )
+
     return {
         "data": LinkedInPushResult(
             contacts_created=contacts_created,
             contacts_updated=contacts_updated,
             interactions_created=interactions_created,
             interactions_skipped=interactions_skipped,
+            backfill_needed=backfill_needed,
         ),
         "error": None,
         "meta": None,

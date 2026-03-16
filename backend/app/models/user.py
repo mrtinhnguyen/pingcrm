@@ -32,6 +32,9 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     priority_settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    linkedin_extension_paired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     updated_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )

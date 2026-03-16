@@ -1,31 +1,19 @@
 {
   "manifest_version": 3,
   "name": "PingCRM LinkedIn Companion",
-  "version": "0.8.0",
-  "description": "Passively syncs LinkedIn profile and message data to your PingCRM instance",
+  "version": "1.0.0",
+  "description": "Syncs LinkedIn conversations and profiles to your PingCRM instance",
   "permissions": ["storage", "activeTab", "cookies"],
-  "host_permissions": ["https://www.linkedin.com/*", "http://localhost/*", "http://127.0.0.1/*", "https://*/*"],
-  "background": {
-    "service_worker": "background/service-worker.js"
-  },
-  "content_scripts": [
-    {
-      "matches": ["https://www.linkedin.com/*"],
-      "js": ["content/selectors.js", "content/linkedin-profile.js", "content/linkedin-messages.js"],
-      "run_at": "document_idle"
-    }
-  ],
+  "host_permissions": ["https://www.linkedin.com/*", "http://localhost/*", "https://*/*"],
+  "background": { "service_worker": "background/service-worker.js" },
+  "content_scripts": [{
+    "matches": ["https://www.linkedin.com/*"],
+    "js": ["content/selectors.js", "content/linkedin-profile.js"],
+    "run_at": "document_idle"
+  }],
   "action": {
     "default_popup": "popup/popup.html",
-    "default_icon": {
-      "16": "icons/icon16.png",
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
-    }
+    "default_icon": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
   },
-  "icons": {
-    "16": "icons/icon16.png",
-    "48": "icons/icon48.png",
-    "128": "icons/icon128.png"
-  }
+  "icons": { "16": "icons/icon16.png", "48": "icons/icon48.png", "128": "icons/icon128.png" }
 }

@@ -3,70 +3,165 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PingCRM LinkedIn Companion</title>
+  <title>PingCRM — LinkedIn</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>PingCRM</h1>
-      <p class="subtitle">LinkedIn Companion</p>
-    </header>
 
-    <div id="setup-section" class="section">
-      <div class="form-group">
-        <label for="api-url">PingCRM API URL</label>
-        <input type="url" id="api-url" placeholder="https://your-pingcrm.example.com">
+  <!-- ═══ UNPAIRED VIEW ═══ -->
+  <div id="view-unpaired" class="view">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="7" fill="#0d9488"/>
+          <path d="M8 14.5L12 18.5L20 10.5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
       </div>
-      <div class="form-group">
-        <label for="email">Email</label>
-        <input type="email" id="email" placeholder="you@example.com">
+      <div class="brand-text">
+        <h1>PingCRM</h1>
+        <span class="brand-badge">LinkedIn Sync</span>
       </div>
-      <div class="form-group">
-        <label for="password">Password</label>
-        <input type="password" id="password" placeholder="Your password">
-      </div>
-      <p id="login-error" class="error-text hidden"></p>
-      <button id="login-btn" class="btn btn-primary">Log in</button>
     </div>
 
-    <div id="status-section" class="section hidden">
-      <div class="status-row">
-        <span class="status-dot" id="status-dot"></span>
-        <span id="status-text">Connected</span>
+    <!-- Step 1: Instance URL entry -->
+    <div id="step-url" class="pairing-step">
+      <div class="input-group">
+        <label>Instance URL</label>
+        <input type="url" id="instance-url-input" placeholder="https://pingcrm.example.com" spellcheck="false" autocomplete="off">
       </div>
-      <p id="user-email" class="user-email hidden"></p>
+      <p id="url-error" class="error-msg hidden"></p>
+      <button id="start-pairing-btn" class="btn-main">
+        <span class="btn-label">Generate Pairing Code</span>
+        <span class="btn-spinner hidden"></span>
+      </button>
+      <p class="footer-note">Enter your PingCRM instance URL to get started.</p>
+    </div>
 
-      <div class="stats">
-        <div class="stat">
-          <span class="stat-value" id="profile-count">0</span>
-          <span class="stat-label">Profiles synced</span>
+    <!-- Step 2: Pairing code display -->
+    <div id="step-code" class="pairing-step hidden">
+      <div class="pairing-code-block">
+        <p class="pairing-hint">Enter this code in PingCRM Settings</p>
+        <div class="pairing-code" id="pairing-code-display">—</div>
+        <div class="pairing-waiting">
+          <span class="waiting-dot"></span>
+          <span>Waiting for pairing…</span>
         </div>
-        <div class="stat">
-          <span class="stat-value" id="message-count">0</span>
-          <span class="stat-label">Messages synced</span>
+      </div>
+      <button id="change-url-btn" class="btn-text">Change instance URL</button>
+      <p class="footer-note">Go to <strong>Settings → Extensions</strong> in your PingCRM instance and enter the code above. It expires in 10 minutes.</p>
+    </div>
+  </div>
+
+  <!-- ═══ CONNECTED VIEW ═══ -->
+  <div id="view-connected" class="view hidden">
+    <div class="top-bar">
+      <div class="brand-mini">
+        <svg width="20" height="20" viewBox="0 0 28 28" fill="none">
+          <rect width="28" height="28" rx="7" fill="#0d9488"/>
+          <path d="M8 14.5L12 18.5L20 10.5" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span>PingCRM</span>
+      </div>
+      <button id="disconnect-btn" class="icon-btn" title="Disconnect">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
+          <polyline points="16 17 21 12 16 7"/>
+          <line x1="21" y1="12" x2="9" y2="12"/>
+        </svg>
+      </button>
+    </div>
+
+    <!-- LinkedIn Status Card -->
+    <div class="card">
+      <div class="card-header">
+        <div class="platform-badge linkedin">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.064 2.064 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+          </svg>
+          LinkedIn
+        </div>
+        <div id="li-status" class="status-chip connected">
+          <span class="status-pulse"></span>
+          <span id="li-status-text">Connected</span>
         </div>
       </div>
 
-      <p class="last-sync" id="last-sync">Never synced</p>
+      <div class="card-body">
+        <div class="sync-stats">
+          <div class="sync-stat">
+            <span class="sync-stat-value" id="stat-profiles">0</span>
+            <span class="sync-stat-label">Profiles</span>
+          </div>
+          <div class="sync-stat-divider"></div>
+          <div class="sync-stat">
+            <span class="sync-stat-value" id="stat-messages">0</span>
+            <span class="sync-stat-label">Messages</span>
+          </div>
+        </div>
 
-      <div id="sync-error" class="error-text hidden">
-        <span id="sync-error-msg"></span>
-        <button id="retry-btn" class="btn btn-secondary btn-small">Retry</button>
+        <div class="sync-timeline">
+          <div class="timeline-row">
+            <span class="timeline-label">Cookie status</span>
+            <span class="timeline-value" id="cookie-status-el">
+              <span class="cookie-dot valid"></span> Valid
+            </span>
+          </div>
+          <div class="timeline-row">
+            <span class="timeline-label">Last sync</span>
+            <span class="timeline-value" id="last-sync-el">—</span>
+          </div>
+        </div>
       </div>
 
-      <div class="toggle-row">
-        <label for="auto-sync">Auto-sync</label>
-        <input type="checkbox" id="auto-sync" checked>
+      <div class="card-actions">
+        <button id="sync-now-btn" class="btn-main btn-compact">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+            <path d="M21 12a9 9 0 11-6.2-8.6"/>
+            <polyline points="21 3 21 9 15 9"/>
+          </svg>
+          <span class="btn-label">Sync Now</span>
+          <span class="btn-spinner hidden"></span>
+        </button>
       </div>
+    </div>
 
-      <button id="sync-now-btn" class="btn btn-primary">Sync Now</button>
-      <button id="disconnect-btn" class="btn btn-secondary">Disconnect</button>
+    <!-- Activity Feed -->
+    <div class="activity-section">
+      <h3 class="section-title">Recent Activity</h3>
+      <div id="activity-feed" class="activity-feed">
+        <div class="activity-item activity-empty">
+          <div class="activity-text" style="text-align:center;width:100%;padding:8px 0;">No activity yet</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Privacy Notice -->
+    <div class="privacy-notice">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+      </svg>
+      <span>LinkedIn cookies stay in your browser. Profiles and messages are sent only to <strong id="instance-host-el">your instance</strong>.</span>
+    </div>
+  </div>
+
+  <!-- ═══ EXPIRED VIEW ═══ -->
+  <div id="view-expired" class="view hidden">
+    <div class="expired-card">
+      <div class="expired-icon">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="1.5">
+          <circle cx="12" cy="12" r="10"/>
+          <line x1="12" y1="8" x2="12" y2="12"/>
+          <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+      </div>
+      <h2>LinkedIn Session Expired</h2>
+      <p>Visit <a href="https://www.linkedin.com" target="_blank">linkedin.com</a> and log in to refresh your session. The extension will reconnect automatically.</p>
     </div>
   </div>
 
   <script src="../lib/storage.js"></script>
-  <script src="../lib/api.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

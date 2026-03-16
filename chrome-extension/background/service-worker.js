@@ -1,170 +1,14 @@
 /**
- * Service worker for PingCRM LinkedIn Companion.
- * Batches captured profiles and messages, pushes to backend.
+ * Service worker for PingCRM LinkedIn Companion v2.
+ * Message router — delegates to imported modules.
  *
- * Note: Storage and Api are inlined here because MV3 module service workers
- * cannot importScripts, and relative ES module imports from subdirectories
- * have inconsistent behavior across Chrome versions.
+ * importScripts loads modules synchronously at service worker startup.
+ * Each module exposes its public functions as globals (no ES module syntax).
  */
 
-// ── Storage (mirrors lib/storage.js) ──
-const Storage = {
-  async get(keys) {
-    return chrome.storage.local.get(keys);
-  },
-  async set(data) {
-    return chrome.storage.local.set(data);
-  },
-  async getConfig() {
-    const { apiUrl, token, autoSync, lastSync, profileCount, messageCount, lastSyncError } =
-      await this.get(['apiUrl', 'token', 'autoSync', 'lastSync', 'profileCount', 'messageCount', 'lastSyncError']);
-    return {
-      apiUrl: apiUrl || '',
-      token: token || '',
-      autoSync: autoSync !== false,
-      lastSync: lastSync || null,
-      profileCount: profileCount || 0,
-      messageCount: messageCount || 0,
-      lastSyncError: lastSyncError || null,
-    };
-  },
-  async saveConfig({ apiUrl, token }) {
-    await this.set({ apiUrl: apiUrl.replace(/\/+$/, ''), token });
-  },
-  async recordSync({ profilesSynced = 0, messagesSynced = 0 }) {
-    const config = await this.getConfig();
-    await this.set({
-      lastSync: new Date().toISOString(),
-      profileCount: config.profileCount + profilesSynced,
-      messageCount: config.messageCount + messagesSynced,
-    });
-  },
-  async clearToken() {
-    await this.set({ token: '' });
-  },
-  async isConfigured() {
-    const { apiUrl, token } = await this.getConfig();
-    return Boolean(apiUrl && token);
-  },
-};
+importScripts("../lib/storage.js", "voyager-client.js", "sync.js", "pairing.js");
 
-// ── Api (mirrors lib/api.js) ──
-const Api = {
-  async push(profiles, messages) {
-    const config = await Storage.getConfig();
-    if (!config.apiUrl || !config.token) {
-      throw new Error('Not configured: missing API URL or token');
-    }
-    const response = await fetch(`${config.apiUrl}/api/v1/linkedin/push`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${config.token}`,
-      },
-      body: JSON.stringify({ profiles, messages }),
-    });
-    if (response.status === 401) {
-      // Try auto-re-login using stored credentials
-      const { apiUrl, userEmail, userPassword } = await Storage.get(['apiUrl', 'userEmail', 'userPassword']);
-      if (apiUrl && userEmail && userPassword) {
-        try {
-          const body = new URLSearchParams();
-          body.append('username', userEmail);
-          body.append('password', userPassword);
-          const loginResp = await fetch(`${apiUrl}/api/v1/auth/login`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body,
-          });
-          if (loginResp.ok) {
-            const result = await loginResp.json();
-            const newToken = result.data.access_token;
-            await Storage.set({ token: newToken });
-            // Retry the push with new token
-            const retryResp = await fetch(`${apiUrl}/api/v1/linkedin/push`, {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${newToken}`,
-              },
-              body: JSON.stringify({ profiles, messages }),
-            });
-            if (retryResp.ok) return retryResp.json();
-          }
-        } catch (e) {
-          console.error('[PingCRM] Auto-re-login failed:', e.message);
-        }
-      }
-      await Storage.clearToken();
-      throw new Error('AUTH_EXPIRED');
-    }
-    if (!response.ok) {
-      throw new Error(`Push failed: ${response.status}`);
-    }
-    return response.json();
-  },
-};
-
-// ── Batch logic ──
-const BATCH_DELAY_MS = 3000;
-
-let pendingProfiles = [];
-let pendingMessages = [];
-let batchTimer = null;
-
-function scheduleBatch() {
-  if (batchTimer) clearTimeout(batchTimer);
-  batchTimer = setTimeout(flushBatch, BATCH_DELAY_MS);
-}
-
-async function flushBatch(sendResponse) {
-  batchTimer = null;
-  const profiles = pendingProfiles.splice(0);
-  const messages = pendingMessages.splice(0);
-
-  if (profiles.length === 0 && messages.length === 0) {
-    if (sendResponse) sendResponse({ ok: true, profiles: 0, messages: 0 });
-    return;
-  }
-
-  const configured = await Storage.isConfigured();
-  if (!configured) {
-    setBadge('!', '#F44336');
-    if (sendResponse) sendResponse({ ok: false, error: 'Not configured' });
-    return;
-  }
-
-  try {
-    const result = await Api.push(profiles, messages);
-    const data = result.data || {};
-
-    const profilesSynced = (data.contacts_created || 0) + (data.contacts_updated || 0);
-    const messagesSynced = data.interactions_created || 0;
-
-    await Storage.recordSync({ profilesSynced, messagesSynced });
-    await Storage.set({ lastSyncError: null });
-
-    setBadge('OK', '#4CAF50');
-    setTimeout(() => setBadge('', ''), 3000);
-
-    if (sendResponse) sendResponse({ ok: true, profiles: profilesSynced, messages: messagesSynced });
-  } catch (e) {
-    if (e.message === 'AUTH_EXPIRED') {
-      console.warn('[PingCRM] Session expired — please re-login in extension popup');
-      await Storage.set({ lastSyncError: e.message });
-      setBadge('!', '#F44336');
-    } else {
-      console.error('[PingCRM] Push failed:', e.message);
-      await Storage.set({ lastSyncError: e.message });
-      setBadge('X', '#FF9800');
-      pendingProfiles.unshift(...profiles);
-      pendingMessages.unshift(...messages);
-      setTimeout(scheduleBatch, 30000);
-    }
-
-    if (sendResponse) sendResponse({ ok: false, error: e.message });
-  }
-}
+// ── Badge helper ──────────────────────────────────────────────────────────────
 
 function setBadge(text, color) {
   chrome.action.setBadgeText({ text });
@@ -173,70 +17,147 @@ function setBadge(text, color) {
   }
 }
 
-// ── Event listeners ──
+// ── Throttle state for post-profile-capture Voyager sync ─────────────────────
+
+let _lastProfileSyncAt = 0;
+const PROFILE_SYNC_THROTTLE_MS = 5 * 60 * 1000; // 5 minutes
+
+async function _maybeRunVoyagerSync() {
+  if (Date.now() - _lastProfileSyncAt < PROFILE_SYNC_THROTTLE_MS) return;
+  _lastProfileSyncAt = Date.now();
+
+  const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+  if (!apiUrl || !token) return;
+
+  const result = await runSync(apiUrl, token, false);
+  if (result.skipped) return;
+
+  if (result.error) {
+    console.warn("[PingCRM SW] Post-capture Voyager sync error:", result.error);
+    return;
+  }
+
+  await Storage.recordSync({
+    profilesSynced: result.backfilled,
+    messagesSynced: result.messages,
+  });
+
+  setBadge("OK", "#4CAF50");
+  setTimeout(() => setBadge("", ""), 3000);
+}
+
+// ── Message router ────────────────────────────────────────────────────────────
+
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-  if (message.type === 'PROFILE_CAPTURED') {
-    pendingProfiles.push(message.data);
-    scheduleBatch();
-    sendResponse({ ok: true });
-    return false;
-  } else if (message.type === 'MESSAGES_CAPTURED') {
-    pendingMessages.push(...(Array.isArray(message.data) ? message.data : [message.data]));
-    scheduleBatch();
-    sendResponse({ ok: true });
-    return false;
-  } else if (message.type === 'SYNC_NOW') {
-    if (batchTimer) {
-      clearTimeout(batchTimer);
-      batchTimer = null;
-    }
-    flushBatch(sendResponse);
-    return true; // async sendResponse
-  } else if (message.type === 'LOGIN') {
-    // Route login through service worker to bypass CORS
+
+  // PROFILE_CAPTURED — push single profile to backend, then throttled Voyager sync
+  if (message.type === "PROFILE_CAPTURED") {
     (async () => {
+      const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+      if (!apiUrl || !token) {
+        setBadge("!", "#F44336");
+        sendResponse({ ok: false, error: "Not paired" });
+        return;
+      }
+
       try {
-        const body = new URLSearchParams();
-        body.append('username', message.email);
-        body.append('password', message.password);
-        const response = await fetch(`${message.apiUrl}/api/v1/auth/login`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body,
+        const response = await fetch(`${apiUrl}/api/v1/linkedin/push`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ profiles: [message.data], messages: [] }),
         });
+
         if (response.status === 401) {
-          sendResponse({ error: 'Incorrect email or password' });
+          await Storage.clearToken();
+          sendResponse({ ok: false, error: "AUTH_EXPIRED" });
           return;
         }
+
         if (!response.ok) {
-          sendResponse({ error: `Login failed: ${response.status}` });
+          sendResponse({ ok: false, error: `Push failed: ${response.status}` });
           return;
         }
+
         const result = await response.json();
-        sendResponse({ token: result.data.access_token });
+        const data = result.data || {};
+        const profilesSynced = (data.contacts_created || 0) + (data.contacts_updated || 0);
+        await Storage.recordSync({ profilesSynced, messagesSynced: 0 });
+
+        setBadge("OK", "#4CAF50");
+        setTimeout(() => setBadge("", ""), 3000);
+
+        sendResponse({ ok: true, profiles: profilesSynced });
+
+        // Trigger throttled Voyager sync in background (do not await)
+        _maybeRunVoyagerSync().catch(e =>
+          console.warn("[PingCRM SW] Background Voyager sync failed:", e.message)
+        );
       } catch (e) {
-        sendResponse({ error: e.message });
+        console.error("[PingCRM SW] PROFILE_CAPTURED push failed:", e.message);
+        setBadge("X", "#FF9800");
+        sendResponse({ ok: false, error: e.message });
       }
     })();
-    return true; // async sendResponse
-  } else if (message.type === 'DOWNLOAD_AVATAR') {
-    // Download image as base64 — include LinkedIn cookies for CDN auth
+    return true;
+  }
+
+  // SYNC_NOW — force Voyager sync (from popup)
+  if (message.type === "SYNC_NOW") {
+    (async () => {
+      const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+      if (!apiUrl || !token) {
+        sendResponse({ ok: false, error: "Not paired" });
+        return;
+      }
+
+      setBadge("...", "#64748b");
+
+      const result = await runSync(apiUrl, token, true);
+
+      if (result.error) {
+        setBadge("X", "#FF9800");
+        sendResponse({ ok: false, error: result.error });
+        return;
+      }
+
+      await Storage.recordSync({
+        profilesSynced: result.backfilled,
+        messagesSynced: result.messages,
+      });
+
+      setBadge("OK", "#4CAF50");
+      setTimeout(() => setBadge("", ""), 3000);
+
+      sendResponse({
+        ok: true,
+        conversations: result.conversations,
+        messages: result.messages,
+        backfilled: result.backfilled,
+      });
+    })();
+    return true;
+  }
+
+  // DOWNLOAD_AVATAR — fetch LinkedIn CDN image with cookies (unchanged from v1)
+  if (message.type === "DOWNLOAD_AVATAR") {
     (async () => {
       try {
-        // Get LinkedIn cookies to authenticate with CDN
         const headers = {};
         try {
-          const cookies = await chrome.cookies.getAll({ domain: '.linkedin.com' });
+          const cookies = await chrome.cookies.getAll({ domain: ".linkedin.com" });
           if (cookies.length) {
-            headers['Cookie'] = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+            headers["Cookie"] = cookies.map(c => `${c.name}=${c.value}`).join("; ");
           }
         } catch (e) {
-          console.debug('[PingCRM] Could not get cookies:', e.message);
+          console.debug("[PingCRM SW] Could not get cookies:", e.message);
         }
 
         const resp = await fetch(message.url, { headers });
         if (!resp.ok) {
-          console.debug('[PingCRM] Avatar download HTTP', resp.status);
+          console.debug("[PingCRM SW] Avatar download HTTP", resp.status);
           sendResponse({ data: null });
           return;
         }
@@ -246,15 +167,58 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         reader.onerror = () => sendResponse({ data: null });
         reader.readAsDataURL(blob);
       } catch (e) {
-        console.debug('[PingCRM] Avatar download failed:', e.message);
+        console.debug("[PingCRM SW] Avatar download failed:", e.message);
         sendResponse({ data: null });
       }
     })();
-    return true; // async sendResponse
+    return true;
   }
+
+  // START_PAIRING — generate code, start polling, return code to popup
+  if (message.type === "START_PAIRING") {
+    (async () => {
+      const apiUrl = (message.apiUrl || "").replace(/\/+$/, "");
+      if (!apiUrl) {
+        sendResponse({ ok: false, error: "Instance URL is required" });
+        return;
+      }
+
+      // Save the apiUrl so pairing.js polling can read it
+      await chrome.storage.local.set({ apiUrl });
+
+      const { code } = startPairing();
+      sendResponse({ ok: true, code });
+    })();
+    return true;
+  }
+
+  // DISCONNECT — clear storage and notify backend
+  if (message.type === "DISCONNECT") {
+    (async () => {
+      stopPolling();
+
+      const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+
+      // Best-effort DELETE — do not block on response
+      if (apiUrl && token) {
+        fetch(`${apiUrl}/api/v1/extension/pair`, {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(e => console.debug("[PingCRM SW] Disconnect notify failed:", e.message));
+      }
+
+      await chrome.storage.local.clear();
+      setBadge("", "");
+      sendResponse({ ok: true });
+    })();
+    return true;
+  }
+
   return false;
 });
 
+// ── Startup ───────────────────────────────────────────────────────────────────
+
 chrome.runtime.onInstalled.addListener(() => {
-  console.log('[PingCRM] LinkedIn Companion v0.3.1 installed');
+  console.log("[PingCRM] LinkedIn Companion v1.0.0 installed");
 });

@@ -1144,7 +1144,7 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Gmail")).toBeInTheDocument();
     });
     const notConnected = screen.getAllByText("Not connected");
-    expect(notConnected).toHaveLength(3);
+    expect(notConnected).toHaveLength(4);
   });
 
   it("shows connected-as username for Telegram when connected", async () => {
@@ -1241,6 +1241,206 @@ describe("SettingsPage", () => {
       expect(screen.getByText("Telegram")).toBeInTheDocument();
     });
     expect(screen.getByText("Collecting dialogs...")).toBeInTheDocument();
+  });
+
+  // ─── LinkedIn extension pairing ───────────────────────────────
+
+  it("shows LinkedIn Extension card in disconnected state", async () => {
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText("Sync LinkedIn messages and profiles via browser extension")
+    ).toBeInTheDocument();
+  });
+
+  it("opens LinkedIn pairing modal on Connect click (LinkedIn card)", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+
+    // LinkedIn is the 4th card — index 3
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[3]);
+    expect(screen.getByText("Connect LinkedIn Extension", { selector: "h3" })).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("PING-XXXXXX")).toBeInTheDocument();
+  });
+
+  it("Pair button is disabled with empty code", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[3]);
+    expect(screen.getByText("Pair").closest("button")).toBeDisabled();
+  });
+
+  it("auto-uppercases and prefixes the pairing code input", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[3]);
+
+    const input = screen.getByPlaceholderText("PING-XXXXXX");
+    await user.type(input, "abc123");
+    expect((input as HTMLInputElement).value).toBe("PING-ABC123");
+  });
+
+  it("pairs LinkedIn extension successfully and closes modal", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    let callCount = 0;
+    mockedClient.GET.mockImplementation((url: string) => {
+      if (url === "/api/v1/auth/me") {
+        callCount++;
+        if (callCount > 1)
+          return Promise.resolve(
+            mockMeResponse({ linkedin_extension_paired_at: "2026-03-16T10:00:00Z" })
+          );
+        return Promise.resolve(mockMeResponse());
+      }
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+    mockedClient.POST.mockImplementation((url: string) => {
+      if (url === "/api/v1/extension/pair")
+        return Promise.resolve({ data: { data: {} }, error: null });
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[3]);
+
+    await user.type(screen.getByPlaceholderText("PING-XXXXXX"), "ABC123");
+    await user.click(screen.getByText("Pair"));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Connect LinkedIn Extension", { selector: "h3" })).not.toBeInTheDocument();
+    });
+    // After successful pair, fetchConnectionStatus is called and "Paired" subtitle appears
+    await waitFor(() => {
+      expect(screen.getByText(/Paired/)).toBeInTheDocument();
+    });
+  });
+
+  it("shows error on invalid pairing code", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    mockedClient.POST.mockImplementation((url: string) => {
+      if (url === "/api/v1/extension/pair")
+        return Promise.resolve({ data: null, error: { detail: "Invalid or expired code" } });
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[3]);
+
+    await user.type(screen.getByPlaceholderText("PING-XXXXXX"), "BAD123");
+    await user.click(screen.getByText("Pair"));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/Invalid or expired code — check the extension and try again/)
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("closes LinkedIn modal on Cancel click", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[3]);
+    expect(screen.getByPlaceholderText("PING-XXXXXX")).toBeInTheDocument();
+
+    await user.click(screen.getByText("Cancel"));
+    expect(screen.queryByPlaceholderText("PING-XXXXXX")).not.toBeInTheDocument();
+  });
+
+  it("closes LinkedIn modal on X button click", async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("LinkedIn Extension")).toBeInTheDocument();
+    });
+
+    const connectButtons = screen.getAllByText("Connect");
+    await user.click(connectButtons[3]);
+
+    const closeBtn = screen.getByLabelText("Close");
+    await user.click(closeBtn);
+    expect(screen.queryByPlaceholderText("PING-XXXXXX")).not.toBeInTheDocument();
+  });
+
+  it("shows Disconnect button when LinkedIn extension is paired", async () => {
+    mockedClient.GET.mockImplementation((url: string) => {
+      if (url === "/api/v1/auth/me")
+        return Promise.resolve(
+          mockMeResponse({ linkedin_extension_paired_at: "2026-03-16T10:00:00Z" })
+        );
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Disconnect")).toBeInTheDocument();
+    });
+    expect(screen.getByText(/Paired/)).toBeInTheDocument();
+  });
+
+  it("disconnects LinkedIn extension on Disconnect click", async () => {
+    let callCount = 0;
+    mockedClient.GET.mockImplementation((url: string) => {
+      if (url === "/api/v1/auth/me") {
+        callCount++;
+        if (callCount === 1)
+          return Promise.resolve(
+            mockMeResponse({ linkedin_extension_paired_at: "2026-03-16T10:00:00Z" })
+          );
+        return Promise.resolve(mockMeResponse());
+      }
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+    mockedClient.DELETE.mockImplementation((url: string) => {
+      if (url === "/api/v1/extension/pair")
+        return Promise.resolve({ data: null, error: null });
+      return Promise.resolve({ data: null, error: { detail: "unexpected" } });
+    });
+
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+    render(<SettingsPage />);
+    await waitFor(() => {
+      expect(screen.getByText("Disconnect")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByText("Disconnect"));
+    await waitFor(() => {
+      expect(mockedClient.DELETE).toHaveBeenCalledWith("/api/v1/extension/pair");
+    });
+    // After disconnect, card returns to Connect state
+    await waitFor(() => {
+      expect(screen.queryByText("Disconnect")).not.toBeInTheDocument();
+    });
   });
 });
 

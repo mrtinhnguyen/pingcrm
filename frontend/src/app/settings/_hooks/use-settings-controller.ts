@@ -39,6 +39,7 @@ export interface ConnectedAccounts {
   telegram_username?: string | null;
   twitter: boolean;
   twitter_username?: string | null;
+  linkedin_extension_paired_at?: string | null;
 }
 
 const TABS = [
@@ -123,6 +124,7 @@ export function useSettingsController(): UseSettingsControllerReturn {
     google_accounts: [],
     telegram_username: null,
     twitter_username: null,
+    linkedin_extension_paired_at: null,
   });
 
   // Sync states
@@ -174,6 +176,8 @@ export function useSettingsController(): UseSettingsControllerReturn {
           telegram_username: (user.telegram_username as string) || null,
           twitter: !!user.twitter_connected,
           twitter_username: (user.twitter_username as string) || null,
+          linkedin_extension_paired_at:
+            (user.linkedin_extension_paired_at as string) || null,
         });
       }
     } catch {

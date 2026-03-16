@@ -4,6 +4,7 @@ import { Toggle } from "./shared";
 import { GoogleCard } from "./platform-cards/google-card";
 import { TelegramCard } from "./platform-cards/telegram-card";
 import { TwitterCard } from "./platform-cards/twitter-card";
+import { LinkedInCard } from "./platform-cards/linkedin-card";
 import type {
   ConnectedAccounts,
   SyncState,
@@ -83,6 +84,11 @@ export function IntegrationsTab({
         twitterSync={twitterSync}
         handleTwitterConnect={handleTwitterConnect}
         handleTwitterSync={handleTwitterSync}
+      />
+
+      <LinkedInCard
+        connected={connected}
+        fetchConnectionStatus={fetchConnectionStatus}
       />
 
       {/* Sync Schedule */}

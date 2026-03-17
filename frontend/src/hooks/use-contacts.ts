@@ -172,11 +172,17 @@ export function useUpdateContact() {
       id: string;
       input: Partial<ContactCreateInput>;
     }) => {
-      const { data } = await client.PUT("/api/v1/contacts/{contact_id}", {
+      const { data, error, response } = await client.PUT("/api/v1/contacts/{contact_id}", {
         params: { path: { contact_id: id } },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         body: input as any,
       });
+      if (error) {
+        const err = new Error("Update failed") as any;
+        err.status = response.status;
+        err.detail = (error as any)?.detail;
+        throw err;
+      }
       return data;
     },
     onSuccess: (_data, variables) => {
@@ -184,6 +190,12 @@ export function useUpdateContact() {
       void queryClient.invalidateQueries({
         queryKey: ["contacts", variables.id],
       });
+      // Re-trigger Telegram sync when username changes
+      if ("telegram_username" in variables.input) {
+        void queryClient.invalidateQueries({
+          queryKey: ["sync-telegram", variables.id],
+        });
+      }
     },
   });
 }

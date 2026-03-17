@@ -1435,9 +1435,9 @@ describe("SettingsPage", () => {
 
     // The disconnect is behind the kebab menu — just call DELETE directly
     // since testing the kebab dropdown UI is fragile
-    await (await import("@/lib/api-client")).client.DELETE("/api/v1/extension/pair" as any);
+    await (await import("@/lib/api-client")).client.DELETE("/api/v1/extension/pair" as any, {});
     await waitFor(() => {
-      expect(mockedClient.DELETE).toHaveBeenCalledWith("/api/v1/extension/pair");
+      expect(mockedClient.DELETE).toHaveBeenCalledWith("/api/v1/extension/pair", {});
     });
   });
 });

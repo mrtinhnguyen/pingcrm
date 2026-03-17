@@ -54,6 +54,14 @@ class ContactBase(BaseModel):
             return v
         return v.strip() or None
 
+    @field_validator("telegram_username", mode="before")
+    @classmethod
+    def normalize_telegram_username(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        v = v.strip().lstrip("@").lower()
+        return v or None
+
 
 class ContactCreate(ContactBase):
     pass
@@ -88,6 +96,14 @@ class ContactUpdate(BaseModel):
         if v is None:
             return None
         return _normalize_tags(v)
+
+    @field_validator("telegram_username", mode="before")
+    @classmethod
+    def normalize_telegram_username(cls, v: str | None) -> str | None:
+        if not v:
+            return None
+        v = v.strip().lstrip("@").lower()
+        return v or None
 
 
 class ContactResponse(ContactBase):

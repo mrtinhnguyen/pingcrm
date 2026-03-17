@@ -57,6 +57,24 @@ async def create_contact(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Envelope[ContactResponse]:
+    # Check telegram_username uniqueness
+    if contact_in.telegram_username:
+        dup_result = await db.execute(
+            select(Contact).where(
+                Contact.user_id == current_user.id,
+                func.lower(Contact.telegram_username) == contact_in.telegram_username.lower(),
+            )
+        )
+        dup = dup_result.scalar_one_or_none()
+        if dup:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Another contact already has this Telegram username",
+                    "conflicting_contact": {"id": str(dup.id), "full_name": dup.full_name},
+                },
+            )
+
     contact = Contact(**contact_in.model_dump(), user_id=current_user.id)
     db.add(contact)
     await db.flush()
@@ -148,6 +166,33 @@ async def update_contact(
 
     update_data = contact_in.model_dump(exclude_unset=True)
     company_changed = "company" in update_data and update_data["company"] != contact.company
+    telegram_username_changed = (
+        "telegram_username" in update_data
+        and update_data["telegram_username"] != contact.telegram_username
+    )
+
+    # Check telegram_username uniqueness
+    if telegram_username_changed and update_data["telegram_username"]:
+        dup_result = await db.execute(
+            select(Contact).where(
+                Contact.user_id == current_user.id,
+                Contact.id != contact_id,
+                func.lower(Contact.telegram_username) == update_data["telegram_username"].lower(),
+            )
+        )
+        dup = dup_result.scalar_one_or_none()
+        if dup:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": "Another contact already has this Telegram username",
+                    "conflicting_contact": {"id": str(dup.id), "full_name": dup.full_name},
+                },
+            )
+
+    # Clear stale telegram_user_id when username changes
+    if telegram_username_changed:
+        update_data["telegram_user_id"] = None
 
     # Validate organization_id belongs to current user (prevent cross-tenant linkage)
     if "organization_id" in update_data and update_data["organization_id"] is not None:

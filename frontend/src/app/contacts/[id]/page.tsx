@@ -64,7 +64,7 @@ export default function ContactDetailPage() {
 
   /* ── Page-level helpers ── */
 
-  const saveField = (field: string, value: string | string[]) => {
+  const saveField = async (field: string, value: string | string[]) => {
     const input: Record<string, string | string[]> = { [field]: value };
     if (field === "given_name" || field === "family_name") {
       const given =
@@ -72,6 +72,22 @@ export default function ContactDetailPage() {
       const family =
         field === "family_name" ? (value as string) : (contact.family_name ?? "");
       input.full_name = [given, family].filter(Boolean).join(" ") || "";
+    }
+    if (field === "telegram_username") {
+      try {
+        await ctrl.updateContact.mutateAsync({ id, input });
+      } catch (err: unknown) {
+        const detail = (err as any)?.detail;
+        if (detail?.conflicting_contact) {
+          const c = detail.conflicting_contact;
+          ctrl.setToast({
+            type: "error",
+            text: `Telegram username already used by ${c.full_name || "another contact"}`,
+          });
+        }
+        // Don't re-throw — toast shows the error
+      }
+      return;
     }
     ctrl.updateContact.mutate({ id, input });
   };

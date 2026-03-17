@@ -104,6 +104,7 @@ async def poll_contacts_activity(
         select(Contact).where(
             Contact.user_id == user.id,
             Contact.twitter_handle.isnot(None),
+            Contact.priority_level != "archived",
         )
     )
     contacts: list[Contact] = list(result.scalars().all())
@@ -487,7 +488,11 @@ async def _build_twitter_id_to_contact_map(
     haven't been resolved yet, then persists the result.
     """
     result = await db.execute(
-        select(Contact).where(Contact.user_id == user.id, Contact.twitter_handle.isnot(None))
+        select(Contact).where(
+            Contact.user_id == user.id,
+            Contact.twitter_handle.isnot(None),
+            Contact.priority_level != "archived",
+        )
     )
     contacts = list(result.scalars().all())
 

@@ -7,10 +7,10 @@ from datetime import datetime, UTC
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.auth import get_current_user
+from app.core.auth import get_extension_or_web_user
 from app.core.database import get_db
 from app.integrations.linkedin import download_linkedin_avatar
 from app.models.contact import Contact
@@ -93,7 +93,7 @@ class LinkedInPushRequest(BaseModel):
 @router.post("/push", response_model=Envelope[LinkedInPushResult])
 async def push_linkedin_data(
     body: LinkedInPushRequest,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_extension_or_web_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Receive profile and message data from the LinkedIn Chrome Extension."""
@@ -164,9 +164,12 @@ async def push_linkedin_data(
                     contact.avatar_url = local_path
             contacts_updated += 1
         else:
+            name_parts = (profile.full_name or "").split(None, 1)
             contact = Contact(
                 user_id=current_user.id,
                 full_name=profile.full_name,
+                given_name=name_parts[0] if name_parts else None,
+                family_name=name_parts[1] if len(name_parts) > 1 else None,
                 linkedin_profile_id=profile.profile_id,
                 linkedin_url=profile_url_normalized,
                 linkedin_headline=profile.headline,
@@ -224,12 +227,28 @@ async def push_linkedin_data(
             if contact and not contact.linkedin_profile_id:
                 contact.linkedin_profile_id = msg.profile_id
 
+        if not contact and msg.profile_name:
+            # Try matching by full name (Voyager sends URN member ID, not slug)
+            result = await db.execute(
+                select(Contact).where(
+                    Contact.user_id == current_user.id,
+                    func.lower(Contact.full_name) == msg.profile_name.lower(),
+                ).limit(1)
+            )
+            contact = result.scalar_one_or_none()
+            if contact and not contact.linkedin_profile_id:
+                contact.linkedin_profile_id = msg.profile_id
+
         if not contact:
-            # Auto-create contact stub
+            # Auto-create contact stub — split full name into given/family
+            name_parts = (msg.profile_name or "").split(None, 1)
             contact = Contact(
                 user_id=current_user.id,
                 full_name=msg.profile_name,
+                given_name=name_parts[0] if name_parts else None,
+                family_name=name_parts[1] if len(name_parts) > 1 else None,
                 linkedin_profile_id=msg.profile_id,
+                linkedin_url=f"https://www.linkedin.com/in/{msg.profile_id}" if msg.profile_id else None,
             )
             db.add(contact)
             await db.flush()
@@ -272,9 +291,11 @@ async def push_linkedin_data(
     await db.flush()
 
     # Collect contacts that need backfill: have a linkedin_profile_id but are
-    # missing title, company, or avatar_url after this push.
+    # missing avatar_url (or title/company). Check touched contacts first,
+    # then query for any other contacts missing avatars (up to 10 total).
     seen_ids: set[uuid.UUID] = set()
     backfill_needed: list[BackfillItem] = []
+
     for contact in touched_contacts:
         if contact.id in seen_ids:
             continue
@@ -286,6 +307,28 @@ async def push_linkedin_data(
                 BackfillItem(
                     contact_id=str(contact.id),
                     linkedin_profile_id=contact.linkedin_profile_id,
+                )
+            )
+
+    # Also include contacts not touched in this push but missing avatar
+    # Only include contacts with slug-format linkedin_profile_id (not URN member IDs like ACoAAA...)
+    if len(backfill_needed) < 10:
+        filters = [
+            Contact.user_id == current_user.id,
+            Contact.linkedin_profile_id.isnot(None),
+            ~Contact.linkedin_profile_id.like("ACo%"),
+            Contact.avatar_url.is_(None),
+        ]
+        if seen_ids:
+            filters.append(Contact.id.notin_(seen_ids))
+        missing_avatar_result = await db.execute(
+            select(Contact).where(*filters).limit(10 - len(backfill_needed))
+        )
+        for c in missing_avatar_result.scalars().all():
+            backfill_needed.append(
+                BackfillItem(
+                    contact_id=str(c.id),
+                    linkedin_profile_id=c.linkedin_profile_id,
                 )
             )
 

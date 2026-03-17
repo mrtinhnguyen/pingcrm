@@ -322,6 +322,87 @@ async def test_push_saves_avatar_from_base64_data(
     avatar_path.unlink(missing_ok=True)
 
 
+# ---------------------------------------------------------------------------
+# backfill_needed — contacts missing title / company / avatar_url
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_push_returns_backfill_needed_for_incomplete_contact(
+    client: AsyncClient,
+    auth_headers: dict,
+):
+    """Contacts created without title, company, or avatar should appear in backfill_needed."""
+    payload = {
+        "profiles": [
+            {
+                "profile_id": "backfill-test-001",
+                "profile_url": "https://www.linkedin.com/in/backfill-test-001",
+                "full_name": "Backfill User",
+                # no headline → no title extracted, no company, no avatar
+            }
+        ],
+        "messages": [],
+    }
+
+    resp = await client.post(PUSH_URL, json=payload, headers=auth_headers)
+    assert resp.status_code == 200
+
+    data = resp.json()["data"]
+    assert data["contacts_created"] == 1
+
+    backfill = data["backfill_needed"]
+    assert len(backfill) == 1
+    assert backfill[0]["linkedin_profile_id"] == "backfill-test-001"
+    assert "contact_id" in backfill[0]
+
+
+@pytest.mark.asyncio
+async def test_push_omits_complete_contact_from_backfill(
+    client: AsyncClient,
+    auth_headers: dict,
+    db: AsyncSession,
+    test_user,
+):
+    """Existing contacts that already have title, company, and avatar_url are excluded from backfill_needed."""
+    # Pre-create a contact that already has all enrichment fields populated
+    existing = Contact(
+        user_id=test_user.id,
+        full_name="Complete User",
+        linkedin_profile_id="complete-profile-002",
+        title="Senior Engineer",
+        company="FullCo",
+        avatar_url="/static/avatars/complete-profile-002.jpg",
+        source="manual",
+    )
+    db.add(existing)
+    await db.commit()
+    await db.refresh(existing)
+
+    payload = {
+        "profiles": [
+            {
+                "profile_id": "complete-profile-002",
+                "profile_url": "https://www.linkedin.com/in/complete-profile-002",
+                "full_name": "Complete User",
+                "headline": "Senior Engineer at FullCo",
+                "company": "FullCo",
+            }
+        ],
+        "messages": [],
+    }
+
+    resp = await client.post(PUSH_URL, json=payload, headers=auth_headers)
+    assert resp.status_code == 200
+
+    data = resp.json()["data"]
+    assert data["contacts_updated"] == 1
+
+    # Contact already has title, company, and avatar_url — should not appear in backfill
+    backfill = data["backfill_needed"]
+    assert backfill == []
+
+
 @pytest.mark.asyncio
 async def test_push_clears_broken_remote_avatar_url(
     client: AsyncClient,

@@ -14,7 +14,7 @@ class ExtensionPairing(Base):
     __tablename__ = "extension_pairings"
 
     id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    code: Mapped[str] = mapped_column(String(12), unique=True, index=True, nullable=False)
+    code: Mapped[str] = mapped_column(String(20), unique=True, index=True, nullable=False)
     user_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False)
     token: Mapped[str] = mapped_column(String, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

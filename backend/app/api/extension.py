@@ -2,11 +2,9 @@
 from __future__ import annotations
 
 import logging
-import secrets
-import string
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,15 +20,9 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/extension", tags=["extension"])
 
-_PAIRING_CODE_ALPHABET = string.ascii_uppercase + string.digits
-_PAIRING_CODE_LENGTH = 12
 _PAIRING_TTL_MINUTES = 10
 _EXTENSION_TOKEN_EXPIRE_DAYS = 30
 _MAX_POLL_ATTEMPTS = 20
-
-
-def _generate_pairing_code() -> str:
-    return "".join(secrets.choice(_PAIRING_CODE_ALPHABET) for _ in range(_PAIRING_CODE_LENGTH))
 
 
 def _create_extension_token(user_id: str) -> str:
@@ -105,6 +97,7 @@ async def create_pairing(
 @router.get("/pair", response_model=Envelope[PairTokenResponse])
 async def poll_pairing(
     code: str,
+    request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Unauthenticated endpoint polled by the extension after the user enters their code.
@@ -127,19 +120,21 @@ async def poll_pairing(
     if pairing.expires_at <= now and pairing.claimed_at is None:
         raise HTTPException(status_code=410, detail="Pairing code expired")
 
-    if pairing.attempts >= _MAX_POLL_ATTEMPTS:
+    # Increment on every poll of an existing code (before limit check)
+    pairing.attempts += 1
+
+    if pairing.attempts > _MAX_POLL_ATTEMPTS:
         raise HTTPException(status_code=429, detail="Too many attempts")
 
     # First successful poll: mark claimed
     if pairing.claimed_at is None:
         pairing.claimed_at = now
-    else:
-        # Subsequent polls after first claim increment attempts
-        pairing.attempts += 1
 
     await db.flush()
 
-    api_url = settings.CORS_ORIGINS[0] if settings.CORS_ORIGINS else "http://localhost:8000"
+    # Use the request's own base URL (the backend the extension is polling)
+    # Force HTTPS — behind a reverse proxy, base_url reports http://
+    api_url = str(request.base_url).rstrip("/").replace("http://", "https://")
 
     return {
         "data": PairTokenResponse(token=pairing.token, api_url=api_url),

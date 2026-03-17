@@ -170,7 +170,7 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
           <div className="bg-white rounded-xl p-6 w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-lg font-semibold text-stone-900">Connect LinkedIn Extension</h3>

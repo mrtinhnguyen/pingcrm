@@ -83,3 +83,4 @@ See @.claude/rules/exception-handling.md for the full policy (logging requiremen
 1. **Gmail** - OAuth + Gmail API for email thread sync
 2. **Telegram** - MTProto client for chat history access
 3. **Twitter/X** - X API v2 for DMs, mentions, bio monitoring
+4. **LinkedIn** - Chrome extension with client-side Voyager API (cookies stay in browser). Pairing code auth, GraphQL messaging sync, DOM profile scraping.

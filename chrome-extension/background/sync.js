@@ -14,6 +14,7 @@
 const SYNC_THROTTLE_MS = 2 * 60 * 60 * 1000; // 2 hours between auto-syncs
 const RATE_LIMIT_DELAY_MS = 1000;             // 1 second between Voyager calls
 const BACKFILL_WINDOW_MS = 30 * 24 * 60 * 60 * 1000; // 30 days for first-sync full fetch
+const CONVERSATION_PAGE_MAX = 500;            // hard cap to prevent infinite pagination
 
 // ── Cookie helpers ────────────────────────────────────────────────────────────
 
@@ -48,69 +49,133 @@ function _delay(ms) {
  * @param {Object} raw - Raw Voyager JSON response
  * @returns {Array<Object>} Conversation objects
  */
+/**
+ * Parse conversations from GraphQL messengerConversations response.
+ * Response shape: data.messengerConversationsBySyncToken.elements[]
+ * or data.messengerConversations.elements[]
+ */
 function _parseConversations(raw) {
+  // GraphQL: data → messengerConversationsBySyncToken → elements
+  const bySyncToken = raw?.data?.messengerConversationsBySyncToken?.elements ?? [];
+  if (bySyncToken.length > 0) return bySyncToken;
+
+  // GraphQL alt: data → messengerConversations → elements
+  const direct = raw?.data?.messengerConversations?.elements ?? [];
+  if (direct.length > 0) return direct;
+
+  // Dash REST: top-level elements
+  const elements = raw?.elements ?? raw?.data?.elements ?? [];
+  if (elements.length > 0) return elements;
+
+  // Legacy: included array
   const included = raw?.included ?? [];
-  return included.filter(
-    item => item?.$type === "com.linkedin.voyager.messaging.Conversation"
-  );
+  return included.filter(item => {
+    const type = item?.$type ?? "";
+    return type.includes("Conversation") || type.includes("MessengerConversation");
+  });
 }
 
 /**
- * Extract message events from a Voyager normalized response.
- *
- * @param {Object} raw - Raw Voyager JSON response
- * @returns {Array<Object>} Event objects
+ * Parse messages from a GraphQL messengerMessages response.
+ * GraphQL returns messages in data.messengerMessagesByConversation.elements
  */
-function _parseEvents(raw) {
+function _parseMessages(raw) {
+  // GraphQL response format
+  const gqlElements = raw?.data?.messengerMessagesByConversation?.elements
+    ?? raw?.data?.messengerMessages?.elements
+    ?? [];
+  if (gqlElements.length > 0) return gqlElements;
+
+  // Fallback: included array with Event type (old format, just in case)
   const included = raw?.included ?? [];
-  return included.filter(
-    item => item?.$type === "com.linkedin.voyager.messaging.Event"
-  );
+  return included.filter(item => {
+    const type = item?.$type ?? "";
+    return type.includes("Event") || type.includes("Message");
+  });
 }
 
 /**
  * Extract participant info from a conversation object.
- * Returns an array of { publicIdentifier, firstName, lastName } objects.
- *
- * @param {Object} conversation - A parsed Voyager conversation object
- * @returns {Array<{publicIdentifier: string, firstName: string, lastName: string}>}
+ * GraphQL format (2026): conversationParticipants[] with
+ *   participantType.member.profileUrl containing the slug
+ *   hostIdentityUrn containing the profile URN
  */
 function _parseParticipants(conversation) {
+  const dashParticipants = conversation?.conversationParticipants ?? [];
+  if (dashParticipants.length > 0) {
+    return dashParticipants
+      .map(p => {
+        // GraphQL 2026 format: participantType.member has profileUrl
+        const member = p?.participantType?.member ?? {};
+        const profileUrl = member?.profileUrl ?? "";
+        // Extract publicIdentifier (slug) from URL: https://www.linkedin.com/in/john-doe
+        const slug = profileUrl.match(/\/in\/([^/?]+)/)?.[1] ?? null;
+
+        // Also try nested memberProfile or miniProfile
+        const profile = member?.memberProfile ?? p?.memberProfile ?? p?.miniProfile ?? {};
+        const publicId = slug ?? profile?.publicIdentifier ?? null;
+
+        // Name: try member.distance.memberRelationship fields, or profile fields
+        // Names can be plain strings or {text: "..."} attributed text objects
+        const rawFirst = profile?.firstName ?? member?.firstName ?? null;
+        const rawLast = profile?.lastName ?? member?.lastName ?? null;
+        const firstName = typeof rawFirst === "object" ? rawFirst?.text ?? null : rawFirst;
+        const lastName = typeof rawLast === "object" ? rawLast?.text ?? null : rawLast;
+
+        return {
+          publicIdentifier: publicId,
+          firstName,
+          lastName,
+          // Also store the URN for identity resolution
+          profileUrn: p?.hostIdentityUrn ?? profile?.entityUrn ?? null,
+        };
+      })
+      .filter(p => p.publicIdentifier || p.profileUrn);
+  }
+
+  // Legacy format: participants with miniProfile
   const participants = conversation?.participants ?? [];
   return participants
     .map(p => {
-      const mini = p?.miniProfile ?? p?.com_linkedin_voyager_identity_shared_MiniProfile ?? {};
+      const mini = p?.miniProfile
+        ?? p?.["com.linkedin.voyager.messaging.MessagingMember"]?.miniProfile
+        ?? {};
       return {
         publicIdentifier: mini?.publicIdentifier ?? null,
         firstName: mini?.firstName ?? null,
         lastName: mini?.lastName ?? null,
+        profileUrn: mini?.entityUrn ?? null,
       };
     })
-    .filter(p => p.publicIdentifier);
+    .filter(p => p.publicIdentifier || p.profileUrn);
 }
 
 /**
- * Convert a Voyager event into the shape expected by the backend's /linkedin/push.
- *
- * @param {Object} event - A parsed Voyager event object
- * @param {string} conversationUrn - Parent conversation URN
- * @param {string|null} partnerPublicId - The partner's publicIdentifier
- * @returns {Object} Message payload for the backend
+ * Convert a message (from GraphQL or Dash) into the shape expected by /linkedin/push.
  */
-function _eventToMessage(event, conversationUrn, partnerPublicId) {
-  const body = event?.eventContent?.com_linkedin_voyager_messaging_event_MessageEvent?.attributedBody;
-  const text = body?.text ?? event?.eventContent?.body ?? "";
-  const createdAt = event?.createdAt ?? null;
-  const sender = event?.from?.com_linkedin_voyager_messaging_MessagingMember?.miniProfile;
+function _eventToMessage(msg, conversationUrn, partnerPublicId, partnerName) {
+  // GraphQL format: body.text or body.attributedBody.text
+  const text = msg?.body?.text
+    ?? msg?.body?.attributedBody?.text
+    ?? msg?.eventContent?.body
+    ?? msg?.eventContent?.["com.linkedin.voyager.messaging.event.MessageEvent"]?.attributedBody?.text
+    ?? "";
+  const createdAt = msg?.deliveredAt ?? msg?.createdAt ?? null;
+  // GraphQL: sender is in msg.sender.memberProfile or msg.from
+  const sender = msg?.sender?.memberProfile
+    ?? msg?.from?.["com.linkedin.voyager.messaging.MessagingMember"]?.miniProfile
+    ?? {};
   const senderPublicId = sender?.publicIdentifier ?? null;
 
   return {
     conversation_id: conversationUrn,
     profile_id: partnerPublicId,
+    profile_name: partnerName ?? partnerPublicId ?? "",
     direction: senderPublicId === partnerPublicId ? "inbound" : "outbound",
     content_preview: String(text).substring(0, 500),
     timestamp: createdAt ? new Date(createdAt).toISOString() : new Date().toISOString(),
     source: "voyager",
+    raw_reference_id: `linkedin:voyager:${msg?.entityUrn ?? msg?.backendUrn ?? ""}`,
   };
 }
 
@@ -130,9 +195,27 @@ function _eventToMessage(event, conversationUrn, partnerPublicId) {
  *   error: string|null
  * }>}
  */
+let _syncRunning = false;
+
 async function runSync(apiUrl, token, force = false) {
   const result = { skipped: false, conversations: 0, messages: 0, backfilled: 0, error: null };
 
+  // ── Sync lock — prevent concurrent syncs ──
+  if (_syncRunning) {
+    console.log("[Sync] Already running, skipping");
+    result.skipped = true;
+    return result;
+  }
+  _syncRunning = true;
+
+  try {
+    return await _runSyncInner(apiUrl, token, force, result);
+  } finally {
+    _syncRunning = false;
+  }
+}
+
+async function _runSyncInner(apiUrl, token, force, result) {
   // ── Throttle check ──
   if (!force) {
     const stored = await chrome.storage.local.get(["lastVoyagerSync", "nextRetryAt"]);
@@ -162,32 +245,88 @@ async function runSync(apiUrl, token, force = false) {
   }
 
   await chrome.storage.local.set({ cookiesValid: true });
+  console.log("[Sync] Cookies OK, reading watermark...");
 
   // ── Determine sync mode (first sync vs delta) ──
   const { watermark } = await chrome.storage.local.get(["watermark"]);
   const isFirstSync = !watermark;
+  console.log("[Sync] Mode:", isFirstSync ? "FIRST SYNC" : "delta", "watermark:", watermark);
   const cutoffMs = isFirstSync
     ? Date.now() - BACKFILL_WINDOW_MS
     : new Date(watermark).getTime();
 
-  // ── Fetch conversations ──
-  let conversationsRaw;
+  // ── Get self URN (needed for conversation list) ──
+  let selfUrn;
   try {
-    conversationsRaw = await voyagerGetConversations(liAt, jsessionid, null);
+    console.log("[Sync] Fetching self URN...");
+    selfUrn = await voyagerGetSelfUrn(liAt, jsessionid);
+    console.log("[Sync] Self URN:", selfUrn);
     await _delay(RATE_LIMIT_DELAY_MS);
   } catch (e) {
+    console.error("[Sync] Self URN failed:", e.message);
     return await _handleSyncError(e, result);
   }
 
-  const conversations = _parseConversations(conversationsRaw);
+  // ── Fetch conversations (paginated) ──
+  // We page through conversations using the lastActivityAt of the last conversation
+  // on the previous page as a cursor. Pagination stops when:
+  //   (a) the API returns an empty page,
+  //   (b) all returned conversations are older than the watermark (delta sync guard),
+  //   (c) we have accumulated CONVERSATION_PAGE_MAX conversations.
+  const conversations = [];
+  let pageCursor = null; // Unix ms — lastActivityAt of last conv on previous page
+  let morePages = true;
+
+  while (morePages && conversations.length < CONVERSATION_PAGE_MAX) {
+    let pageRaw;
+    try {
+      pageRaw = await voyagerGetConversations(liAt, jsessionid, selfUrn, pageCursor);
+      await _delay(RATE_LIMIT_DELAY_MS);
+    } catch (e) {
+      return await _handleSyncError(e, result);
+    }
+
+    const page = _parseConversations(pageRaw);
+
+    if (page.length === 0) {
+      // No more conversations returned — end of inbox
+      morePages = false;
+      break;
+    }
+
+    // Check whether the entire page is older than the watermark.
+    // lastActivityAt is in Unix ms; conversations are returned newest-first.
+    // The oldest conversation on this page is the last one.
+    const oldestOnPage = page[page.length - 1]?.lastActivityAt ?? 0;
+
+    for (const conv of page) {
+      conversations.push(conv);
+      if (conversations.length >= CONVERSATION_PAGE_MAX) break;
+    }
+
+    if (!isFirstSync && oldestOnPage <= cutoffMs) {
+      // All remaining pages are older than the watermark — nothing new there
+      morePages = false;
+    } else {
+      // Advance the cursor: use lastActivityAt of the last conversation fetched
+      pageCursor = page[page.length - 1]?.lastActivityAt ?? null;
+      if (pageCursor === null) morePages = false;
+    }
+  }
+
   result.conversations = conversations.length;
+  console.log("[Sync] Fetched", conversations.length, "conversations total");
 
   const allMessages = [];
   let newestTimestamp = watermark ? new Date(watermark).getTime() : 0;
 
   // ── Process each conversation ──
   for (const conv of conversations) {
-    const convUrn = conv?.entityUrn ?? conv?.["*id"] ?? null;
+    // Use backendUrn (urn:li:messagingThread:...) for messages endpoint,
+    // entityUrn for conversation identification
+    const convUrn = conv?.entityUrn ?? conv?.backendUrn ?? conv?.["*id"] ?? null;
+    // The messages GraphQL endpoint needs the backendUrn (thread format), not the composite entityUrn
+    const threadUrn = conv?.backendUrn ?? convUrn;
     if (!convUrn) continue;
 
     const lastActivityAt = conv?.lastActivityAt ?? 0;
@@ -196,36 +335,85 @@ async function runSync(apiUrl, token, force = false) {
     if (!isFirstSync && lastActivityAt <= cutoffMs) continue;
 
     const participants = _parseParticipants(conv);
-    const partnerPublicId = participants.length > 0 ? participants[0].publicIdentifier : null;
+    // Filter out self from participants
+    const selfUrnSuffix = selfUrn.split(":").pop();
+    const otherParticipants = participants.filter(p => {
+      const pUrnSuffix = (p.profileUrn || "").split(":").pop();
+      return pUrnSuffix !== selfUrnSuffix;
+    });
+    const partner = otherParticipants[0] ?? participants[0] ?? null;
+    // Use slug from publicIdentifier, or extract from profileUrn member ID
+    // The backend matches on linkedin_profile_id (slug) so we need the slug, not the URN
+    let partnerPublicId = partner?.publicIdentifier ?? null;
+    // If publicIdentifier looks like a URN member ID (starts with ACo), it's not a slug
+    if (partnerPublicId && partnerPublicId.startsWith("ACo")) {
+      // Store URN member ID separately, try to get slug from conversationUrl
+      const convUrl = conv?.conversationUrl?.url ?? conv?.conversationUrl ?? "";
+      const slugFromUrl = typeof convUrl === "string" ? convUrl.match(/\/in\/([^/?]+)/)?.[1] : null;
+      partnerPublicId = slugFromUrl ?? partnerPublicId;
+    }
+    // Name: from participant data, or conversation title (which is usually the other person's name)
+    const convTitle = conv?.title?.text ?? (typeof conv?.title === "string" ? conv.title : null);
+    const partnerName = [partner?.firstName, partner?.lastName].filter(Boolean).join(" ")
+      || convTitle
+      || partnerPublicId
+      || "Unknown";
 
     // For first sync: fetch full events only for recent conversations (within 30 days)
     // For older first-sync conversations: use the lastMessage from the conversation object
     const isRecent = lastActivityAt >= cutoffMs;
 
+    // Debug: log first conv's timestamps to verify format
+    if (allMessages.length === 0) {
+      console.log("[Sync] Timestamp debug:", {
+        lastActivityAt,
+        cutoffMs,
+        asDate: new Date(lastActivityAt).toISOString(),
+        cutoffDate: new Date(cutoffMs).toISOString(),
+        isRecent,
+      });
+    }
     if (!isFirstSync || isRecent) {
-      // Fetch full event history for this conversation
+      // Check if messages are already embedded in the conversation response
+      const embeddedMessages = conv?.messages?.elements ?? (Array.isArray(conv?.messages) ? conv.messages : []);
       let eventsRaw;
-      try {
-        eventsRaw = await voyagerGetConversationEvents(liAt, jsessionid, convUrn);
-        await _delay(RATE_LIMIT_DELAY_MS);
-      } catch (e) {
-        if (e.message === "RATE_LIMITED") {
-          return await _handleSyncError(e, result);
+
+      // Use embedded messages first (always available, no extra API call).
+      // The messengerMessages API returns 400 for the current GraphQL schema,
+      // so we skip it and use what the conversation response already includes.
+      if (allMessages.length === 0 && embeddedMessages.length > 0) {
+        console.log("[Sync] Embedded msg type:", typeof embeddedMessages[0], embeddedMessages[0]?._type);
+        console.log("[Sync] Embedded msg keys:", Object.keys(embeddedMessages[0] || {}));
+      }
+      if (embeddedMessages.length > 0) {
+        eventsRaw = { data: { messengerMessages: { elements: embeddedMessages } } };
+      } else {
+        // Fetch messages via GraphQL using the thread URN (not composite entityUrn)
+        try {
+          eventsRaw = await voyagerGetConversationMessages(liAt, jsessionid, threadUrn);
+          await _delay(RATE_LIMIT_DELAY_MS);
+        } catch (e) {
+          if (e.message === "RATE_LIMITED") {
+            return await _handleSyncError(e, result);
+          }
+          if (e.message === "AUTH_EXPIRED") {
+            return await _handleSyncError(e, result);
+          }
+          // Non-fatal error for this conversation — skip and continue
+          console.warn("[PingCRM Voyager] Failed to fetch events for", convUrn, e.message);
+          continue;
         }
-        if (e.message === "AUTH_EXPIRED") {
-          return await _handleSyncError(e, result);
-        }
-        // Non-fatal error for this conversation — skip and continue
-        console.warn("[PingCRM Voyager] Failed to fetch events for", convUrn, e.message);
-        continue;
       }
 
-      const events = _parseEvents(eventsRaw);
+      const events = _parseMessages(eventsRaw);
+      if (allMessages.length === 0) {
+        console.log("[Sync] Parsed events:", events.length, "from eventsRaw keys:", Object.keys(eventsRaw || {}));
+      }
       for (const event of events) {
-        const createdAt = event?.createdAt ?? 0;
+        const createdAt = event?.createdAt ?? event?.deliveredAt ?? 0;
         if (!isFirstSync && createdAt <= cutoffMs) continue;
 
-        const msg = _eventToMessage(event, convUrn, partnerPublicId);
+        const msg = _eventToMessage(event, convUrn, partnerPublicId, partnerName);
         allMessages.push(msg);
 
         if (createdAt > newestTimestamp) newestTimestamp = createdAt;
@@ -234,7 +422,7 @@ async function runSync(apiUrl, token, force = false) {
       // First sync, older conversation: use only the last message preview
       const lastMsg = conv?.lastMessage ?? conv?.lastEvent ?? null;
       if (lastMsg) {
-        const previewMsg = _eventToMessage(lastMsg, convUrn, partnerPublicId);
+        const previewMsg = _eventToMessage(lastMsg, convUrn, partnerPublicId, partnerName);
         allMessages.push(previewMsg);
       }
     }
@@ -242,9 +430,10 @@ async function runSync(apiUrl, token, force = false) {
 
   result.messages = allMessages.length;
 
-  // ── Push to backend ──
-  if (allMessages.length > 0) {
+  // ── Push to backend (always push, even with 0 messages, to get backfill_needed) ──
+  {
     try {
+      // Push to backend
       const pushResp = await fetch(`${apiUrl}/api/v1/linkedin/push`, {
         method: "POST",
         headers: {
@@ -253,8 +442,11 @@ async function runSync(apiUrl, token, force = false) {
         },
         body: JSON.stringify({ profiles: [], messages: allMessages }),
       });
+      // Check response
 
       if (!pushResp.ok) {
+        const errBody = await pushResp.text().catch(() => "");
+        console.error("[Sync] Push failed:", pushResp.status, errBody.substring(0, 500));
         if (pushResp.status === 401) {
           result.error = "AUTH_EXPIRED";
           return result;
@@ -262,15 +454,19 @@ async function runSync(apiUrl, token, force = false) {
         result.error = `PUSH_FAILED:${pushResp.status}`;
         return result;
       }
+      console.log("[Sync] Push succeeded:", result.messages, "messages");
 
-      const pushData = (await pushResp.json())?.data ?? {};
+      const pushJson = await pushResp.json();
+      const pushData = pushJson?.data ?? {};
+      console.log("[Sync] Push response keys:", Object.keys(pushJson || {}), "data keys:", Object.keys(pushData || {}));
 
       // Handle backfill request: fetch profiles for contacts missing data
       const backfillIds = pushData?.backfill_needed ?? [];
+      console.log("[Sync] Backfill needed:", backfillIds.length, backfillIds.length > 0 ? JSON.stringify(backfillIds[0]) : "none");
+      // Store backfill items for a separate pass — running them inline causes
+      // MV3 service worker termination during long-running Voyager calls
       if (backfillIds.length > 0) {
-        result.backfilled = await _backfillProfiles(
-          backfillIds, liAt, jsessionid, apiUrl, token
-        );
+        await chrome.storage.local.set({ _pendingBackfill: backfillIds });
       }
     } catch (e) {
       result.error = e.message;
@@ -291,39 +487,74 @@ async function runSync(apiUrl, token, force = false) {
 // ── Backfill helper ───────────────────────────────────────────────────────────
 
 /**
- * Fetch profiles for LinkedIn public IDs and push them to the backend.
+ * Fetch profiles for contacts that are missing profile data and push them to the backend.
  * Called when the backend signals that certain contacts are missing profile data.
  *
- * @param {string[]} publicIds
+ * @param {Array<{contact_id: string, linkedin_profile_id: string}>} backfillItems
  * @param {string} liAt
  * @param {string} jsessionid
  * @param {string} apiUrl
  * @param {string} token
  * @returns {Promise<number>} Number of profiles successfully fetched and pushed
  */
-async function _backfillProfiles(publicIds, liAt, jsessionid, apiUrl, token) {
+async function _backfillProfiles(backfillItems, liAt, jsessionid, apiUrl, token) {
+  console.log("[Backfill] Starting for", backfillItems.length, "items");
   let backfilled = 0;
   const profiles = [];
 
-  for (const publicId of publicIds) {
+  for (const item of backfillItems) {
+    const publicId = item.linkedin_profile_id;
+    if (!publicId) continue;
+    console.log("[Backfill] Fetching profile for:", publicId);
     try {
-      const raw = await voyagerGetProfile(liAt, jsessionid, publicId);
+      const raw = await Promise.race([
+        voyagerGetProfile(liAt, jsessionid, publicId),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("TIMEOUT")), 10000)),
+      ]);
+      console.log("[Backfill] Got response for:", publicId);
       await _delay(RATE_LIMIT_DELAY_MS);
+
+      // Log response structure to understand format
+      const types = (raw?.included ?? []).map(i => i?.$type).filter(Boolean);
+      console.log("[Backfill] Response included types:", types.length ? types.slice(0, 5) : "none, keys: " + Object.keys(raw || {}));
 
       // Extract the first profile from the normalized response
       const profileObj = (raw?.included ?? []).find(
         item => item?.$type === "com.linkedin.voyager.dash.identity.profile.Profile"
           || item?.$type === "com.linkedin.voyager.identity.shared.MiniProfile"
+          || item?.$type?.includes("Profile")
       );
 
       if (profileObj) {
+        console.log("[Backfill] Profile found:", profileObj?.$type, "avatar artifacts:", (profileObj?.profilePicture?.displayImageReference?.vectorImage?.artifacts ?? []).length);
+        // Extract avatar URL from profilePicture.displayImageReference.vectorImage artifacts.
+        // Dash format: profilePicture → displayImageReference → vectorImage → artifacts[]
+        // Pick the largest artifact for best quality.
+        let avatarUrl = null;
+        const artifacts = profileObj?.profilePicture?.displayImageReference?.vectorImage?.artifacts ?? [];
+        if (artifacts.length > 0) {
+          // Artifacts are sorted smallest→largest; pick the last (largest)
+          const largest = artifacts[artifacts.length - 1];
+          const rootUrl = profileObj?.profilePicture?.displayImageReference?.vectorImage?.rootUrl ?? "";
+          if (rootUrl && largest?.fileIdentifyingUrlPathSegment) {
+            avatarUrl = rootUrl + largest.fileIdentifyingUrlPathSegment;
+          }
+        }
+
+        // Location: prefer geoLocationName (human-readable), fall back to geo.defaultLocalizedName
+        const location = profileObj?.geoLocationName
+          ?? profileObj?.geo?.defaultLocalizedName
+          ?? profileObj?.location?.basicLocation?.countryCode
+          ?? null;
+
         profiles.push({
           profile_id: publicId,
           profile_url: `https://www.linkedin.com/in/${publicId}`,
           full_name: [profileObj?.firstName, profileObj?.lastName].filter(Boolean).join(" ") || null,
           headline: profileObj?.headline ?? null,
           company: profileObj?.position?.companyName ?? null,
-          location: profileObj?.location?.basicLocation?.countryCode ?? null,
+          location,
+          avatar_url: avatarUrl,
         });
         backfilled++;
       }

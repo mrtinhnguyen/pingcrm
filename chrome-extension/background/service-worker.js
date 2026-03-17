@@ -50,56 +50,27 @@ async function _maybeRunVoyagerSync() {
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
-  // PROFILE_CAPTURED — push single profile to backend, then throttled Voyager sync
-  if (message.type === "PROFILE_CAPTURED") {
+  // LINKEDIN_PAGE_VISIT — user visited any LinkedIn page, refresh cookies
+  if (message.type === "LINKEDIN_PAGE_VISIT") {
     (async () => {
-      const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
-      if (!apiUrl || !token) {
-        setBadge("!", "#F44336");
-        sendResponse({ ok: false, error: "Not paired" });
-        return;
-      }
-
       try {
-        const response = await fetch(`${apiUrl}/api/v1/linkedin/push`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ profiles: [message.data], messages: [] }),
-        });
+        const cookies = await chrome.cookies.getAll({ domain: ".linkedin.com" });
+        const liAt = cookies.find(c => c.name === "li_at")?.value;
+        const jsid = cookies.find(c => c.name === "JSESSIONID")?.value;
+        const valid = !!(liAt && jsid);
+        await chrome.storage.local.set({ cookiesValid: valid });
+        console.log("[PingCRM SW] Cookie refresh:", valid ? "valid" : "missing", "li_at:", !!liAt, "JSESSIONID:", !!jsid);
 
-        if (response.status === 401) {
-          await Storage.clearToken();
-          sendResponse({ ok: false, error: "AUTH_EXPIRED" });
-          return;
+        if (valid) {
+          // Trigger throttled sync in background
+          _maybeRunVoyagerSync().catch(e =>
+            console.warn("[PingCRM SW] Auto-sync after page visit failed:", e.message)
+          );
         }
-
-        if (!response.ok) {
-          sendResponse({ ok: false, error: `Push failed: ${response.status}` });
-          return;
-        }
-
-        const result = await response.json();
-        const data = result.data || {};
-        const profilesSynced = (data.contacts_created || 0) + (data.contacts_updated || 0);
-        await Storage.recordSync({ profilesSynced, messagesSynced: 0 });
-
-        setBadge("OK", "#4CAF50");
-        setTimeout(() => setBadge("", ""), 3000);
-
-        sendResponse({ ok: true, profiles: profilesSynced });
-
-        // Trigger throttled Voyager sync in background (do not await)
-        _maybeRunVoyagerSync().catch(e =>
-          console.warn("[PingCRM SW] Background Voyager sync failed:", e.message)
-        );
       } catch (e) {
-        console.error("[PingCRM SW] PROFILE_CAPTURED push failed:", e.message);
-        setBadge("X", "#FF9800");
-        sendResponse({ ok: false, error: e.message });
+        console.warn("[PingCRM SW] Cookie refresh failed:", e.message);
       }
+      sendResponse({ ok: true });
     })();
     return true;
   }
@@ -107,68 +78,48 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   // SYNC_NOW — force Voyager sync (from popup)
   if (message.type === "SYNC_NOW") {
     (async () => {
-      const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
-      if (!apiUrl || !token) {
-        sendResponse({ ok: false, error: "Not paired" });
-        return;
-      }
-
-      setBadge("...", "#64748b");
-
-      const result = await runSync(apiUrl, token, true);
-
-      if (result.error) {
-        setBadge("X", "#FF9800");
-        sendResponse({ ok: false, error: result.error });
-        return;
-      }
-
-      await Storage.recordSync({
-        profilesSynced: result.backfilled,
-        messagesSynced: result.messages,
-      });
-
-      setBadge("OK", "#4CAF50");
-      setTimeout(() => setBadge("", ""), 3000);
-
-      sendResponse({
-        ok: true,
-        conversations: result.conversations,
-        messages: result.messages,
-        backfilled: result.backfilled,
-      });
-    })();
-    return true;
-  }
-
-  // DOWNLOAD_AVATAR — fetch LinkedIn CDN image with cookies (unchanged from v1)
-  if (message.type === "DOWNLOAD_AVATAR") {
-    (async () => {
       try {
-        const headers = {};
-        try {
-          const cookies = await chrome.cookies.getAll({ domain: ".linkedin.com" });
-          if (cookies.length) {
-            headers["Cookie"] = cookies.map(c => `${c.name}=${c.value}`).join("; ");
-          }
-        } catch (e) {
-          console.debug("[PingCRM SW] Could not get cookies:", e.message);
-        }
-
-        const resp = await fetch(message.url, { headers });
-        if (!resp.ok) {
-          console.debug("[PingCRM SW] Avatar download HTTP", resp.status);
-          sendResponse({ data: null });
+        const { apiUrl, token } = await chrome.storage.local.get(["apiUrl", "token"]);
+        if (!apiUrl || !token) {
+          sendResponse({ ok: false, error: "Not paired" });
           return;
         }
-        const blob = await resp.blob();
-        const reader = new FileReader();
-        reader.onloadend = () => sendResponse({ data: reader.result });
-        reader.onerror = () => sendResponse({ data: null });
-        reader.readAsDataURL(blob);
+
+        setBadge("...", "#64748b");
+        console.log("[SW] SYNC_NOW starting...");
+
+        const result = await runSync(apiUrl, token, true);
+        console.log("[SW] SYNC_NOW result:", JSON.stringify(result).substring(0, 200));
+
+        if (result.error) {
+          setBadge("X", "#FF9800");
+          sendResponse({ ok: false, error: result.error });
+          return;
+        }
+
+        await Storage.recordSync({
+          profilesSynced: result.backfilled,
+          messagesSynced: result.messages,
+        });
+
+        setBadge("OK", "#4CAF50");
+        setTimeout(() => setBadge("", ""), 3000);
+
+        sendResponse({
+          ok: true,
+          conversations: result.conversations,
+          messages: result.messages,
+          backfilled: result.backfilled,
+        });
+
+        // Run backfill in the background after responding to popup
+        _runPendingBackfill().catch(e =>
+          console.warn("[SW] Background backfill failed:", e.message)
+        );
       } catch (e) {
-        console.debug("[PingCRM SW] Avatar download failed:", e.message);
-        sendResponse({ data: null });
+        console.error("[SW] SYNC_NOW crashed:", e.message, e.stack);
+        setBadge("X", "#FF9800");
+        sendResponse({ ok: false, error: e.message });
       }
     })();
     return true;
@@ -217,8 +168,106 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   return false;
 });
 
+// ── Pending backfill processor ────────────────────────────────────────────────
+
+async function _runPendingBackfill() {
+  const { _pendingBackfill, apiUrl, token } = await chrome.storage.local.get([
+    "_pendingBackfill", "apiUrl", "token",
+  ]);
+  if (!_pendingBackfill || _pendingBackfill.length === 0 || !apiUrl || !token) return;
+
+  // Read cookies fresh
+  const cookies = await chrome.cookies.getAll({ domain: ".linkedin.com" });
+  const liAt = cookies.find(c => c.name === "li_at")?.value;
+  const jsid = cookies.find(c => c.name === "JSESSIONID")?.value;
+  if (!liAt || !jsid) return;
+
+  console.log("[SW] Running pending backfill for", _pendingBackfill.length, "profiles");
+
+  // Process one at a time to stay within SW lifetime
+  const remaining = [..._pendingBackfill];
+  let processed = 0;
+
+  for (const item of remaining.splice(0, 10)) { // max 10 per run
+    const publicId = item.linkedin_profile_id;
+    if (!publicId) continue;
+    // Skip URN member IDs (start with ACo or aco) — they won't work with the profile endpoint
+    if (/^[Aa][Cc][Oo]/i.test(publicId)) {
+      console.log("[Backfill] Skipping URN member ID:", publicId);
+      continue;
+    }
+    try {
+      console.log("[Backfill] Fetching:", publicId);
+      const raw = await voyagerGetProfile(liAt, jsid, publicId);
+      console.log("[Backfill] Got response for:", publicId);
+
+      const profileObj = (raw?.included ?? []).find(
+        i => i?.$type?.includes("Profile") || i?.$type?.includes("MiniProfile")
+      );
+      if (!profileObj) {
+        console.log("[Backfill] No profile object in response for:", publicId);
+        continue;
+      }
+
+      // Extract avatar
+      let avatarUrl = null;
+      const artifacts = profileObj?.profilePicture?.displayImageReference?.vectorImage?.artifacts ?? [];
+      if (artifacts.length > 0) {
+        const largest = artifacts[artifacts.length - 1];
+        const rootUrl = profileObj?.profilePicture?.displayImageReference?.vectorImage?.rootUrl ?? "";
+        if (rootUrl && largest?.fileIdentifyingUrlPathSegment) {
+          avatarUrl = rootUrl + largest.fileIdentifyingUrlPathSegment;
+        }
+      }
+
+      // Push profile to backend
+      await fetch(`${apiUrl}/api/v1/linkedin/push`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          profiles: [{
+            profile_id: publicId,
+            profile_url: `https://www.linkedin.com/in/${publicId}`,
+            full_name: [profileObj?.firstName, profileObj?.lastName].filter(Boolean).join(" ") || null,
+            headline: profileObj?.headline ?? null,
+            location: profileObj?.geoLocationName ?? null,
+            avatar_url: avatarUrl,
+          }],
+          messages: [],
+        }),
+      });
+      console.log("[Backfill] Pushed profile for:", publicId, "avatar:", !!avatarUrl);
+      processed++;
+    } catch (e) {
+      // Only stop on rate limiting — individual profile 401/403/404 are expected for bad IDs
+      if (e.message === "RATE_LIMITED") {
+        console.warn("[Backfill] Rate limited, stopping");
+        break;
+      }
+      console.warn("[Backfill] Failed for:", publicId, e.message);
+    }
+  }
+
+  // Save remaining for next run
+  if (remaining.length > 0) {
+    await chrome.storage.local.set({ _pendingBackfill: remaining });
+    console.log("[Backfill]", remaining.length, "remaining for next sync");
+  } else {
+    await chrome.storage.local.remove("_pendingBackfill");
+    console.log("[Backfill] All done,", processed, "profiles pushed");
+  }
+
+  if (processed > 0) {
+    await Storage.recordSync({ profilesSynced: processed, messagesSynced: 0 });
+  }
+}
+
 // ── Startup ───────────────────────────────────────────────────────────────────
 
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("[PingCRM] LinkedIn Companion v1.0.0 installed");
+  const manifest = chrome.runtime.getManifest();
+  console.log(`[PingCRM] LinkedIn Companion v${manifest.version} installed`);
 });

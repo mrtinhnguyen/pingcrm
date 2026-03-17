@@ -107,7 +107,16 @@ export function Footer() {
           ))}
         </div>
         <p className="text-xs" style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}>
-          &copy; 2026 PingCRM
+          Built by{" "}
+          <a
+            href="https://sawinyh.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="transition-colors duration-200 hover:!text-[var(--text)]"
+            style={{ color: "var(--accent)", textDecoration: "none" }}
+          >
+            Sawinyh.com
+          </a>
         </p>
       </div>
     </footer>

@@ -2,14 +2,22 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "PingCRM — AI Networking CRM | Open Source",
+  title: "PingCRM — Personal Networking CRM | AI-Powered, Open Source & Self-Hostable",
   description:
-    "Upload your contacts, connect your accounts. Ping tells you who to reach out to and writes the message. Open source, self-hostable personal CRM.",
+    "PingCRM is a personal networking CRM that syncs Gmail, Telegram, Twitter, and LinkedIn. AI-powered follow-ups, relationship scoring, and weekly digests — open source and self-hostable.",
   openGraph: {
-    title: "PingCRM — AI Networking CRM",
+    title: "PingCRM — Personal Networking CRM | AI-Powered & Open Source",
     description:
-      "Upload your contacts, connect your accounts. Ping tells you who to reach out to and writes the message.",
+      "Personal networking CRM that syncs your conversations across Gmail, Telegram, Twitter, and LinkedIn. AI writes your follow-ups. Open source, self-hostable.",
     type: "website",
+    url: "https://pingcrm.xyz",
+    siteName: "PingCRM",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "PingCRM — Personal Networking CRM | AI-Powered & Open Source",
+    description:
+      "Sync Gmail, Telegram, Twitter, and LinkedIn. AI-powered follow-ups and relationship scoring. Open source, self-hostable.",
   },
 };
 

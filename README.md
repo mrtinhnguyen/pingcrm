@@ -1,14 +1,14 @@
 # Ping CRM
 
-**Your AI Networking Co-Pilot**
+**Open-Source Personal Networking CRM — AI-Powered, Self-Hostable**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![GitHub stars](https://img.shields.io/github/stars/sneg55/pingcrm)](https://github.com/sneg55/pingcrm/stargazers)
 [![Build](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml/badge.svg)](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml)
 
-Auto-syncs Gmail, Telegram, and Twitter/X. Detects life events. Drafts contextual follow-ups. Tells you who to reach out to and why.
+Auto-syncs Gmail, Telegram, Twitter/X, and LinkedIn. Detects life events. Drafts contextual follow-ups with AI. Tells you who to reach out to and why.
 
-> **[Full Documentation](https://docs.pingcrm.xyz/)** · **[Join the Waitlist](https://pingcrm.xyz)** · **[Self-Host Guide](https://docs.pingcrm.xyz/setup)**
+> **[Full Documentation](https://docs.pingcrm.xyz/)** · **[Self-Host Now](https://docs.pingcrm.xyz/setup)** · **[Join Hosted Waitlist](https://pingcrm.xyz)**
 
 ## Why PingCRM?
 
@@ -19,7 +19,7 @@ Auto-syncs Gmail, Telegram, and Twitter/X. Detects life events. Drafts contextua
 | Gmail sync | Yes (threads) | No | Yes (contacts) |
 | Telegram sync | Yes | No | No |
 | Twitter/X sync | Yes (DMs + mentions) | No | Import only |
-| LinkedIn sync | No | No | Yes |
+| LinkedIn sync | Yes (Chrome extension) | No | Yes |
 | Relationship scoring | Yes (0–10) | No | Reminders only |
 | Life event detection | Yes (multi-source) | Manual only | Job changes only |
 | Identity resolution | Yes (4-tier) | No | Partial |

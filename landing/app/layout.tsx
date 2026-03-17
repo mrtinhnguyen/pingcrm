@@ -12,12 +12,21 @@ export const metadata: Metadata = {
     type: "website",
     url: "https://pingcrm.xyz",
     siteName: "PingCRM",
+    images: [
+      {
+        url: "https://pingcrm.xyz/og.png",
+        width: 1200,
+        height: 630,
+        alt: "PingCRM — Personal Networking CRM",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "PingCRM — Personal Networking CRM | AI-Powered & Open Source",
     description:
       "Sync Gmail, Telegram, Twitter, and LinkedIn. AI-powered follow-ups and relationship scoring. Open source, self-hostable.",
+    images: ["https://pingcrm.xyz/og.png"],
   },
 };
 

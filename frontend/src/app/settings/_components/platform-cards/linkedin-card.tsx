@@ -89,7 +89,7 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
 
   async function handleDisconnect() {
     try {
-      await (client as any).DELETE("/api/v1/extension/pair");
+      await (client as any).DELETE("/api/v1/extension/pair", {});
       await fetchConnectionStatus();
     } catch {
       // ignore

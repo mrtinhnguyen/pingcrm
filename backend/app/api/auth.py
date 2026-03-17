@@ -102,6 +102,22 @@ async def me(
         {"id": str(ga.id), "email": ga.email}
         for ga in result.scalars().all()
     ]
+
+    # Self-heal: if linkedin_extension_paired_at is null but a claimed
+    # pairing record exists, the timestamp was lost — restore it.
+    if current_user.linkedin_extension_paired_at is None:
+        from app.models.extension_pairing import ExtensionPairing
+        pairing_result = await db.execute(
+            select(ExtensionPairing.claimed_at).where(
+                ExtensionPairing.user_id == current_user.id,
+                ExtensionPairing.claimed_at.is_not(None),
+            ).order_by(ExtensionPairing.claimed_at.desc()).limit(1)
+        )
+        claimed_at = pairing_result.scalar_one_or_none()
+        if claimed_at:
+            current_user.linkedin_extension_paired_at = claimed_at
+            await db.flush()
+
     user_data = UserResponse.from_user(current_user).model_dump()
     user_data["google_accounts"] = google_accounts
     return {"data": user_data, "error": None}

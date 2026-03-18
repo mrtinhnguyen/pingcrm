@@ -4,15 +4,15 @@ sidebar_position: 1
 title: Introduction
 ---
 
-# Ping CRM
+# PingCRM
 
 An AI-powered personal networking CRM that helps you maintain professional relationships.
 
 **Upload your contacts, connect your accounts. Ping tells you who to reach out to and writes the message.**
 
-## What is Ping CRM?
+## What is PingCRM?
 
-Ping CRM is a single-player networking tool designed for professionals who want to stay on top of their relationships without the overhead of a full-blown CRM. It connects to your existing communication channels (Gmail, Telegram, Twitter/X), analyzes your interaction patterns, and uses AI to suggest who you should reach out to and draft contextual messages.
+PingCRM is a single-player networking tool designed for professionals who want to stay on top of their relationships without the overhead of a full-blown CRM. It connects to your existing communication channels (Gmail, Telegram, Twitter/X), analyzes your interaction patterns, and uses AI to suggest who you should reach out to and draft contextual messages.
 
 ## Key Capabilities
 

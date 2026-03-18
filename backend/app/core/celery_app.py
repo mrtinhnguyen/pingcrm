@@ -1,4 +1,4 @@
-"""Celery application factory for Ping CRM."""
+"""Celery application factory for PingCRM."""
 from celery import Celery
 from celery.schedules import crontab
 

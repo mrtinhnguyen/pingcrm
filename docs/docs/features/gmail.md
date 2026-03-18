@@ -5,11 +5,11 @@ title: Gmail Integration
 
 # Gmail Integration
 
-Ping CRM connects to Gmail via OAuth 2.0 with Google, syncing email threads, contacts, and calendar events to build a complete interaction history.
+PingCRM connects to Gmail via OAuth 2.0 with Google, syncing email threads, contacts, and calendar events to build a complete interaction history.
 
 ## Authentication
 
-The Gmail integration uses standard Google OAuth 2.0. After granting access on the Google consent screen, Ping CRM stores a refresh token to maintain access without repeated sign-in. Multi-account support allows connecting more than one Gmail address.
+The Gmail integration uses standard Google OAuth 2.0. After granting access on the Google consent screen, PingCRM stores a refresh token to maintain access without repeated sign-in. Multi-account support allows connecting more than one Gmail address.
 
 ## Email Sync
 
@@ -26,7 +26,7 @@ Threads are deduplicated by Gmail thread ID, so re-syncing does not create dupli
 
 ## Google Contacts Sync
 
-A one-way import pulls contacts from Google Contacts into Ping CRM. Contact records include names, email addresses, phone numbers, and organization fields. This import does not write back to Google -- it is read-only.
+A one-way import pulls contacts from Google Contacts into PingCRM. Contact records include names, email addresses, phone numbers, and organization fields. This import does not write back to Google -- it is read-only.
 
 ## Google Calendar Sync
 

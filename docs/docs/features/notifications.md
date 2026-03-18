@@ -9,7 +9,7 @@ The **Notifications** page (`/notifications`) is the central feed for system eve
 
 ## Notification Types
 
-Ping CRM generates notifications for the following events:
+PingCRM generates notifications for the following events:
 
 - **Sync completion** -- confirms that a platform sync (Gmail, Telegram, Twitter, LinkedIn) finished successfully, including counts of new or updated records.
 - **Sync failure** -- alerts when a sync could not complete, with error details.

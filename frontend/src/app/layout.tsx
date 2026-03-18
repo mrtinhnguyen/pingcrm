@@ -21,7 +21,7 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ping CRM",
+  title: "PingCRM",
   description: "Your AI-powered networking assistant",
 };
 

@@ -5,11 +5,11 @@ title: Twitter/X Integration
 
 # Twitter / X Integration
 
-Ping CRM connects to Twitter (X) using OAuth 2.0 with PKCE for secure access to DMs, mentions, and user profiles.
+PingCRM connects to Twitter (X) using OAuth 2.0 with PKCE for secure access to DMs, mentions, and user profiles.
 
 ## Authentication
 
-Twitter uses the OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code Exchange). This flow does not require a client secret to be stored on the server, improving security. After authorization, Ping CRM stores a refresh token to maintain access.
+Twitter uses the OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code Exchange). This flow does not require a client secret to be stored on the server, improving security. After authorization, PingCRM stores a refresh token to maintain access.
 
 ## DM Sync
 
@@ -21,7 +21,7 @@ Tweets that @mention you or are replies to your tweets are imported as interacti
 
 ## Bio Monitoring
 
-Ping CRM periodically checks the Twitter bios of your contacts for changes. When a change is detected:
+PingCRM periodically checks the Twitter bios of your contacts for changes. When a change is detected:
 
 1. A **notification** is created alerting you to the update.
 2. A **timeline event** is added to the contact's interaction history, recording the old and new bio text.
@@ -30,7 +30,7 @@ Bio changes are a valuable signal for identifying career moves, fundraising acti
 
 ## Event Classification (On-Demand)
 
-When composing follow-up suggestions, Ping CRM fetches recent tweets for the specific contact and uses Claude to classify events into:
+When composing follow-up suggestions, PingCRM fetches recent tweets for the specific contact and uses Claude to classify events into:
 
 | Category | Example |
 |---|---|
@@ -47,7 +47,7 @@ See [Follow-Up Suggestions](./suggestions.md) for the full suggestion algorithm,
 
 ## Bird CLI (`@steipete/bird`)
 
-Ping CRM uses the [Bird CLI](https://www.npmjs.com/package/@anthropic-ai/bird) (`@steipete/bird v0.8.0`) as the **primary** data source for Twitter/X. Bird authenticates via browser cookies rather than API keys, bypassing X API rate limits and credit restrictions.
+PingCRM uses the [Bird CLI](https://www.npmjs.com/package/@anthropic-ai/bird) (`@steipete/bird v0.8.0`) as the **primary** data source for Twitter/X. Bird authenticates via browser cookies rather than API keys, bypassing X API rate limits and credit restrictions.
 
 ### What Bird CLI provides
 

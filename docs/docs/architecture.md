@@ -7,7 +7,7 @@ title: Technical Architecture
 
 ## System Overview
 
-Ping CRM is a three-tier application: a Next.js frontend communicates with a FastAPI backend, which persists data in PostgreSQL and uses Redis for caching, task brokering, and ephemeral state. Celery workers handle background sync, scoring, and AI-powered suggestion generation.
+PingCRM is a three-tier application: a Next.js frontend communicates with a FastAPI backend, which persists data in PostgreSQL and uses Redis for caching, task brokering, and ephemeral state. Celery workers handle background sync, scoring, and AI-powered suggestion generation.
 
 ```
 ┌─────────────────┐       ┌──────────────────────┐       ┌────────────────┐
@@ -254,7 +254,7 @@ LLM-generated tags are managed through a `TagTaxonomy` system with hierarchical 
 
 ### Telegram Rate Gate
 
-Telegram's MTProto API enforces aggressive rate limits via `FloodWaitError`. Ping CRM coordinates across all operations using a Redis-based rate gate:
+Telegram's MTProto API enforces aggressive rate limits via `FloodWaitError`. PingCRM coordinates across all operations using a Redis-based rate gate:
 
 ```
 ┌─────────────────┐     FloodWaitError(seconds=N)

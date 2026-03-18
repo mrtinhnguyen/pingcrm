@@ -1,4 +1,4 @@
-# Ping CRM
+# PingCRM
 
 **Open-Source Personal Networking CRM — AI-Powered, Self-Hostable**
 

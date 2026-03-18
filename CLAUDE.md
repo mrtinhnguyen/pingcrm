@@ -1,4 +1,4 @@
-# Ping CRM - AI Networking CRM
+# PingCRM - AI Networking CRM
 
 ## Project Overview
 Personal networking CRM that helps maintain professional relationships.

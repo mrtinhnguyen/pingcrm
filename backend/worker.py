@@ -1,5 +1,5 @@
 """
-Celery worker entry point for Ping CRM.
+Celery worker entry point for PingCRM.
 
 Run the worker (with Beat scheduler) using:
 

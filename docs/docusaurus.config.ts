@@ -3,7 +3,7 @@ import type {Config} from '@docusaurus/types';
 import type * as Preset from '@docusaurus/preset-classic';
 
 const config: Config = {
-  title: 'Ping CRM',
+  title: 'PingCRM',
   tagline: 'AI-powered personal networking CRM',
   favicon: 'img/favicon.svg',
 
@@ -43,7 +43,7 @@ const config: Config = {
       respectPrefersColorScheme: true,
     },
     navbar: {
-      title: 'Ping CRM',
+      title: 'PingCRM',
       items: [
         {
           type: 'docSidebar',
@@ -98,7 +98,7 @@ const config: Config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} Ping CRM. Licensed under AGPL-3.0.`,
+      copyright: `Copyright © ${new Date().getFullYear()} PingCRM. Licensed under AGPL-3.0.`,
     },
     prism: {
       theme: prismThemes.github,

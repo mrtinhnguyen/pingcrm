@@ -11,7 +11,7 @@ The **Settings** page (`/settings`) manages platform connections, data imports, 
 
 - **Connect / Disconnect** -- initiates or revokes the Google OAuth flow.
 - **Connected email** -- displays the Gmail address currently linked.
-- **Sync Contacts** -- triggers a one-way import of Google Contacts into Ping CRM.
+- **Sync Contacts** -- triggers a one-way import of Google Contacts into PingCRM.
 - **Sync Calendar** -- imports Google Calendar events as meeting-type interactions.
 
 ## Telegram
@@ -37,7 +37,7 @@ See [LinkedIn Integration](./linkedin.md) for full details on the extension, Voy
 ## CSV Import
 
 - **Drag-and-drop upload** -- drop a CSV file onto the import area or click to browse.
-- **LinkedIn CSV import** -- supports the export format from LinkedIn's "Download your data" feature. Columns are mapped automatically to Ping CRM contact fields.
+- **LinkedIn CSV import** -- supports the export format from LinkedIn's "Download your data" feature. Columns are mapped automatically to PingCRM contact fields.
 - Imported contacts appear in the contacts list immediately and are eligible for identity resolution matching.
 
 ## Follow-up Rules

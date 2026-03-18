@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to Ping CRM will be documented in this file.
+All notable changes to PingCRM will be documented in this file.
 
 ## [Unreleased]
 
@@ -57,4 +57,4 @@ All notable changes to Ping CRM will be documented in this file.
 
 ## [1.0.0] - 2026-03-05
 
-Initial release of Ping CRM.
+Initial release of PingCRM.

@@ -6,7 +6,7 @@ export default function HomePage() {
       <div className="text-center max-w-2xl">
         <div className="flex items-center justify-center gap-3 mb-4">
           <span className="w-4 h-4 rounded-full bg-teal-500" />
-          <h1 className="text-5xl font-display font-bold text-stone-900 dark:text-stone-100">Ping CRM</h1>
+          <h1 className="text-5xl font-display font-bold text-stone-900 dark:text-stone-100">PingCRM</h1>
         </div>
         <p className="text-xl text-stone-600 dark:text-stone-300 mb-10">
           Your AI-powered networking assistant

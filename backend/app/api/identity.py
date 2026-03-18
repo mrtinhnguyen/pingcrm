@@ -1,6 +1,7 @@
 """Identity Resolution API router."""
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import UTC, datetime
 from typing import Any
@@ -8,6 +9,8 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+logger = logging.getLogger(__name__)
 
 from app.core.auth import get_current_user
 from app.core.database import get_db
@@ -161,10 +164,19 @@ async def confirm_merge(
 
     # Delete the pending match and re-merge via the service (which creates a
     # new "merged" IdentityMatch record).
-    await db.delete(match)
-    await db.flush()
-
-    merged = await merge_contacts(contact_a_id, contact_b_id, db)
+    try:
+        await db.delete(match)
+        await db.flush()
+        merged = await merge_contacts(contact_a_id, contact_b_id, db)
+    except Exception:
+        logger.exception(
+            "confirm_merge failed for match %s (contacts %s, %s)",
+            match_id, contact_a_id, contact_b_id,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Merge failed — check server logs for details",
+        )
 
     return envelope(await _match_to_dict(merged, db))
 

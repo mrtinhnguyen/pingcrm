@@ -248,6 +248,14 @@ async def merge_contacts(
     ):
         contact_a.last_interaction_at = contact_b.last_interaction_at
 
+    # Clear unique-constrained fields on contact_b before flush to avoid
+    # violating per-user uniqueness indexes while both contacts still exist.
+    contact_b.telegram_username = None
+    contact_b.telegram_user_id = None
+    contact_b.twitter_handle = None
+    contact_b.twitter_user_id = None
+    contact_b.linkedin_profile_id = None
+
     # Reassign interactions.
     interactions_result = await db.execute(
         select(Interaction).where(Interaction.contact_id == contact_b_id)

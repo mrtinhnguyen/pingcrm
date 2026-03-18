@@ -103,6 +103,20 @@ A sidebar card displays Telegram groups shared with the contact, providing addit
 
 The system detects potential duplicate contacts based on matching email addresses, names, and cross-platform identifiers. Duplicates can be reviewed and merged.
 
+### Apollo Enrichment
+
+Fill in missing contact details using the Apollo People Match API. From the contact detail page, open the kebab menu and select **Enrich with Apollo**.
+
+The enrichment:
+
+- Looks up the contact by **email** (preferred) or **LinkedIn URL**.
+- Only fills **empty fields** -- it never overwrites data you've already entered.
+- Can populate: name, title, company, location, LinkedIn URL, Twitter handle, avatar, phone numbers, and email addresses.
+
+The enrichment source is recorded and returned in the API response (`source: "apollo"`), along with the list of fields that were updated.
+
+**Setup:** Set the `APOLLO_API_KEY` environment variable. Without it, the enrichment button is non-functional. See the [Setup guide](/docs/setup) for details.
+
 ### Rate Limit Handling
 
 If the API returns a 429 (rate limit) response, the UI displays a countdown timer indicating when the next request can be made.

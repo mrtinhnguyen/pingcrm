@@ -373,12 +373,14 @@ export default function IdentityPage() {
   const handleMerge = (matchId: string) => {
     mergeMatch.mutate(matchId, {
       onSuccess: () => showToast("Contacts merged successfully"),
+      onError: (err) => showToast(`Merge failed: ${err.message}`),
     });
   };
 
   const handleReject = (matchId: string) => {
     rejectMatch.mutate(matchId, {
       onSuccess: () => showToast("Marked as not the same"),
+      onError: (err) => showToast(`Reject failed: ${err.message}`),
     });
   };
 

@@ -42,10 +42,13 @@ export function useMergeMatch() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (matchId: string) => {
-      const { data } = await client.POST(
+      const { data, error } = await client.POST(
         "/api/v1/identity/matches/{match_id}/merge",
         { params: { path: { match_id: matchId } } }
       );
+      if (error) {
+        throw new Error((error as { detail?: string }).detail ?? "Merge failed");
+      }
       return data;
     },
     onSuccess: () => {
@@ -59,10 +62,13 @@ export function useRejectMatch() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (matchId: string) => {
-      const { data } = await client.POST(
+      const { data, error } = await client.POST(
         "/api/v1/identity/matches/{match_id}/reject",
         { params: { path: { match_id: matchId } } }
       );
+      if (error) {
+        throw new Error((error as { detail?: string }).detail ?? "Reject failed");
+      }
       return data;
     },
     onSuccess: () => {

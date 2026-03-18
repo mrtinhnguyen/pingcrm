@@ -46,7 +46,8 @@ All endpoints except registration, login, and OAuth URL generation require authe
 | GET | `/api/v1/contacts/{id}` | Get contact detail |
 | PUT | `/api/v1/contacts/{id}` | Update a contact |
 | DELETE | `/api/v1/contacts/{id}` | Delete a contact |
-| GET | `/api/v1/contacts/{id}/enrich` | Enrich contact via Apollo |
+| POST | `/api/v1/contacts/{id}/enrich` | Enrich contact via Apollo |
+| POST | `/api/v1/contacts/{id}/extract-bio` | AI-extract structured data from bios (title, company, name normalization) |
 | POST | `/api/v1/contacts/{id}/send` | Send a message via channel (email, Telegram, Twitter, LinkedIn) |
 | POST | `/api/v1/contacts/import/csv` | Import contacts from a CSV file |
 | POST | `/api/v1/contacts/import/linkedin` | Import from LinkedIn CSV export |

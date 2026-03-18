@@ -117,6 +117,34 @@ The enrichment source is recorded and returned in the API response (`source: "ap
 
 **Setup:** Set the `APOLLO_API_KEY` environment variable. Without it, the enrichment button is non-functional. See the [Setup guide](../setup) for details.
 
+### Magic Wand (AI Bio Extraction)
+
+The magic wand button (wand icon in the Contact Details panel header) uses AI to extract structured data from a contact's bios and normalize messy name fields.
+
+**How it works:**
+
+1. Click the wand icon in the Contact Details sidebar.
+2. The system collects the contact's Twitter bio, Telegram bio, LinkedIn bio/headline, and current name fields.
+3. These are sent to Claude Haiku, which returns structured JSON with extracted fields.
+4. The extracted data is applied to the contact and their linked organization.
+
+**What it extracts:**
+
+- **Name normalization** -- splits combined name fields like "Anders | LoopFi" into first name ("Anders") and company ("LoopFi").
+- **Title** -- job title extracted from bios (e.g. "Head of BD" from a Twitter bio).
+- **Company** -- company name, with automatic Organization creation/linking.
+- **Company details** -- website, industry, and location are written to the Organization record.
+- **Organization logo** -- if a website is extracted and the org has no logo, it downloads the favicon automatically.
+
+**Behavior:**
+
+- Name fields are always updated (to fix normalization issues).
+- Title and company are only filled if currently empty.
+- Organization fields (website, industry, location) are only filled if currently empty on the org.
+- The button appears only when the contact has at least one bio or a name to process.
+
+**API:** `POST /api/v1/contacts/{contact_id}/extract-bio` -- returns `{ fields_updated: [...], source: "ai_bio" }`.
+
 ### Rate Limit Handling
 
 If the API returns a 429 (rate limit) response, the UI displays a countdown timer indicating when the next request can be made.

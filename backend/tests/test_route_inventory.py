@@ -54,6 +54,8 @@ def test_contacts_route_inventory() -> None:
             ("GET",    "/api/v1/contacts"),
             ("POST",   "/api/v1/contacts"),
             ("GET",    "/api/v1/contacts/birthdays"),
+            ("DELETE", "/api/v1/contacts/2nd-tier"),
+            ("GET",    "/api/v1/contacts/2nd-tier/count"),
             ("POST",   "/api/v1/contacts/bulk-update"),
             ("GET",    "/api/v1/contacts/ids"),
             ("POST",   "/api/v1/contacts/import/csv"),
@@ -83,6 +85,7 @@ def test_contacts_route_inventory() -> None:
             ("GET",    "/api/v1/contacts/{contact_id}/duplicates"),
             ("POST",   "/api/v1/contacts/{contact_id}/enrich"),
             ("POST",   "/api/v1/contacts/{contact_id}/extract-bio"),
+            ("POST",   "/api/v1/contacts/{contact_id}/promote"),
             ("GET",    "/api/v1/contacts/{contact_id}/interactions"),
             ("POST",   "/api/v1/contacts/{contact_id}/interactions"),
             ("DELETE", "/api/v1/contacts/{contact_id}/interactions/{interaction_id}"),
@@ -137,6 +140,8 @@ def test_static_routes_before_parameterized() -> None:
 
     # --- invariants that MUST hold (currently correct) ---
     must_be_before_param = [
+        "/api/v1/contacts/2nd-tier",
+        "/api/v1/contacts/2nd-tier/count",
         "/api/v1/contacts/tags",
         "/api/v1/contacts/tags/taxonomy",
         "/api/v1/contacts/tags/discover",

@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, String, func
+from sqlalchemy import Boolean, DateTime, String, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -33,6 +33,7 @@ class User(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     priority_settings: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    sync_2nd_tier: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, server_default="true")
     linkedin_extension_paired_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )

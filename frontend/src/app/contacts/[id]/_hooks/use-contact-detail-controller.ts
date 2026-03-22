@@ -33,6 +33,7 @@ export function useContactDetailController(id: string) {
   const [isEnriching, setIsEnriching] = useState(false);
   const [isExtracting, setIsExtracting] = useState(false);
   const [isAutoTagging, setIsAutoTagging] = useState(false);
+  const [isPromoting, setIsPromoting] = useState(false);
   const [toast, setToast] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Interactions query
@@ -264,6 +265,29 @@ export function useContactDetailController(id: string) {
     }
   };
 
+  const handlePromote = async () => {
+    if (!id || isPromoting) return;
+    setIsPromoting(true);
+    setToast(null);
+    try {
+      const { error } = await client.POST("/api/v1/contacts/{contact_id}/promote" as any, {
+        params: { path: { contact_id: id } },
+      });
+      if (error) {
+        setToast({ type: "error", text: (error as any)?.detail || "Failed to promote contact" });
+      } else {
+        setToast({ type: "success", text: "Contact promoted to 1st Tier" });
+        void queryClient.invalidateQueries({ queryKey: ["contacts", id] });
+        void queryClient.invalidateQueries({ queryKey: ["tags"] });
+      }
+    } catch {
+      setToast({ type: "error", text: "Failed to promote contact" });
+    } finally {
+      setIsPromoting(false);
+      setTimeout(() => setToast(null), 5000);
+    }
+  };
+
   const handleDelete = () => {
     deleteContact.mutate(id, { onSuccess: () => router.push("/contacts") });
   };
@@ -297,12 +321,14 @@ export function useContactDetailController(id: string) {
     isEnriching,
     isExtracting,
     isAutoTagging,
+    isPromoting,
     toast,
     setToast,
     handleRefreshDetails,
     handleEnrich,
     handleExtractBio,
     handleAutoTag,
+    handlePromote,
     handleDelete,
     addNoteMutation,
     updateContact,

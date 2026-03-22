@@ -148,6 +148,8 @@ export default function ContactDetailPage() {
           onAutoTag={ctrl.handleAutoTag}
           onShowDeleteConfirm={() => setShowDeleteConfirm(true)}
           onArchive={handleArchive}
+          onPromote={ctrl.handlePromote}
+          isPromoting={ctrl.isPromoting}
         />
 
         {/* Delete confirmation modal */}

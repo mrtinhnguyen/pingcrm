@@ -958,6 +958,10 @@ async def sync_telegram_group_members(user: User, db: AsyncSession) -> dict[str,
         logger.warning("User %s has no telegram_session; skipping group member sync.", user.id)
         return {"new_contacts": 0, "updated_contacts": 0, "groups_scanned": 0}
 
+    if not user.sync_2nd_tier:
+        logger.info("User %s has sync_2nd_tier=False; skipping group member sync.", user.id)
+        return {"new_contacts": 0, "updated_contacts": 0, "groups_scanned": 0}
+
     gate_ttl = await _check_rate_gate(str(user.id))
     if gate_ttl:
         logger.info("sync_telegram_group_members: user %s is rate-gated (%ds remaining), skipping.", user.id, gate_ttl)

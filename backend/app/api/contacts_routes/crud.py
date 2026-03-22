@@ -135,6 +135,50 @@ async def bulk_update_contacts(
     return envelope({"updated": len(contacts)})
 
 
+@router.delete("/2nd-tier", response_model=Envelope[dict])
+async def delete_2nd_tier_contacts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[dict]:
+    """Delete all contacts tagged as '2nd tier' for the current user."""
+    result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == current_user.id,
+            Contact.tags.contains(["2nd tier"]),
+        )
+    )
+    contacts = result.scalars().all()
+
+    if not contacts:
+        return envelope({"deleted_count": 0})
+
+    # DB cascade (ondelete="CASCADE") on all child tables handles related rows
+    # (interactions, follow_up_suggestions, detected_events, etc.) automatically.
+    for contact in contacts:
+        await db.delete(contact)
+
+    await db.flush()
+    return envelope({"deleted_count": len(contacts)})
+
+
+@router.get("/2nd-tier/count", response_model=Envelope[dict])
+async def count_2nd_tier_contacts(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[dict]:
+    """Count contacts tagged as '2nd tier' for the current user."""
+    from sqlalchemy import func as sa_func
+
+    result = await db.execute(
+        select(sa_func.count()).select_from(Contact).where(
+            Contact.user_id == current_user.id,
+            Contact.tags.contains(["2nd tier"]),
+        )
+    )
+    count = result.scalar() or 0
+    return envelope({"count": count})
+
+
 @router.get("/{contact_id}", response_model=Envelope[ContactResponse])
 async def get_contact(
     contact_id: uuid.UUID,
@@ -559,3 +603,31 @@ async def extract_bio(
         await db.refresh(contact)
 
     return envelope({"fields_updated": fields_updated, "source": "ai_bio"})
+
+
+@router.post("/{contact_id}/promote", response_model=Envelope[dict])
+async def promote_contact(
+    contact_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Envelope[dict]:
+    """Remove '2nd Tier' tag from a contact, promoting it to 1st Tier."""
+    result = await db.execute(
+        select(Contact).where(Contact.id == contact_id, Contact.user_id == current_user.id)
+    )
+    contact = result.scalar_one_or_none()
+    if not contact:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Contact not found")
+
+    tags = list(contact.tags or [])
+    # Case-insensitive removal of "2nd Tier" tag
+    new_tags = [t for t in tags if t.lower() != "2nd tier"]
+    if len(new_tags) == len(tags):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Contact is not a 2nd Tier contact",
+        )
+
+    contact.tags = new_tags
+    await db.flush()
+    return envelope({"promoted": True, "id": str(contact_id)})

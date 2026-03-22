@@ -3,6 +3,7 @@
 import { Toggle } from "./shared";
 import { GoogleCard } from "./platform-cards/google-card";
 import { TelegramCard } from "./platform-cards/telegram-card";
+import { TelegramSyncSettings } from "./telegram-sync-settings";
 import { TwitterCard } from "./platform-cards/twitter-card";
 import { LinkedInCard } from "./platform-cards/linkedin-card";
 import type {
@@ -77,6 +78,8 @@ export function IntegrationsTab({
         telegramFlow={telegramFlow}
         handleTelegramSync={handleTelegramSync}
       />
+
+      {connected.telegram && <TelegramSyncSettings />}
 
       <TwitterCard
         connected={connected}

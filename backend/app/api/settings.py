@@ -50,3 +50,29 @@ async def update_priority(
     await db.refresh(current_user)
     settings = get_priority_settings(current_user)
     return {"data": settings, "error": None}
+
+
+class TelegramSettingsInput(BaseModel):
+    sync_2nd_tier: bool
+
+
+class TelegramSettingsData(BaseModel):
+    sync_2nd_tier: bool
+
+
+@router.get("/telegram", response_model=Envelope[TelegramSettingsData])
+async def get_telegram_settings(
+    current_user: User = Depends(get_current_user),
+) -> Envelope[TelegramSettingsData]:
+    return {"data": {"sync_2nd_tier": current_user.sync_2nd_tier}, "error": None}
+
+
+@router.put("/telegram", response_model=Envelope[TelegramSettingsData])
+async def update_telegram_settings(
+    body: TelegramSettingsInput,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope[TelegramSettingsData]:
+    current_user.sync_2nd_tier = body.sync_2nd_tier
+    await db.flush()
+    return {"data": {"sync_2nd_tier": current_user.sync_2nd_tier}, "error": None}

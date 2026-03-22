@@ -41,6 +41,12 @@ Select multiple contacts from the list to apply actions in one operation:
 - **Archive** -- move selected contacts to archived status.
 - **Merge** -- combine duplicate contacts from the selection.
 - **Delete** -- permanently remove selected contacts.
+- **Delete 2nd Tier contacts** -- permanently remove all contacts tagged "2nd tier" (Telegram group participants you haven't directly messaged). A confirmation dialog shows the count before deletion.
+
+**2nd Tier bulk delete API:**
+
+- `GET /api/v1/contacts/2nd-tier/count` -- returns `{ count: N }`, used by the confirmation dialog.
+- `DELETE /api/v1/contacts/2nd-tier` -- deletes all 2nd tier contacts and their related data, returns `{ deleted_count: N }`.
 
 ## Contact Detail
 

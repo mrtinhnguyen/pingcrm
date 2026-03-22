@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   Archive,
   ArchiveRestore,
+  ArrowUpCircle,
   MessageCircle,
   MoreVertical,
   Pencil,
@@ -129,6 +130,8 @@ export function HeaderCard({
   onAutoTag,
   onShowDeleteConfirm,
   onArchive,
+  onPromote,
+  isPromoting,
 }: {
   contact: Contact;
   allTags: string[];
@@ -142,6 +145,8 @@ export function HeaderCard({
   onAutoTag: () => void;
   onShowDeleteConfirm: () => void;
   onArchive: () => void;
+  onPromote?: () => void;
+  isPromoting?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -160,6 +165,9 @@ export function HeaderCard({
     "Unnamed Contact";
   const sp = scorePillClasses(contact.relationship_score);
   const activePriority = contact.priority_level || "medium";
+  const is2ndTier = (contact.tags ?? []).some(
+    (t) => t.toLowerCase() === "2nd tier"
+  );
 
   return (
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-6 mb-6">
@@ -199,6 +207,11 @@ export function HeaderCard({
               <span className={cn("w-1.5 h-1.5 rounded-full", sp.dot)} />
               {sp.label}
             </span>
+            {is2ndTier && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium border bg-stone-50 dark:bg-stone-800 text-stone-500 dark:text-stone-400 border-stone-200 dark:border-stone-700">
+                2nd Tier
+              </span>
+            )}
           </div>
 
           {/* Bios */}
@@ -324,6 +337,19 @@ export function HeaderCard({
                   />
                   {isAutoTagging ? "Tagging..." : "Auto-tag with AI"}
                 </button>
+                {is2ndTier && onPromote && (
+                  <button
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onPromote();
+                    }}
+                    disabled={isPromoting}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-sm text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 disabled:opacity-50"
+                  >
+                    <ArrowUpCircle className="w-4 h-4" />
+                    {isPromoting ? "Promoting..." : "Promote to 1st Tier"}
+                  </button>
+                )}
                 <div className="my-1 h-px bg-stone-100 dark:bg-stone-800" />
                 <button
                   onClick={() => {

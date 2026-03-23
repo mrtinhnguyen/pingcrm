@@ -149,10 +149,13 @@ export function useMergeContacts() {
       contactId: string;
       otherId: string;
     }) => {
-      const { data } = await client.POST(
+      const { data, error } = await client.POST(
         "/api/v1/contacts/{contact_id}/merge/{other_id}",
         { params: { path: { contact_id: contactId, other_id: otherId } } }
       );
+      if (error) {
+        throw new Error((error as any)?.detail || "Merge failed");
+      }
       return data;
     },
     onSuccess: () => {

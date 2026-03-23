@@ -34,17 +34,32 @@ function DuplicateRow({
     "Unnamed";
   const score = typeof dup.score === "number" ? Math.round(dup.score * 100) : null;
 
+  const [mergeError, setMergeError] = useState<string | null>(null);
+
   const handleMerge = () => {
+    setMergeError(null);
     mergeContacts.mutate(
       { contactId, otherId: dup.id },
       {
         onSuccess: (result: any) => {
+          if (!result?.data?.id) {
+            setMergeError("Merge failed — contact may already be merged or deleted.");
+            setConfirmId(null);
+            return;
+          }
           void queryClient.invalidateQueries({ queryKey: ["contacts"] });
           void queryClient.invalidateQueries({ queryKey: ["contact-duplicates"] });
-          const survivingId = result?.data?.id;
-          if (survivingId && survivingId !== contactId) {
+          const survivingId = result.data.id;
+          if (survivingId !== contactId) {
             router.replace(`/contacts/${survivingId}`);
+          } else {
+            void queryClient.invalidateQueries({ queryKey: ["contacts", contactId] });
+            setConfirmId(null);
           }
+        },
+        onError: (err: any) => {
+          setMergeError(err?.message || "Merge failed. Please try again.");
+          setConfirmId(null);
         },
       }
     );
@@ -139,6 +154,10 @@ function DuplicateRow({
             </div>
           )}
         </div>
+
+        {mergeError && (
+          <p className="text-[11px] text-red-500 mb-2">{mergeError}</p>
+        )}
 
         {confirmId === dup.id ? (
           <div className="flex items-center gap-2">

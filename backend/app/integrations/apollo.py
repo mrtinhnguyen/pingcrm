@@ -10,6 +10,17 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
+# Sentinel to distinguish "no match found" from "API call failed"
+NO_MATCH: dict[str, Any] = {}
+
+
+class ApolloError(Exception):
+    """Raised when the Apollo API call fails (not when no match is found)."""
+
+    def __init__(self, message: str, status_code: int | None = None):
+        super().__init__(message)
+        self.status_code = status_code
+
 
 async def enrich_person(
     email: str | None = None,
@@ -19,14 +30,19 @@ async def enrich_person(
 
     Accepts either an email or a LinkedIn URL as the lookup identifier.
     When both are provided, email takes priority (higher match quality).
-    Returns an empty dict on any failure (best-effort enrichment).
+
+    Returns:
+        dict of enriched fields if a match is found.
+        Empty dict (NO_MATCH) if no match in Apollo's database.
+
+    Raises:
+        ApolloError: on API key issues, rate limits, network errors, etc.
     """
     if not settings.APOLLO_API_KEY:
-        logger.warning("APOLLO_API_KEY not configured, skipping enrichment")
-        return {}
+        raise ApolloError("APOLLO_API_KEY not configured")
 
     if not email and not linkedin_url:
-        return {}
+        return NO_MATCH
 
     payload: dict[str, Any] = {"reveal_personal_emails": True}
     if email:
@@ -46,15 +62,78 @@ async def enrich_person(
                 },
                 json=payload,
             )
-            resp.raise_for_status()
-            data = resp.json()
-    except Exception:
-        logger.warning("Apollo enrichment failed for %s", identifier, exc_info=True)
-        return {}
+    except httpx.TimeoutException:
+        logger.warning(
+            "Apollo enrichment timed out for %s",
+            identifier,
+            extra={"provider": "apollo", "identifier": identifier},
+        )
+        raise ApolloError("Apollo API request timed out", status_code=None)
+    except httpx.HTTPError as exc:
+        logger.warning(
+            "Apollo enrichment network error for %s: %s",
+            identifier,
+            exc,
+            extra={"provider": "apollo", "identifier": identifier},
+            exc_info=True,
+        )
+        raise ApolloError(f"Apollo API network error: {exc}") from exc
+
+    if resp.status_code == 401:
+        logger.error(
+            "Apollo API key invalid (401) for %s",
+            identifier,
+            extra={"provider": "apollo", "http_status": 401},
+        )
+        raise ApolloError("Apollo API key is invalid or expired", status_code=401)
+
+    if resp.status_code == 429:
+        logger.warning(
+            "Apollo rate limit hit (429) for %s",
+            identifier,
+            extra={"provider": "apollo", "http_status": 429},
+        )
+        raise ApolloError("Apollo API rate limit exceeded — try again later", status_code=429)
+
+    if resp.status_code >= 400:
+        logger.warning(
+            "Apollo API error %d for %s: %s",
+            resp.status_code,
+            identifier,
+            resp.text[:200],
+            extra={"provider": "apollo", "http_status": resp.status_code},
+        )
+        raise ApolloError(
+            f"Apollo API returned {resp.status_code}",
+            status_code=resp.status_code,
+        )
+
+    try:
+        data = resp.json()
+    except ValueError:
+        logger.warning(
+            "Apollo returned invalid JSON for %s: %s",
+            identifier,
+            resp.text[:200],
+            extra={"provider": "apollo"},
+        )
+        raise ApolloError("Apollo API returned invalid JSON")
 
     person = data.get("person") or {}
     if not person:
-        return {}
+        logger.info(
+            "Apollo: no match found for %s",
+            identifier,
+            extra={"provider": "apollo", "identifier": identifier},
+        )
+        return NO_MATCH
+
+    logger.info(
+        "Apollo: enriched %s (fields: %s)",
+        identifier,
+        ", ".join(k for k in person if person[k]),
+        extra={"provider": "apollo", "identifier": identifier},
+    )
 
     result: dict[str, Any] = {}
 

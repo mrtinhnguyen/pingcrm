@@ -198,6 +198,11 @@ export function useContactDetailController(id: string) {
       const res = await client.POST("/api/v1/contacts/{contact_id}/enrich" as any, {
         params: { path: { contact_id: id } },
       });
+      if (res.error) {
+        const detail = (res.error as any)?.detail;
+        setToast({ type: "error", text: detail || "Enrichment failed" });
+        return;
+      }
       const data = (res.data as any)?.data;
       const fields: string[] = data?.fields_updated ?? [];
       setToast({

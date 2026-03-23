@@ -458,13 +458,25 @@ async def enrich_contact(
             detail="Contact has no email or LinkedIn URL. At least one is required for enrichment.",
         )
 
-    from app.integrations.apollo import enrich_person
+    from app.integrations.apollo import ApolloError, enrich_person
 
     # Prefer email over LinkedIn URL for higher match quality
-    enriched = await enrich_person(
-        email=contact.emails[0] if contact.emails else None,
-        linkedin_url=contact.linkedin_url if not contact.emails else None,
-    )
+    try:
+        enriched = await enrich_person(
+            email=contact.emails[0] if contact.emails else None,
+            linkedin_url=contact.linkedin_url if not contact.emails else None,
+        )
+    except ApolloError as exc:
+        logger.warning(
+            "enrich_contact: Apollo failed for contact %s: %s",
+            contact_id,
+            exc,
+            extra={"provider": "apollo", "contact_id": str(contact_id)},
+        )
+        raise HTTPException(
+            status_code=exc.status_code or status.HTTP_502_BAD_GATEWAY,
+            detail=str(exc),
+        )
     if not enriched:
         return envelope({"fields_updated": [], "source": "apollo"})
 

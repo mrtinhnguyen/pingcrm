@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import httpx
 import pytest
 
-from app.integrations.apollo import enrich_person
+from app.integrations.apollo import ApolloError, enrich_person
 
 
 # ---------------------------------------------------------------------------
@@ -19,14 +19,7 @@ def _make_response(body: dict[str, Any], status_code: int = 200) -> MagicMock:
     mock_resp = MagicMock(spec=httpx.Response)
     mock_resp.status_code = status_code
     mock_resp.json.return_value = body
-    if status_code >= 400:
-        mock_resp.raise_for_status.side_effect = httpx.HTTPStatusError(
-            message=f"HTTP {status_code}",
-            request=MagicMock(),
-            response=mock_resp,
-        )
-    else:
-        mock_resp.raise_for_status.return_value = None
+    mock_resp.text = str(body)
     return mock_resp
 
 
@@ -125,12 +118,12 @@ async def test_enrich_person_partial_response_parsed_correctly():
 
 
 # ---------------------------------------------------------------------------
-# Test: handle API errors gracefully (HTTP 4xx/5xx)
+# Test: API errors raise ApolloError (rate limit)
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_enrich_person_api_error_returns_empty_dict():
-    """An HTTP error from Apollo results in an empty dict (best-effort)."""
+async def test_enrich_person_rate_limit_raises_apollo_error():
+    """An HTTP 429 from Apollo raises ApolloError with status_code=429."""
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(return_value=_make_response({}, status_code=429))
 
@@ -142,14 +135,20 @@ async def test_enrich_person_api_error_returns_empty_dict():
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        result = await enrich_person(email="rate-limited@example.com")
+        with pytest.raises(ApolloError) as exc_info:
+            await enrich_person(email="rate-limited@example.com")
 
-    assert result == {}
+    assert exc_info.value.status_code == 429
+    assert "rate limit" in str(exc_info.value).lower()
 
+
+# ---------------------------------------------------------------------------
+# Test: network errors raise ApolloError
+# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_enrich_person_network_error_returns_empty_dict():
-    """A network-level exception from httpx results in an empty dict."""
+async def test_enrich_person_network_error_raises_apollo_error():
+    """A network-level exception from httpx raises ApolloError."""
     mock_client = AsyncMock()
     mock_client.post = AsyncMock(side_effect=httpx.ConnectError("connection refused"))
 
@@ -161,18 +160,19 @@ async def test_enrich_person_network_error_returns_empty_dict():
         mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        result = await enrich_person(email="offline@example.com")
+        with pytest.raises(ApolloError) as exc_info:
+            await enrich_person(email="offline@example.com")
 
-    assert result == {}
+    assert "network error" in str(exc_info.value).lower()
 
 
 # ---------------------------------------------------------------------------
-# Test: handle missing / invalid API key
+# Test: missing API key raises ApolloError
 # ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
-async def test_enrich_person_missing_api_key_returns_empty_dict():
-    """When APOLLO_API_KEY is falsy, no HTTP call is made and {} is returned."""
+async def test_enrich_person_missing_api_key_raises_apollo_error():
+    """When APOLLO_API_KEY is falsy, ApolloError is raised and no HTTP call is made."""
     with (
         patch("app.integrations.apollo.settings") as mock_settings,
         patch("app.integrations.apollo.httpx.AsyncClient") as mock_cls,
@@ -181,11 +181,16 @@ async def test_enrich_person_missing_api_key_returns_empty_dict():
         mock_cls.return_value.__aenter__ = AsyncMock()
         mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
 
-        result = await enrich_person(email="test@example.com")
+        with pytest.raises(ApolloError) as exc_info:
+            await enrich_person(email="test@example.com")
 
-    assert result == {}
+    assert "not configured" in str(exc_info.value).lower()
     mock_cls.assert_not_called()
 
+
+# ---------------------------------------------------------------------------
+# Test: no identifier returns empty dict (not an error)
+# ---------------------------------------------------------------------------
 
 @pytest.mark.asyncio
 async def test_enrich_person_no_identifier_returns_empty_dict():
@@ -248,3 +253,28 @@ async def test_enrich_person_twitter_handle_extraction():
         result = await enrich_person(email="bob@example.com")
 
     assert result["twitter_handle"] == "bobhandle"
+
+
+# ---------------------------------------------------------------------------
+# Test: HTTP 401 raises ApolloError with correct status
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+async def test_enrich_person_invalid_key_raises_apollo_error():
+    """An HTTP 401 raises ApolloError indicating invalid API key."""
+    mock_client = AsyncMock()
+    mock_client.post = AsyncMock(return_value=_make_response({}, status_code=401))
+
+    with (
+        patch("app.integrations.apollo.settings") as mock_settings,
+        patch("app.integrations.apollo.httpx.AsyncClient") as mock_cls,
+    ):
+        mock_settings.APOLLO_API_KEY = "bad-key"
+        mock_cls.return_value.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_cls.return_value.__aexit__ = AsyncMock(return_value=False)
+
+        with pytest.raises(ApolloError) as exc_info:
+            await enrich_person(email="test@example.com")
+
+    assert exc_info.value.status_code == 401
+    assert "invalid" in str(exc_info.value).lower()

@@ -43,6 +43,10 @@ All triggers respect these guards — **including event-based triggers**:
 | **Archived** | Skip archived contacts |
 | **2nd-tier** | Skip contacts labelled "2nd-tier" |
 | **No channel** | Skip contacts with no email, Telegram, or Twitter handle |
+| **Ghosting (3+)** | Skip if last 3+ consecutive interactions are all outbound with no reply |
+| **Ghosting (2)** | Reduce priority by 50% if last 2 consecutive interactions are outbound |
+| **Unread outbound** | Skip if last outbound Telegram message hasn't been read by recipient |
+| **Read no reply** | Boost priority +100 if last outbound was read but no inbound reply |
 
 ### Priority Scoring
 

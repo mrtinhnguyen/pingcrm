@@ -598,6 +598,43 @@ async def generate_suggestions(
                 if cid in pool_b:
                     pool_b[cid].priority += 100.0
 
+    # Ghost detection: suppress contacts where last N interactions are all outbound (no reply)
+    all_candidate_ids = set(pool_a.keys()) | set(pool_b.keys())
+    if all_candidate_ids:
+        from app.models.interaction import Interaction as _Interaction
+        # For each candidate, get the directions of the last 3 interactions
+        for cid in list(all_candidate_ids):
+            recent = await db.execute(
+                select(_Interaction.direction)
+                .where(
+                    _Interaction.contact_id == cid,
+                    _Interaction.direction.in_(["inbound", "outbound"]),
+                )
+                .order_by(_Interaction.occurred_at.desc())
+                .limit(3)
+            )
+            directions = [r[0] for r in recent.all()]
+            if not directions:
+                continue
+            # Count consecutive outbound from the most recent
+            consecutive_outbound = 0
+            for d in directions:
+                if d == "outbound":
+                    consecutive_outbound += 1
+                else:
+                    break
+            if consecutive_outbound >= 3:
+                # 3+ outbound with no reply — suppress entirely
+                pool_a.pop(cid, None)
+                pool_b.pop(cid, None)
+                logger.debug("generate_suggestions: skipping contact %s (ghosting — %d consecutive outbound)", cid, consecutive_outbound)
+            elif consecutive_outbound == 2:
+                # 2 outbound with no reply — reduce priority by 50%
+                if cid in pool_a:
+                    pool_a[cid].priority *= 0.5
+                if cid in pool_b:
+                    pool_b[cid].priority *= 0.5
+
     # Sort each pool by priority descending
     sorted_a = sorted(pool_a.values(), key=lambda c: c.priority, reverse=True)
     sorted_b = sorted(pool_b.values(), key=lambda c: c.priority, reverse=True)

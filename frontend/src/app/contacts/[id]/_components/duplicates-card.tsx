@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Check, GitMerge, Minus, X } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
-import { useContactDuplicates, useMergeContacts } from "@/hooks/use-contacts";
+import { useContactDuplicates, useContacts, useMergeContacts } from "@/hooks/use-contacts";
 import { client } from "@/lib/api-client";
 import { ContactAvatar } from "@/components/contact-avatar";
 import { Search } from "lucide-react";
@@ -204,6 +204,22 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
   const duplicates = (data?.data ?? []).filter((d: any) => d.id !== contactId);
   const [showModal, setShowModal] = useState(false);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  // Debounce search input for API queries
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
+
+  // Search all contacts when query is 2+ chars
+  const { data: searchData } = useContacts({
+    search: debouncedSearch.length >= 2 ? debouncedSearch : undefined,
+    page_size: 10,
+  });
+  const searchResults = debouncedSearch.length >= 2
+    ? (searchData?.data ?? []).filter((c: any) => c.id !== contactId)
+    : [];
 
   if (isLoading || duplicates.length === 0) return null;
 
@@ -250,7 +266,7 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
                 <input
                   type="text"
-                  placeholder="Search duplicates..."
+                  placeholder="Search all contacts to merge..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 text-xs border border-stone-200 dark:border-stone-700 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500"
@@ -259,17 +275,36 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
               </div>
             </div>
             <div className="overflow-auto px-4 pb-4 space-y-3">
-              {duplicates
-                .filter((dup: any) => {
-                  if (!search.trim()) return true;
-                  const q = search.toLowerCase();
-                  const name = (dup.full_name || dup.given_name || "").toLowerCase();
-                  const email = (dup.emails?.[0] || "").toLowerCase();
-                  return name.includes(q) || email.includes(q);
-                })
-                .map((dup: any) => (
-                <DuplicateRow key={dup.id} dup={dup} contactId={contactId} />
-              ))}
+              {debouncedSearch.length >= 2 ? (
+                // Show search results from all contacts
+                searchResults.length === 0 ? (
+                  <p className="text-xs text-stone-400 dark:text-stone-500 text-center py-4">No contacts found</p>
+                ) : (
+                  searchResults.map((c: any) => {
+                    // Check if this contact is already in duplicates list (has a score)
+                    const existingDup = duplicates.find((d: any) => d.id === c.id);
+                    const mergeTarget = existingDup || {
+                      id: c.id,
+                      full_name: c.full_name,
+                      given_name: c.given_name,
+                      family_name: c.family_name,
+                      emails: c.emails,
+                      company: c.company,
+                      twitter_handle: c.twitter_handle,
+                      telegram_username: c.telegram_username,
+                      avatar_url: c.avatar_url,
+                      source: c.source,
+                      score: null, // no duplicate score — manual search
+                    };
+                    return <DuplicateRow key={c.id} dup={mergeTarget} contactId={contactId} />;
+                  })
+                )
+              ) : (
+                // Show detected duplicates when not searching
+                duplicates.map((dup: any) => (
+                  <DuplicateRow key={dup.id} dup={dup} contactId={contactId} />
+                ))
+              )}
             </div>
           </div>
         </div>

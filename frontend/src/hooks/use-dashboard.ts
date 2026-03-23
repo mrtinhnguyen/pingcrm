@@ -8,6 +8,8 @@ interface ContactStats {
   active: number;
   dormant: number;
   interactions_this_week: number;
+  interactions_last_week: number;
+  active_last_week: number;
 }
 
 export interface OverdueContact {
@@ -99,6 +101,8 @@ export function useDashboardStats() {
       strong: stats?.strong ?? 0,
       dormant: stats?.dormant ?? 0,
       interactionsThisWeek: stats?.interactions_this_week ?? 0,
+      interactionsLastWeek: stats?.interactions_last_week ?? 0,
+      activeLastWeek: stats?.active_last_week ?? 0,
     },
     overdueContacts,
     recentActivity,

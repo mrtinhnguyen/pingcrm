@@ -130,14 +130,34 @@ async def contact_stats(
     )
     row = result.one()
 
-    week_ago = datetime.now(UTC) - timedelta(days=7)
+    now = datetime.now(UTC)
+    week_ago = now - timedelta(days=7)
+    two_weeks_ago = now - timedelta(days=14)
+
+    # Interactions this week vs last week
     interactions_result = await db.execute(
-        select(func.count()).where(
+        select(
+            func.count().filter(Interaction.occurred_at >= week_ago).label("this_week"),
+            func.count().filter(
+                Interaction.occurred_at >= two_weeks_ago,
+                Interaction.occurred_at < week_ago,
+            ).label("last_week"),
+        ).where(
             Interaction.user_id == current_user.id,
-            Interaction.occurred_at >= week_ago,
+            Interaction.occurred_at >= two_weeks_ago,
         )
     )
-    interactions_this_week = interactions_result.scalar_one()
+    irow = interactions_result.one()
+
+    # Active relationships last week (contacts with score >= 4 that had interactions last week)
+    active_last_week_result = await db.execute(
+        select(func.count(func.distinct(Interaction.contact_id))).where(
+            Interaction.user_id == current_user.id,
+            Interaction.occurred_at >= two_weeks_ago,
+            Interaction.occurred_at < week_ago,
+        )
+    )
+    active_last_week = active_last_week_result.scalar_one()
 
     return {
         "data": {
@@ -145,7 +165,9 @@ async def contact_stats(
             "strong": row.strong,
             "active": row.active,
             "dormant": row.dormant,
-            "interactions_this_week": interactions_this_week,
+            "interactions_this_week": irow.this_week,
+            "interactions_last_week": irow.last_week,
+            "active_last_week": active_last_week,
         },
         "error": None,
     }

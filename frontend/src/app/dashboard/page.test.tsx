@@ -49,6 +49,8 @@ const defaultStats = {
   strong: 0,
   dormant: 0,
   interactionsThisWeek: 0,
+  interactionsLastWeek: 0,
+  activeLastWeek: 0,
 };
 
 function mockDashboard(overrides: Partial<ReturnType<typeof useDashboardStats>> = {}) {
@@ -116,7 +118,7 @@ describe("DashboardPage", () => {
 
   it("renders stat cards when contacts exist", () => {
     mockDashboard({
-      stats: { total: 42, active: 10, strong: 5, dormant: 3, interactionsThisWeek: 7 },
+      stats: { total: 42, active: 10, strong: 5, dormant: 3, interactionsThisWeek: 7, interactionsLastWeek: 0, activeLastWeek: 0 },
     });
     renderPage();
     expect(screen.getByText("Total contacts")).toBeInTheDocument();
@@ -126,7 +128,7 @@ describe("DashboardPage", () => {
 
   it("displays correct total contacts value in stat card", () => {
     mockDashboard({
-      stats: { total: 99, active: 5, strong: 3, dormant: 2, interactionsThisWeek: 4 },
+      stats: { total: 99, active: 5, strong: 3, dormant: 2, interactionsThisWeek: 4, interactionsLastWeek: 0, activeLastWeek: 0 },
     });
     renderPage();
     expect(screen.getByText("99")).toBeInTheDocument();
@@ -134,7 +136,7 @@ describe("DashboardPage", () => {
 
   it("displays active + strong relationships count in active relationships card", () => {
     mockDashboard({
-      stats: { total: 20, active: 8, strong: 4, dormant: 2, interactionsThisWeek: 3 },
+      stats: { total: 20, active: 8, strong: 4, dormant: 2, interactionsThisWeek: 3, interactionsLastWeek: 0, activeLastWeek: 0 },
     });
     renderPage();
     // active(8) + strong(4) = 12
@@ -143,7 +145,7 @@ describe("DashboardPage", () => {
 
   it("displays interactions this week count in stat card", () => {
     mockDashboard({
-      stats: { total: 10, active: 2, strong: 1, dormant: 0, interactionsThisWeek: 15 },
+      stats: { total: 10, active: 2, strong: 1, dormant: 0, interactionsThisWeek: 15, interactionsLastWeek: 0, activeLastWeek: 0 },
     });
     renderPage();
     expect(screen.getByText("15")).toBeInTheDocument();
@@ -153,7 +155,7 @@ describe("DashboardPage", () => {
 
   it("shows Pending Follow-ups section heading when contacts exist", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
     });
     renderPage();
     expect(screen.getByText("Pending Follow-ups")).toBeInTheDocument();
@@ -161,7 +163,7 @@ describe("DashboardPage", () => {
 
   it("shows no-suggestions empty state when pending list is empty", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       suggestions: [],
     });
     renderPage();
@@ -170,7 +172,7 @@ describe("DashboardPage", () => {
 
   it("shows Generate suggestions link inside empty pending suggestions state", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       suggestions: [],
     });
     renderPage();
@@ -204,7 +206,7 @@ describe("DashboardPage", () => {
     });
 
     mockDashboard({
-      stats: { total: 10, active: 3, strong: 1, dormant: 0, interactionsThisWeek: 2 },
+      stats: { total: 10, active: 3, strong: 1, dormant: 0, interactionsThisWeek: 2, interactionsLastWeek: 0, activeLastWeek: 0 },
       suggestions: [1, 2, 3].map(makeSuggestion),
     });
     renderPage();
@@ -215,7 +217,7 @@ describe("DashboardPage", () => {
 
   it("shows 'View all' link in Pending Follow-ups pointing to /suggestions", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
     });
     renderPage();
     const links = screen.getAllByRole("link", { name: /View all/i });
@@ -227,7 +229,7 @@ describe("DashboardPage", () => {
 
   it("shows 'All caught up!' when there are no overdue contacts", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       overdueContacts: [],
     });
     renderPage();
@@ -236,7 +238,7 @@ describe("DashboardPage", () => {
 
   it("renders overdue contact rows with their names", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       overdueContacts: [
         {
           id: "oc-1",
@@ -257,7 +259,7 @@ describe("DashboardPage", () => {
 
   it("renders overdue contact link pointing to correct contact page", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       overdueContacts: [
         {
           id: "oc-42",
@@ -279,7 +281,7 @@ describe("DashboardPage", () => {
 
   it("shows '7d overdue' label for a contact that is 7 days overdue", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       overdueContacts: [
         {
           id: "oc-1",
@@ -300,7 +302,7 @@ describe("DashboardPage", () => {
 
   it("shows 'due today' label for a contact with 0 days overdue", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       overdueContacts: [
         {
           id: "oc-today",
@@ -323,7 +325,7 @@ describe("DashboardPage", () => {
 
   it("shows 'No recent activity' when activity list is empty", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       recentActivity: [],
     });
     renderPage();
@@ -332,7 +334,7 @@ describe("DashboardPage", () => {
 
   it("renders activity events with contact name links", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       recentActivity: [
         {
           type: "message",
@@ -355,7 +357,7 @@ describe("DashboardPage", () => {
 
   it("shows contact name and fallback text in activity card", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       recentActivity: [
         {
           type: "message",
@@ -378,7 +380,7 @@ describe("DashboardPage", () => {
 
   it("shows 'Your networking overview' subtitle when nothing is pending", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       suggestions: [],
       overdueContacts: [],
     });
@@ -388,7 +390,7 @@ describe("DashboardPage", () => {
 
   it("shows pending suggestions count in subtitle when suggestions are pending", () => {
     mockDashboard({
-      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0 },
+      stats: { total: 5, active: 1, strong: 0, dormant: 0, interactionsThisWeek: 0, interactionsLastWeek: 0, activeLastWeek: 0 },
       suggestions: [
         {
           id: "s1",

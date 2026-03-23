@@ -431,6 +431,7 @@ export default function DashboardPage() {
               label="Active relationships"
               isLoading={isLoading}
               delay="50ms"
+              previousValue={stats.activeLastWeek}
             />
             <StatCard
               icon={<MessageCircle className="w-4 h-4 text-sky-600 dark:text-sky-400" />}
@@ -439,6 +440,7 @@ export default function DashboardPage() {
               label="Interactions this week"
               isLoading={isLoading}
               delay="100ms"
+              previousValue={stats.interactionsLastWeek}
             />
           </div>
         )}
@@ -561,6 +563,28 @@ export default function DashboardPage() {
 // ---------------------------------------------------------------------------
 // Stat card sub-component
 // ---------------------------------------------------------------------------
+function TrendArrow({ current, previous }: { current: number; previous: number }) {
+  if (previous === 0 || current === previous) return null;
+  const isUp = current > previous;
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.5}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={`w-5 h-5 ${isUp ? "text-teal-500 dark:text-teal-400" : "text-pink-500 dark:text-pink-400"}`}
+    >
+      {isUp ? (
+        <path d="M7 17L17 7M17 7H10M17 7V14" />
+      ) : (
+        <path d="M7 7L17 17M17 17H10M17 17V10" />
+      )}
+    </svg>
+  );
+}
+
 function StatCard({
   icon,
   iconBg,
@@ -568,6 +592,7 @@ function StatCard({
   label,
   isLoading,
   delay,
+  previousValue,
 }: {
   icon: ReactNode;
   iconBg: string;
@@ -575,6 +600,7 @@ function StatCard({
   label: string;
   isLoading: boolean;
   delay?: string;
+  previousValue?: number;
 }) {
   return (
     <div
@@ -585,6 +611,9 @@ function StatCard({
         <div className={`w-9 h-9 rounded-lg ${iconBg} flex items-center justify-center`}>
           {icon}
         </div>
+        {!isLoading && previousValue !== undefined && (
+          <TrendArrow current={value} previous={previousValue} />
+        )}
       </div>
       <p className="font-mono-data text-2xl font-medium text-stone-900 dark:text-stone-100 tracking-tight">
         {isLoading ? (

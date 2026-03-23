@@ -42,6 +42,8 @@ class ContactStatsData(BaseModel):
     active: int
     dormant: int
     interactions_this_week: int = 0
+    interactions_last_week: int = 0
+    active_last_week: int = 0
 
 
 class DeletedData(BaseModel):

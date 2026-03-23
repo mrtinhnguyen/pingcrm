@@ -10,7 +10,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from telethon import TelegramClient
 from telethon.errors import FloodWaitError, RPCError, SessionPasswordNeededError
@@ -386,6 +386,7 @@ async def _upsert_interaction(
     content_preview: str | None,
     occurred_at: datetime,
     db: AsyncSession,
+    is_read_by_recipient: bool | None = None,
 ) -> tuple[Interaction, bool]:
     """
     Create an Interaction for *message_id* if it doesn't exist yet.
@@ -412,6 +413,7 @@ async def _upsert_interaction(
         content_preview=content_preview[:500] if content_preview else None,
         raw_reference_id=message_id,
         occurred_at=occurred_at,
+        is_read_by_recipient=is_read_by_recipient,
     )
     db.add(interaction)
     return interaction, True
@@ -510,6 +512,11 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                 continue
             dialogs_checked += 1
 
+            # Extract read receipt cursor — highest msg ID the recipient has read
+            read_outbox_max_id: int | None = getattr(
+                getattr(dialog, "dialog", None), "read_outbox_max_id", None
+            )
+
             if max_dialogs > 0 and dialogs_checked > max_dialogs:
                 logger.info("sync_telegram_chats: hit max_dialogs=%d, stopping.", max_dialogs)
                 break
@@ -545,6 +552,25 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                 # Backfill telegram_user_id if missing
                 if not contact.telegram_user_id:
                     contact.telegram_user_id = str(entity.id)
+
+            # Store read receipt cursor and retroactively update existing interactions
+            if read_outbox_max_id is not None and contact:
+                contact.telegram_read_outbox_max_id = read_outbox_max_id
+                # Bulk-update existing outbound interactions that are now read
+                from sqlalchemy import update, cast, Integer as SAInteger
+                await db.execute(
+                    update(Interaction)
+                    .where(
+                        Interaction.contact_id == contact.id,
+                        Interaction.user_id == user.id,
+                        Interaction.platform == "telegram",
+                        Interaction.direction == "outbound",
+                        Interaction.is_read_by_recipient.is_not(True),
+                        Interaction.raw_reference_id.isnot(None),
+                        cast(func.split_part(Interaction.raw_reference_id, ":", 2), SAInteger) <= read_outbox_max_id,
+                    )
+                    .values(is_read_by_recipient=True)
+                )
 
             # Queue avatar download for after main sync loop
             if not contact.avatar_url:
@@ -612,6 +638,11 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
 
                     occurred_at = message.date.replace(tzinfo=UTC) if message.date.tzinfo is None else message.date
 
+                    # Determine read status for outbound messages
+                    _read = None
+                    if direction == "outbound" and read_outbox_max_id is not None:
+                        _read = message.id <= read_outbox_max_id
+
                     _interaction, is_new = await _upsert_interaction(
                         contact=contact,
                         user_id=user.id,
@@ -620,6 +651,7 @@ async def sync_telegram_chats(user: User, db: AsyncSession, *, max_dialogs: int 
                         content_preview=message.message,
                         occurred_at=occurred_at,
                         db=db,
+                        is_read_by_recipient=_read,
                     )
                     if is_new:
                         new_count += 1

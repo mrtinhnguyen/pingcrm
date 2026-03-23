@@ -563,6 +563,37 @@ async def generate_suggestions(
     pool_a = await _collect_pool_a_candidates(user_id, db, now, queued_contact_ids, priority_settings)
     pool_b = await _collect_pool_b_candidates(user_id, db, now, queued_contact_ids)
 
+    # Read receipt filter: skip contacts whose last outbound Telegram message is unread,
+    # boost priority for "read but no reply" pattern
+    all_candidate_ids = set(pool_a.keys()) | set(pool_b.keys())
+    if all_candidate_ids:
+        from app.models.interaction import Interaction
+        from sqlalchemy import and_
+        unread_outbound = await db.execute(
+            select(Interaction.contact_id, Interaction.is_read_by_recipient)
+            .where(
+                Interaction.contact_id.in_(all_candidate_ids),
+                Interaction.platform == "telegram",
+                Interaction.direction == "outbound",
+                Interaction.is_read_by_recipient.isnot(None),
+            )
+            .order_by(Interaction.occurred_at.desc())
+            .distinct(Interaction.contact_id)
+        )
+        for row in unread_outbound.all():
+            cid, is_read = row[0], row[1]
+            if not is_read:
+                # Last outbound message is unread — suppress this candidate
+                pool_a.pop(cid, None)
+                pool_b.pop(cid, None)
+                logger.debug("generate_suggestions: skipping contact %s (unread outbound)", cid)
+            elif is_read:
+                # Read but no reply — boost priority (+100)
+                if cid in pool_a:
+                    pool_a[cid].priority += 100.0
+                if cid in pool_b:
+                    pool_b[cid].priority += 100.0
+
     # Sort each pool by priority descending
     sorted_a = sorted(pool_a.values(), key=lambda c: c.priority, reverse=True)
     sorted_b = sorted(pool_b.values(), key=lambda c: c.priority, reverse=True)

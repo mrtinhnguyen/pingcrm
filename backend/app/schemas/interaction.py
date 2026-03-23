@@ -22,5 +22,6 @@ class InteractionResponse(BaseModel):
     raw_reference_id: str | None = None
     occurred_at: datetime
     created_at: datetime
+    is_read_by_recipient: bool | None = None
 
     model_config = {"from_attributes": True}

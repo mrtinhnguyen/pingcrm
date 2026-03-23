@@ -17,6 +17,7 @@ export interface InteractionResponse {
   direction: "inbound" | "outbound" | "mutual" | "event";
   content_preview: string | null;
   occurred_at: string;
+  is_read_by_recipient?: boolean | null;
 }
 
 export function useContactDetailController(id: string) {

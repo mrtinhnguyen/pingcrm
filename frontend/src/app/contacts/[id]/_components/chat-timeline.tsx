@@ -294,6 +294,20 @@ export function ChatTimeline({
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 mt-1 mr-1 justify-end">
+                      {/* Read receipt indicator — only for outbound telegram messages */}
+                      {isOutbound && item.platform === "telegram" && item.is_read_by_recipient != null && (
+                        <span
+                          className={cn(
+                            "text-[10px]",
+                            item.is_read_by_recipient
+                              ? "text-teal-400 dark:text-teal-500"
+                              : "text-stone-300 dark:text-stone-600"
+                          )}
+                          title={item.is_read_by_recipient ? "Read" : "Delivered"}
+                        >
+                          {item.is_read_by_recipient ? "✓✓" : "✓"}
+                        </span>
+                      )}
                       <span className="text-[10px] text-stone-400 dark:text-stone-500">
                         {time} &middot; {platformLabel(item.platform)}
                       </span>

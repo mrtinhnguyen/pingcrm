@@ -154,7 +154,7 @@ export function MessageEditor({
   return (
     <div className={cn("space-y-3", className)}>
       {/* Channel selector */}
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         {(Object.keys(channelConfig) as Channel[]).map((ch) => {
           const cfg = channelConfig[ch];
           const isSelected = channel === ch;
@@ -190,7 +190,7 @@ export function MessageEditor({
           onChange={(e) => setMessage(e.target.value)}
           rows={4}
           className={cn(
-            "w-full text-sm border rounded-md p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500",
+            "w-full text-sm border rounded-md p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 min-h-[120px]",
             isOverLimit ? "border-red-300 dark:border-red-700" : "border-gray-300 dark:border-stone-600"
           )}
           placeholder="Write a message..."
@@ -219,14 +219,14 @@ export function MessageEditor({
 
       {/* Schedule (Telegram only) */}
       {channel === "telegram" && (
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => {
               setShowSchedule((v) => !v);
               if (showSchedule) setScheduledFor("");
             }}
             className={cn(
-              "inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-md border transition-colors",
+              "inline-flex items-center gap-1.5 px-2.5 py-1 min-h-[44px] text-xs rounded-md border transition-colors",
               showSchedule
                 ? "text-sky-700 dark:text-sky-400 bg-sky-50 dark:bg-sky-950 border-sky-200 dark:border-sky-800"
                 : "text-gray-500 dark:text-stone-400 bg-white dark:bg-stone-900 border-gray-200 dark:border-stone-700 hover:bg-gray-50 dark:hover:bg-stone-800"
@@ -241,7 +241,7 @@ export function MessageEditor({
               value={scheduledFor}
               onChange={(e) => setScheduledFor(e.target.value)}
               min={new Date(Date.now() + 60000).toISOString().slice(0, 16)}
-              className="text-xs border border-gray-200 dark:border-stone-700 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100"
+              className="w-full sm:w-auto text-xs border border-gray-200 dark:border-stone-700 rounded-md px-2 py-2 min-h-[44px] focus:outline-none focus:ring-2 focus:ring-sky-400 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100"
             />
           )}
         </div>
@@ -260,7 +260,7 @@ export function MessageEditor({
         <button
           onClick={handleRegenerate}
           disabled={isRegenerating}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md text-gray-600 dark:text-stone-300 border border-gray-200 dark:border-stone-700 hover:bg-gray-50 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[44px] text-sm rounded-md text-gray-600 dark:text-stone-300 border border-gray-200 dark:border-stone-700 hover:bg-gray-50 dark:hover:bg-stone-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           <RefreshCw
             className={cn("w-4 h-4", isRegenerating && "animate-spin")}
@@ -272,7 +272,7 @@ export function MessageEditor({
           onClick={handleSend}
           disabled={!message.trim() || isOverLimit || isSending || isRateLimited || (showSchedule && !scheduledFor)}
           className={cn(
-            "inline-flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
+            "inline-flex items-center gap-1.5 px-4 py-1.5 min-h-[44px] text-sm font-medium rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors",
             showSchedule && scheduledFor
               ? "bg-sky-600 text-white hover:bg-sky-700"
               : "bg-green-600 text-white hover:bg-green-700"

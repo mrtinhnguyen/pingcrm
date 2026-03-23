@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { Sparkles, X } from "lucide-react";
+import { ChevronDown, Sparkles, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useContactDetailController } from "./_hooks/use-contact-detail-controller";
 import { HeaderCard } from "./_components/header-card";
@@ -21,6 +21,7 @@ export default function ContactDetailPage() {
   const router = useRouter();
   const ctrl = useContactDetailController(id);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   /* ── Loading state ── */
   if (ctrl.isLoading) {
@@ -199,41 +200,55 @@ export default function ContactDetailPage() {
           </div>
 
           {/* Sidebar (1/3) — DOM order 1, visual order 1 on desktop */}
-          <div className="lg:order-1 space-y-6">
-            {/* Contact Details */}
-            <DetailsPanel
-              contact={contact}
-              onSaveField={saveField}
-              onLinkOrg={handleLinkOrg}
-              onExtractBio={ctrl.handleExtractBio}
-              isExtracting={ctrl.isExtracting}
-            />
+          <div className="lg:col-span-1 lg:order-1 space-y-4">
+            {/* Mobile toggle — hidden on lg+ */}
+            <button
+              onClick={() => setSidebarOpen((v) => !v)}
+              className="lg:hidden w-full flex items-center justify-between px-4 py-3 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 text-sm font-medium text-stone-700 dark:text-stone-300"
+            >
+              Contact Details
+              <ChevronDown
+                className={cn("w-4 h-4 transition-transform", sidebarOpen && "rotate-180")}
+              />
+            </button>
 
-            {/* Relationship Health */}
-            {ctrl.activityLoading ? (
-              <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5 animate-pulse">
-                <div className="h-4 w-40 bg-stone-200 dark:bg-stone-800 rounded mb-4" />
-                <div className="space-y-3">
-                  {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full" />
-                  ))}
+            {/* Sidebar content — collapsed on mobile by default */}
+            <div className={cn("space-y-4", !sidebarOpen && "hidden lg:block")}>
+              {/* Relationship Health */}
+              {ctrl.activityLoading ? (
+                <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5 animate-pulse">
+                  <div className="h-4 w-40 bg-stone-200 dark:bg-stone-800 rounded mb-4" />
+                  <div className="space-y-3">
+                    {[1, 2, 3, 4].map((i) => (
+                      <div key={i} className="h-1.5 bg-stone-100 dark:bg-stone-800 rounded-full" />
+                    ))}
+                  </div>
                 </div>
-              </div>
-            ) : ctrl.activityData ? (
-              <RelationshipHealth activityData={ctrl.activityData} contact={contact} />
-            ) : null}
+              ) : ctrl.activityData ? (
+                <RelationshipHealth activityData={ctrl.activityData} contact={contact} />
+              ) : null}
 
-            {/* Common Telegram Groups */}
-            <CommonGroupsCard
-              contactId={id}
-              hasTelegram={Boolean(contact.telegram_username)}
-            />
+              {/* Contact Details */}
+              <DetailsPanel
+                contact={contact}
+                onSaveField={saveField}
+                onLinkOrg={handleLinkOrg}
+                onExtractBio={ctrl.handleExtractBio}
+                isExtracting={ctrl.isExtracting}
+              />
 
-            {/* Related Contacts */}
-            <RelatedContactsCard contactId={id} />
+              {/* Common Telegram Groups */}
+              <CommonGroupsCard
+                contactId={id}
+                hasTelegram={Boolean(contact.telegram_username)}
+              />
 
-            {/* Possible Duplicates */}
-            <DuplicatesCard contactId={id} />
+              {/* Related Contacts */}
+              <RelatedContactsCard contactId={id} />
+
+              {/* Possible Duplicates */}
+              <DuplicatesCard contactId={id} />
+            </div>
           </div>
         </div>
       </main>

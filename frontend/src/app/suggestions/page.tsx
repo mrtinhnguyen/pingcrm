@@ -264,40 +264,38 @@ function SuggestionCard({
               />
 
               {/* Extra actions row */}
-              <div className="flex items-center justify-between mt-3">
-                <div className="flex items-center gap-2">
-                  {/* Snooze */}
-                  <div className="relative inline-block">
-                    <button
-                      onClick={() => setSnoozeOpen((v) => !v)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
-                    >
-                      <Clock className="w-3 h-3" /> Snooze <ChevronDown className="w-2.5 h-2.5" />
-                    </button>
-                    {snoozeOpen && (
-                      <div className="absolute left-0 bottom-full mb-1 w-36 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
-                        {snoozeOptions.map((opt) => (
-                          <button
-                            key={opt.days}
-                            onClick={() => handleSnooze(opt.days)}
-                            className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
-                          >
-                            <Clock className="w-3 h-3 text-stone-400 dark:text-stone-500" />
-                            {opt.label}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  {/* Dismiss */}
+              <div className="flex flex-wrap items-center gap-2 mt-3">
+                {/* Snooze */}
+                <div className="relative inline-block">
                   <button
-                    onClick={handleDismiss}
-                    disabled={updateSuggestion.isPending}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-stone-400 dark:text-stone-500 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+                    onClick={() => setSnoozeOpen((v) => !v)}
+                    className="inline-flex items-center gap-1 px-2.5 py-2 min-h-[44px] text-xs rounded-md text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
                   >
-                    <X className="w-3 h-3" /> Dismiss
+                    <Clock className="w-3 h-3" /> Snooze <ChevronDown className="w-2.5 h-2.5" />
                   </button>
+                  {snoozeOpen && (
+                    <div className="absolute left-0 bottom-full mb-1 w-36 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
+                      {snoozeOptions.map((opt) => (
+                        <button
+                          key={opt.days}
+                          onClick={() => handleSnooze(opt.days)}
+                          className="w-full flex items-center gap-2 px-3 py-2 min-h-[44px] text-xs text-stone-700 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
+                        >
+                          <Clock className="w-3 h-3 text-stone-400 dark:text-stone-500" />
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
+                {/* Dismiss */}
+                <button
+                  onClick={handleDismiss}
+                  disabled={updateSuggestion.isPending}
+                  className="inline-flex items-center gap-1 px-2.5 py-2 min-h-[44px] text-xs rounded-md text-stone-400 dark:text-stone-500 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
+                >
+                  <X className="w-3 h-3" /> Dismiss
+                </button>
               </div>
             </div>
           )}
@@ -324,7 +322,7 @@ export default function SuggestionsPage() {
     (genMeta as Record<string, number> | undefined)?.generated ?? (genResult as unknown[])?.length ?? 0;
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen bg-stone-50 dark:bg-stone-950 overflow-x-hidden">
       {/* Success toast */}
       {generateSuggestions.isSuccess && !toastDismissed && (
         <div className="max-w-6xl mx-auto px-4 pt-4">
@@ -357,7 +355,7 @@ export default function SuggestionsPage() {
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-start justify-between mb-6">
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 flex items-center gap-2.5">
               Suggestions Digest
@@ -372,7 +370,7 @@ export default function SuggestionsPage() {
           <button
             onClick={() => { setToastDismissed(false); generateSuggestions.mutate(); }}
             disabled={generateSuggestions.isPending}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shrink-0"
+            className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] rounded-lg bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm shrink-0"
           >
             <Sparkles className={cn("w-4 h-4", generateSuggestions.isPending && "animate-spin")} />
             {generateSuggestions.isPending ? "Generating..." : "Generate new suggestions"}
@@ -412,7 +410,7 @@ export default function SuggestionsPage() {
           </div>
         ) : pendingSuggestions.length === 0 ? (
           /* Empty state */
-          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 p-14 text-center mt-6">
+          <div className="bg-white dark:bg-stone-900 rounded-2xl border border-stone-200 dark:border-stone-700 px-6 py-10 sm:p-14 text-center mt-6">
             <div className="w-16 h-16 rounded-full bg-teal-50 dark:bg-teal-950 flex items-center justify-center mx-auto mb-4">
               <Sparkles className="w-8 h-8 text-teal-400" />
             </div>
@@ -423,7 +421,7 @@ export default function SuggestionsPage() {
             <button
               onClick={() => { setToastDismissed(false); generateSuggestions.mutate(); }}
               disabled={generateSuggestions.isPending}
-              className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors shadow-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 min-h-[44px] text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 transition-colors shadow-sm"
             >
               <Sparkles className="w-4 h-4" /> Generate new suggestions
             </button>

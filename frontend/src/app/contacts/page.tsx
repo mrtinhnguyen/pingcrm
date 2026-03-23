@@ -580,7 +580,7 @@ function ContactsPageContent() {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
             <h1 className="text-2xl font-display font-bold text-stone-900 dark:text-stone-100">Contacts</h1>
             {stats && (
@@ -601,8 +601,8 @@ function ContactsPageContent() {
 
         {/* Search + Filter bar */}
         <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-4 mb-4">
-          <div className="flex gap-3 mb-4">
-            <div className="flex-1 relative">
+          <div className="flex flex-wrap gap-3 mb-4">
+            <div className="flex-1 min-w-0 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-stone-500" />
               <input
                 type="text"
@@ -638,8 +638,8 @@ function ContactsPageContent() {
           </div>
 
           {/* Quick filter chips with group labels */}
-          <div className="flex items-center gap-6">
-            <div className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mr-1">Priority</span>
               {priorityConfig.map(({ key, label, icon, activeColor }) => {
                 const isActive = priorityFilter === key;
@@ -656,8 +656,8 @@ function ContactsPageContent() {
                 );
               })}
             </div>
-            <div className="w-px h-5 bg-stone-200 dark:bg-stone-700" />
-            <div className="flex items-center gap-1.5">
+            <div className="hidden sm:block w-px h-5 bg-stone-200 dark:bg-stone-700" />
+            <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mr-1">Score</span>
               {scoreConfig.map(({ key, label, dotColor, activeColor }) => {
                 const isActive = scoreFilter === key;
@@ -675,7 +675,7 @@ function ContactsPageContent() {
               })}
             </div>
             {activeFilterCount > 0 && (
-              <div className="flex items-center gap-2 ml-auto">
+              <div className="flex items-center gap-2 sm:ml-auto">
                 <div className="w-px h-4 bg-stone-200 dark:bg-stone-700" />
                 <button
                   onClick={() => router.replace("/contacts", { scroll: false })}
@@ -690,7 +690,7 @@ function ContactsPageContent() {
           {/* Expanded filter panel */}
           {showFilters && (
             <div className="border-t border-stone-200 dark:border-stone-700 pt-4 mt-4">
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 {/* Platform filter */}
                 <div>
                   <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Platform</label>
@@ -868,8 +868,8 @@ function ContactsPageContent() {
         {/* Table */}
         {contacts.length > 0 && (
           <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 overflow-hidden">
-            {/* Header row */}
-            <div className="grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 bg-stone-50 dark:bg-stone-800 border-b border-stone-200 dark:border-stone-700 items-center">
+            {/* Header row — desktop only */}
+            <div className="hidden lg:grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 bg-stone-50 dark:bg-stone-800 border-b border-stone-200 dark:border-stone-700 items-center">
               <div>
                 <input
                   type="checkbox"
@@ -903,7 +903,7 @@ function ContactsPageContent() {
               })}
             </div>
 
-            {/* Rows */}
+            {/* Desktop rows */}
             {contacts.map((contact) => {
               const name =
                 contact.full_name ??
@@ -914,7 +914,7 @@ function ContactsPageContent() {
               return (
                 <div
                   key={contact.id}
-                  className={`grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 border-b border-stone-100 dark:border-stone-800 items-center transition-colors ${
+                  className={`hidden lg:grid grid-cols-[40px_1fr_120px_70px_70px_60px_100px] gap-2 px-4 py-3 border-b border-stone-100 dark:border-stone-800 items-center transition-colors ${
                     isSelected ? "bg-teal-50 dark:bg-teal-950" : "hover:bg-stone-50/50 dark:hover:bg-stone-800/50"
                   }`}
                 >
@@ -985,6 +985,40 @@ function ContactsPageContent() {
                 </div>
               );
             })}
+
+            {/* Mobile card list — visible only on < lg screens */}
+            <div className="lg:hidden divide-y divide-stone-100 dark:divide-stone-800">
+              {contacts.map((contact) => {
+                const name =
+                  contact.full_name ??
+                  ([contact.given_name, contact.family_name].filter(Boolean).join(" ") || "Unnamed");
+                return (
+                  <Link
+                    key={contact.id}
+                    href={`/contacts/${contact.id}`}
+                    className="flex items-center gap-3 px-4 py-3 hover:bg-stone-50 dark:hover:bg-stone-800/50 transition-colors"
+                  >
+                    <ContactAvatar avatarUrl={contact.avatar_url} name={name} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
+                          {name}
+                        </p>
+                        <ScoreNumberBadge score={contact.relationship_score} />
+                      </div>
+                      <p className="text-xs text-stone-500 dark:text-stone-400 truncate">
+                        {[contact.title, contact.company].filter(Boolean).join(" at ") || contact.emails?.[0] || ""}
+                      </p>
+                    </div>
+                    {contact.last_interaction_at && (
+                      <span className="text-[11px] text-stone-400 dark:text-stone-500 shrink-0">
+                        {formatDistanceToNow(new Date(contact.last_interaction_at), { addSuffix: true })}
+                      </span>
+                    )}
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         )}
 

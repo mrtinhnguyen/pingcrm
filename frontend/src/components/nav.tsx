@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/hooks/use-auth";
-import { LayoutDashboard, Users, Building2, Sparkles, GitMerge, Settings, Bell, LogOut, ChevronDown, Archive, Search } from "lucide-react";
+import { LayoutDashboard, Users, Building2, Sparkles, GitMerge, Settings, Bell, LogOut, ChevronDown, Archive, Search, Menu, X } from "lucide-react";
 import { useUnreadCount } from "@/hooks/use-notifications";
 import { useContacts } from "@/hooks/use-contacts";
 import { useTelegramSyncProgress } from "@/hooks/use-telegram-sync";
@@ -266,6 +266,7 @@ export function Nav() {
   const pathname = usePathname();
   const { user, isLoading, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -277,6 +278,10 @@ export function Nav() {
     document.addEventListener("mousedown", handleClick);
     return () => document.removeEventListener("mousedown", handleClick);
   }, []);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   // Hide nav on auth and onboarding pages
   const isPublicPage =
@@ -301,11 +306,20 @@ export function Nav() {
         {/* Search — left, right after logo */}
         <NavSearch />
 
+        {/* Hamburger button — mobile only */}
+        <button
+          onClick={() => setMobileMenuOpen(v => !v)}
+          className="md:hidden p-2 rounded-md text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800 transition-colors"
+          aria-label="Toggle menu"
+        >
+          {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </button>
+
         {/* Spacer */}
         <div className="flex-1" />
 
-        {/* Navigation links */}
-        <div className="flex items-center gap-0.5">
+        {/* Navigation links — desktop only */}
+        <div className="hidden md:flex items-center gap-0.5">
           {navLinks.map((item) => {
             if ("children" in item && item.children) {
               return (
@@ -357,10 +371,10 @@ export function Nav() {
                   onClick={() => setMenuOpen((v) => !v)}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm text-stone-700 dark:text-stone-300 hover:bg-stone-100 dark:hover:bg-stone-800 transition-colors"
                 >
-                  <span className="max-w-[120px] truncate">
+                  <span className="hidden sm:inline max-w-[120px] truncate">
                     {user.full_name ?? user.email}
                   </span>
-                  <ChevronDown className="w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
+                  <ChevronDown className="hidden sm:block w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
                 </button>
 
                 {menuOpen && (
@@ -395,6 +409,57 @@ export function Nav() {
           </div>
         </div>
       </div>
+
+      {/* Mobile menu panel */}
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
+          <div className="max-w-6xl mx-auto px-4 py-3 space-y-1">
+            {navLinks.map((item) => {
+              const Icon = item.icon;
+              const isActive = pathname === item.href || pathname.startsWith(item.href + "/") || (item.href === "/contacts" && pathname === "/identity");
+              return (
+                <div key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={cn(
+                      "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors",
+                      isActive
+                        ? "bg-teal-50 dark:bg-teal-950 text-teal-700 dark:text-teal-400"
+                        : "text-stone-600 dark:text-stone-400 hover:bg-stone-50 dark:hover:bg-stone-800"
+                    )}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {item.label}
+                  </Link>
+                  {"children" in item && item.children && (
+                    <div className="ml-8 mt-1 space-y-1">
+                      {item.children.map((child) => {
+                        const ChildIcon = child.icon;
+                        const childActive = pathname === child.href;
+                        return (
+                          <Link
+                            key={child.href}
+                            href={child.href}
+                            className={cn(
+                              "flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm transition-colors",
+                              childActive
+                                ? "text-teal-700 dark:text-teal-400 bg-teal-50/50 dark:bg-teal-950/50"
+                                : "text-stone-500 dark:text-stone-500 hover:text-stone-700 dark:hover:text-stone-300"
+                            )}
+                          >
+                            <ChildIcon className="w-4 h-4" />
+                            {child.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </nav>
   );
 }

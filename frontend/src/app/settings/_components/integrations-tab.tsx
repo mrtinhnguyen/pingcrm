@@ -106,7 +106,7 @@ export function IntegrationsTab({
             </div>
             <Toggle checked={bgSync} onChange={setBgSync} />
           </div>
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-stone-700 dark:text-stone-300">Sync frequency</p>
               <p className="text-xs text-stone-400 dark:text-stone-500">How often background sync runs</p>
@@ -114,7 +114,7 @@ export function IntegrationsTab({
             <select
               value={syncFreq}
               onChange={(e) => setSyncFreq(e.target.value)}
-              className="text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
+              className="w-full sm:w-auto text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
             >
               <option value="3h">Every 3 hours</option>
               <option value="6h">Every 6 hours</option>

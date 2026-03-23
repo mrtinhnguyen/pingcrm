@@ -41,14 +41,14 @@ function TabBar({ activeTab, onChange }: { activeTab: TabId; onChange: (tab: Tab
 
   return (
     <div ref={barRef} className="relative border-b border-stone-200 dark:border-stone-700 mb-8">
-      <div className="flex gap-1">
+      <div className="flex gap-1 overflow-x-auto scrollbar-hide">
         {TABS.map((tab) => (
           <button
             key={tab.id}
             data-tab={tab.id}
             onClick={() => onChange(tab.id)}
             className={cn(
-              "relative px-4 py-3 text-sm font-medium transition-colors",
+              "relative px-4 py-3 text-sm font-medium transition-colors whitespace-nowrap shrink-0",
               activeTab === tab.id ? "text-teal-700 dark:text-teal-400" : "text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-300"
             )}
           >

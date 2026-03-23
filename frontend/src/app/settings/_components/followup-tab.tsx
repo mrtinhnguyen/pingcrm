@@ -186,7 +186,7 @@ export function FollowUpRulesTab() {
         </p>
 
         <div className="space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-stone-700 dark:text-stone-300">Max suggestions per batch</p>
               <p className="text-xs text-stone-400 dark:text-stone-500">How many suggestions to generate at once</p>
@@ -194,7 +194,7 @@ export function FollowUpRulesTab() {
             <select
               value={maxBatch}
               onChange={(e) => setMaxBatch(e.target.value)}
-              className="text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
+              className="w-full sm:w-auto text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
             >
               <option value="5">5</option>
               <option value="10">10</option>
@@ -223,7 +223,7 @@ export function FollowUpRulesTab() {
             <Toggle checked={birthdayReminders} onChange={setBirthdayReminders} />
           </div>
 
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm text-stone-700 dark:text-stone-300">Preferred channel</p>
               <p className="text-xs text-stone-400 dark:text-stone-500">Default channel for new suggestions</p>
@@ -231,7 +231,7 @@ export function FollowUpRulesTab() {
             <select
               value={preferredChannel}
               onChange={(e) => setPreferredChannel(e.target.value)}
-              className="text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
+              className="w-full sm:w-auto text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
             >
               <option value="auto">Auto-detect</option>
               <option value="email">Email</option>

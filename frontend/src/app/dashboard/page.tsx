@@ -276,7 +276,7 @@ function ActivityItem({ event }: { event: ActivityEvent }) {
   return (
     <Link
       href={`/contacts/${event.contact_id}`}
-      className="flex items-center gap-3 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-3.5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors"
+      className="flex items-center gap-3 bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-3.5 hover:border-stone-300 dark:hover:border-stone-600 transition-colors overflow-hidden"
     >
       <ContactAvatar
         avatarUrl={event.contact_avatar_url}
@@ -358,7 +358,7 @@ export default function DashboardPage() {
   const isEmpty = stats.total === 0 && !isLoading;
 
   return (
-    <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
+    <div className="min-h-screen bg-stone-50 dark:bg-stone-950 overflow-x-hidden">
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
@@ -397,7 +397,7 @@ export default function DashboardPage() {
               Get started by connecting your accounts or importing contacts.
               Ping will help you stay on top of your relationships.
             </p>
-            <div className="flex items-center justify-center gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/settings"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
@@ -445,7 +445,7 @@ export default function DashboardPage() {
 
         {/* Two-column layout */}
         {!isEmpty && (
-          <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
             {/* LEFT 3/5: Pending Follow-ups + Recent Activity */}
             <div className="lg:col-span-3 space-y-6">
               {/* Pending Follow-ups */}

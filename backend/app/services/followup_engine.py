@@ -568,18 +568,22 @@ async def generate_suggestions(
     all_candidate_ids = set(pool_a.keys()) | set(pool_b.keys())
     if all_candidate_ids:
         from app.models.interaction import Interaction
-        from sqlalchemy import and_
-        unread_outbound = await db.execute(
-            select(Interaction.contact_id, Interaction.is_read_by_recipient)
+        # Get the latest outbound Telegram interaction per contact using a subquery
+        latest_outbound_sq = (
+            select(
+                Interaction.contact_id,
+                Interaction.is_read_by_recipient,
+            )
             .where(
                 Interaction.contact_id.in_(all_candidate_ids),
                 Interaction.platform == "telegram",
                 Interaction.direction == "outbound",
                 Interaction.is_read_by_recipient.isnot(None),
             )
-            .order_by(Interaction.occurred_at.desc())
             .distinct(Interaction.contact_id)
+            .order_by(Interaction.contact_id, Interaction.occurred_at.desc())
         )
+        unread_outbound = await db.execute(latest_outbound_sq)
         for row in unread_outbound.all():
             cid, is_read = row[0], row[1]
             if not is_read:

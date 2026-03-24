@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.auth import create_access_token, get_current_user
 from app.core.database import get_db
 from app.core.redis import get_redis
-from app.integrations.twitter import (
+from app.integrations.twitter_auth import (
     build_twitter_oauth2_url,
     exchange_twitter_code,
     generate_pkce_pair,
@@ -90,7 +90,7 @@ async def twitter_callback(
             detail="Failed to exchange Twitter authorization code",
         ) from exc
 
-    from app.integrations.twitter import store_tokens
+    from app.integrations.twitter_auth import store_tokens
     store_tokens(current_user, tokens)
 
     # Fetch Twitter username

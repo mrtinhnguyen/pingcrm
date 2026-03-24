@@ -3,21 +3,26 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import random
+import re as _re
 import uuid
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
 from typing import Any
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from telethon import TelegramClient
 from telethon.errors import FloodWaitError, RPCError, SessionPasswordNeededError
-from telethon.sessions import StringSession
 from telethon.tl.types import Channel, Chat, InputPeerUser, MessageActionPhoneCall, User as TelegramUser
 
-from app.core.config import settings
+from app.integrations.telegram_transport import (
+    _check_rate_gate,
+    _download_avatar,
+    _ensure_connected,
+    _make_client,
+    _set_rate_gate,
+    ensure_connected,
+    make_client,
+)
 from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.user import User
@@ -26,59 +31,6 @@ logger = logging.getLogger(__name__)
 
 MAX_MESSAGES = 50  # messages fetched per dialog per sync run
 MAX_BIO_SYNC_CONTACTS = 100  # max contacts fetched per bio sync run
-
-RATE_GATE_KEY = "tg_flood:{user_id}"
-
-
-async def _check_rate_gate(user_id: str) -> int | None:
-    """Return seconds remaining if user is rate-gated, else None."""
-    from app.core.redis import get_redis
-    r = get_redis()
-    ttl = await r.ttl(RATE_GATE_KEY.format(user_id=user_id))
-    return ttl if ttl > 0 else None
-
-
-async def _set_rate_gate(user_id: str, seconds: int) -> None:
-    """Record a FloodWait so all operations respect the cooldown."""
-    from app.core.redis import get_redis
-    r = get_redis()
-    await r.set(RATE_GATE_KEY.format(user_id=user_id), "1", ex=seconds)
-
-
-def _make_client(session_string: str | None = None) -> TelegramClient:
-    """Construct a TelegramClient backed by a StringSession."""
-    if not settings.TELEGRAM_API_ID or not settings.TELEGRAM_API_HASH:
-        raise RuntimeError(
-            "Telegram credentials not configured: set TELEGRAM_API_ID and "
-            "TELEGRAM_API_HASH environment variables."
-        )
-    session = StringSession(session_string or "")
-    return TelegramClient(
-        session,
-        settings.TELEGRAM_API_ID,
-        settings.TELEGRAM_API_HASH,
-    )
-
-
-async def _ensure_connected(client: TelegramClient) -> None:
-    """Connect the client, retrying once if the first attempt silently fails."""
-    await client.connect()
-    if not client.is_connected():
-        await client.connect()
-    if not client.is_connected():
-        raise RuntimeError("Failed to establish connection to Telegram servers")
-
-
-# Public aliases — use these instead of the private _-prefixed functions
-make_client = _make_client
-ensure_connected = _ensure_connected
-
-AVATARS_DIR = Path(os.environ.get(
-    "AVATARS_DIR",
-    str(Path(__file__).resolve().parent.parent.parent / "static" / "avatars"),
-))
-
-import re as _re
 
 _TWITTER_URL_RE = _re.compile(
     r"(?:https?://)?(?:www\.)?(?:twitter\.com|x\.com)/(@?[\w]{1,15})\b",
@@ -108,24 +60,6 @@ def _extract_twitter_handle(bio: str) -> str | None:
             if handle.lower() not in {"telegram", "email", "phone"}:
                 return handle
 
-    return None
-
-
-async def _download_avatar(
-    client: TelegramClient, entity: TelegramUser, contact_id: uuid.UUID
-) -> str | None:
-    """Download a Telegram user's profile photo and return the relative URL path."""
-    try:
-        AVATARS_DIR.mkdir(parents=True, exist_ok=True)
-        filename = f"{contact_id}.jpg"
-        filepath = AVATARS_DIR / filename
-        result = await client.download_profile_photo(
-            entity, file=str(filepath), download_big=False,
-        )
-        if result:
-            return f"/static/avatars/{filename}"
-    except Exception:
-        logger.debug("Failed to download avatar for entity %s", entity.id)
     return None
 
 

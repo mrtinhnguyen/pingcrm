@@ -188,9 +188,9 @@ function NavSearch() {
           setOpen(true);
           setTimeout(() => inputRef.current?.focus(), 0);
         }}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-stone-400 border border-stone-200 hover:border-stone-300 hover:text-stone-500 dark:text-stone-500 dark:border-stone-700 dark:hover:border-stone-600 dark:hover:text-stone-400 transition-colors"
+        className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-stone-400 border border-stone-200 hover:border-stone-300 hover:text-stone-500 dark:text-stone-500 dark:border-stone-700 dark:hover:border-stone-600 dark:hover:text-stone-400 transition-colors whitespace-nowrap"
       >
-        <Search className="w-3.5 h-3.5" />
+        <Search className="w-3.5 h-3.5 shrink-0" />
         <span className="hidden sm:inline">Search contacts</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-stone-100 dark:bg-stone-800 rounded text-stone-400 dark:text-stone-500">
           ⌘K

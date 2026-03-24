@@ -55,6 +55,18 @@ npm run dev
 alembic upgrade head
 alembic revision --autogenerate -m "description"
 
+# API type generation (run after adding/changing API endpoints)
+cd backend && PYTHONPATH=. python3 -c "
+import json; from app.main import app; from fastapi.openapi.utils import get_openapi
+schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+with open('openapi.json', 'w') as f: json.dump(schema, f, indent=2)
+"
+cd frontend && npm run generate:api  # regenerates src/lib/api-types.d.ts
+
+# CI guards
+cd backend && PYTHONPATH=. python3 scripts/check_response_models.py  # all endpoints need response_model
+cd frontend && bash scripts/check-as-any.sh  # as-any count must not increase
+
 # Tests (fresh env setup)
 cd backend && pip install -r requirements-test.txt  # includes pytest + pytest-asyncio
 createdb pingcrm_test  # PostgreSQL test database (or set TEST_DATABASE_URL)

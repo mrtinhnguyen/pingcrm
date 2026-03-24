@@ -351,9 +351,8 @@ export default function DashboardPage() {
   const { suggestions, stats, overdueContacts, recentActivity, isLoading } =
     useDashboardStats();
 
-  const pendingSuggestions = suggestions
-    .filter((s) => s.status === "pending")
-    .slice(0, 5);
+  const allPending = suggestions.filter((s) => s.status === "pending");
+  const pendingSuggestions = allPending.slice(0, 5);
 
   const isEmpty = stats.total === 0 && !isLoading;
 
@@ -369,7 +368,7 @@ export default function DashboardPage() {
                 You have{" "}
                 {pendingSuggestions.length > 0 && (
                   <strong className="text-teal-700 dark:text-teal-400">
-                    {pendingSuggestions.length} pending suggestion{pendingSuggestions.length !== 1 ? "s" : ""}
+                    {allPending.length} pending suggestion{allPending.length !== 1 ? "s" : ""}
                   </strong>
                 )}
                 {pendingSuggestions.length > 0 && overdueContacts.length > 0 && " and "}

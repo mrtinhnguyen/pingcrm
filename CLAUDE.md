@@ -55,9 +55,11 @@ npm run dev
 alembic upgrade head
 alembic revision --autogenerate -m "description"
 
-# Tests
+# Tests (fresh env setup)
+cd backend && pip install -r requirements-test.txt  # includes pytest + pytest-asyncio
+createdb pingcrm_test  # PostgreSQL test database (or set TEST_DATABASE_URL)
 cd backend && pytest
-cd frontend && npm test
+cd frontend && npm install && npm test
 
 # Celery worker + beat (combined, for development)
 cd backend && celery -A worker.celery_app worker --beat --loglevel=info

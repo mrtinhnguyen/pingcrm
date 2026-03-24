@@ -90,8 +90,8 @@ async def twitter_callback(
             detail="Failed to exchange Twitter authorization code",
         ) from exc
 
-    from app.integrations.twitter import _store_tokens
-    _store_tokens(current_user, tokens)
+    from app.integrations.twitter import store_tokens
+    store_tokens(current_user, tokens)
 
     # Fetch Twitter username
     try:

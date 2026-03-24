@@ -599,24 +599,39 @@ async def generate_suggestions(
                     pool_b[cid].priority += 100.0
 
     # Ghost detection: suppress contacts where last N interactions are all outbound (no reply)
+    # Single query using row_number() window function instead of N+1 per-contact queries
     all_candidate_ids = set(pool_a.keys()) | set(pool_b.keys())
     if all_candidate_ids:
         from app.models.interaction import Interaction as _Interaction
-        # For each candidate, get the directions of the last 3 interactions
-        for cid in list(all_candidate_ids):
-            recent = await db.execute(
-                select(_Interaction.direction)
-                .where(
-                    _Interaction.contact_id == cid,
-                    _Interaction.direction.in_(["inbound", "outbound"]),
-                )
-                .order_by(_Interaction.occurred_at.desc())
-                .limit(3)
+        from sqlalchemy import literal_column
+        rn = func.row_number().over(
+            partition_by=_Interaction.contact_id,
+            order_by=_Interaction.occurred_at.desc(),
+        ).label("rn")
+        subq = (
+            select(
+                _Interaction.contact_id,
+                _Interaction.direction,
+                rn,
             )
-            directions = [r[0] for r in recent.all()]
-            if not directions:
-                continue
-            # Count consecutive outbound from the most recent
+            .where(
+                _Interaction.contact_id.in_(all_candidate_ids),
+                _Interaction.direction.in_(["inbound", "outbound"]),
+            )
+            .subquery()
+        )
+        ghost_result = await db.execute(
+            select(subq.c.contact_id, subq.c.direction)
+            .where(subq.c.rn <= 3)
+            .order_by(subq.c.contact_id, subq.c.rn)
+        )
+        # Group by contact_id
+        from collections import defaultdict
+        recent_dirs: dict[uuid.UUID, list[str]] = defaultdict(list)
+        for row in ghost_result.all():
+            recent_dirs[row[0]].append(row[1])
+
+        for cid, directions in recent_dirs.items():
             consecutive_outbound = 0
             for d in directions:
                 if d == "outbound":
@@ -624,12 +639,10 @@ async def generate_suggestions(
                 else:
                     break
             if consecutive_outbound >= 3:
-                # 3+ outbound with no reply — suppress entirely
                 pool_a.pop(cid, None)
                 pool_b.pop(cid, None)
                 logger.debug("generate_suggestions: skipping contact %s (ghosting — %d consecutive outbound)", cid, consecutive_outbound)
             elif consecutive_outbound == 2:
-                # 2 outbound with no reply — reduce priority by 50%
                 if cid in pool_a:
                     pool_a[cid].priority *= 0.5
                 if cid in pool_b:

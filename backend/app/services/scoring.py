@@ -180,34 +180,21 @@ async def calculate_score_breakdown(contact_id: uuid.UUID, db: AsyncSession) -> 
     else:
         frequency = 0
 
-    # Query 4: distinct platform count
-    platform_result = await db.execute(
-        select(func.count(distinct(Interaction.platform)))
-        .select_from(Interaction)
-        .where(Interaction.contact_id == contact_id)
-    )
-    platform_count = platform_result.scalar_one()
-    breadth = 1 if platform_count >= 2 else 0
-
-    # Query 5: distinct platform names
-    platform_names_result = await db.execute(
-        select(distinct(Interaction.platform))
-        .where(Interaction.contact_id == contact_id)
-    )
-    platforms = [row[0] for row in platform_names_result.all() if row[0] is not None]
-
-    # Total interaction count + first interaction date for tenure bonus
-    tenure_result = await db.execute(
+    # Query 4: platforms + lifetime count + first interaction (merged from 3 queries)
+    meta_result = await db.execute(
         select(
             func.count().label("lifetime_count"),
             func.min(Interaction.occurred_at).label("first_at"),
+            func.array_agg(distinct(Interaction.platform)).label("platforms"),
         )
         .select_from(Interaction)
         .where(Interaction.contact_id == contact_id)
     )
-    tenure_row = tenure_result.one()
-    interaction_count = tenure_row.lifetime_count
-    first_at = tenure_row.first_at
+    meta_row = meta_result.one()
+    interaction_count = meta_row.lifetime_count
+    first_at = meta_row.first_at
+    platforms = [p for p in (meta_row.platforms or []) if p is not None]
+    breadth = 1 if len(platforms) >= 2 else 0
 
     # Tenure bonus: acknowledges established relationships during quiet periods
     tenure = 0

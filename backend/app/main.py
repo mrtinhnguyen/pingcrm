@@ -8,7 +8,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.core.config import settings
@@ -145,20 +145,33 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
 
 
 class FrontendErrorReport(BaseModel):
-    message: str
-    source: str | None = None
+    message: str = Field(max_length=1000)
+    source: str | None = Field(default=None, max_length=500)
     lineno: int | None = None
     colno: int | None = None
-    stack: str | None = None
-    url: str | None = None
-    component: str | None = None
+    stack: str | None = Field(default=None, max_length=5000)
+    url: str | None = Field(default=None, max_length=500)
+    component: str | None = Field(default=None, max_length=200)
+
 
 _frontend_logger = logging.getLogger("app.frontend")
+_error_report_timestamps: dict[str, list[float]] = {}
+_ERROR_RATE_LIMIT = 10  # max reports per minute per IP
 
 
 @app.post("/api/v1/errors", tags=["errors"])
-async def report_frontend_error(report: FrontendErrorReport) -> dict:
+async def report_frontend_error(report: FrontendErrorReport, request: Request) -> dict:
     """Receive client-side errors and log them in the structured backend log."""
+    import time
+    client_ip = request.client.host if request.client else "unknown"
+    now = time.monotonic()
+
+    # Simple rate limiting: 10 reports per minute per IP
+    timestamps = _error_report_timestamps.setdefault(client_ip, [])
+    timestamps[:] = [t for t in timestamps if now - t < 60]
+    if len(timestamps) >= _ERROR_RATE_LIMIT:
+        return {"data": {"received": False, "reason": "rate_limited"}, "error": None}
+    timestamps.append(now)
     _frontend_logger.error(
         "frontend_error: %s",
         report.message,

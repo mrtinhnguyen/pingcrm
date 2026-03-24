@@ -303,6 +303,7 @@ export function ChatTimeline({
                               ? "text-teal-400 dark:text-teal-500"
                               : "text-stone-300 dark:text-stone-600"
                           )}
+                          aria-label={item.is_read_by_recipient ? "Read by recipient" : "Delivered, not yet read"}
                           title={item.is_read_by_recipient ? "Read" : "Delivered"}
                         >
                           {item.is_read_by_recipient ? "✓✓" : "✓"}

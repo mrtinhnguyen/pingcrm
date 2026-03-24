@@ -315,6 +315,8 @@ export function Nav() {
           onClick={() => setMobileMenuOpen(v => !v)}
           className="md:hidden p-2 rounded-md text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800 transition-colors"
           aria-label="Toggle menu"
+          aria-expanded={mobileMenuOpen}
+          aria-controls="mobile-nav-menu"
         >
           {mobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
         </button>
@@ -416,7 +418,7 @@ export function Nav() {
 
       {/* Mobile menu panel */}
       {mobileMenuOpen && (
-        <div className="md:hidden border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
+        <div id="mobile-nav-menu" className="md:hidden border-t border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900">
           <div className="max-w-6xl mx-auto px-4 py-3 space-y-1">
             {navLinks.map((item) => {
               const Icon = item.icon;

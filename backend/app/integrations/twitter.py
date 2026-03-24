@@ -260,7 +260,7 @@ async def refresh_twitter_token(refresh_token: str) -> dict[str, Any]:
         return resp.json()
 
 
-def _store_tokens(user: User, tokens: dict[str, Any]) -> None:
+def store_tokens(user: User, tokens: dict[str, Any]) -> None:
     """Store OAuth tokens and compute expires_at from the response."""
     user.twitter_access_token = tokens["access_token"]
     if "refresh_token" in tokens:
@@ -316,7 +316,7 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
 
     try:
         tokens = await refresh_twitter_token(user.twitter_refresh_token)
-        _store_tokens(user, tokens)
+        store_tokens(user, tokens)
         await db.flush()
         return {"Authorization": f"Bearer {tokens['access_token']}"}
     except httpx.HTTPStatusError as e:

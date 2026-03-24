@@ -11,6 +11,7 @@ from app.core.database import get_db
 from app.models.contact import Contact
 from app.models.interaction import Interaction
 from app.models.user import User
+from app.schemas.responses import Envelope
 
 router = APIRouter(prefix="/api/v1/activity", tags=["activity"])
 
@@ -19,7 +20,7 @@ def envelope(data, error: str | None = None, meta: dict | None = None) -> dict:
     return {"data": data, "error": error, "meta": meta}
 
 
-@router.get("/recent")
+@router.get("/recent", response_model=Envelope[list])
 async def get_recent_activity(
     limit: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),

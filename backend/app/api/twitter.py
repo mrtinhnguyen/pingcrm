@@ -113,7 +113,7 @@ async def twitter_callback(
     return {"data": {"connected": True, "username": current_user.twitter_username}, "error": None}
 
 
-@router.delete("/disconnect", status_code=status.HTTP_200_OK)
+@router.delete("/disconnect", status_code=status.HTTP_200_OK, response_model=Envelope[dict])
 async def disconnect_twitter(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

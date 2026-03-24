@@ -304,7 +304,7 @@ async def delete_contact(
     return envelope({"id": str(contact_id), "deleted": True})
 
 
-@router.get("/{contact_id}/activity")
+@router.get("/{contact_id}/activity", response_model=Envelope[dict])
 async def get_contact_activity(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
@@ -374,7 +374,7 @@ async def get_contact_activity(
     })
 
 
-@router.get("/{contact_id}/related")
+@router.get("/{contact_id}/related", response_model=Envelope[list])
 async def get_related_contacts(
     contact_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),

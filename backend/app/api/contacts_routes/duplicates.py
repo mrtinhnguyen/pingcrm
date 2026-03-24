@@ -89,7 +89,7 @@ async def find_contact_duplicates(
     return envelope(duplicates[:20])
 
 
-@router.post("/{contact_id}/dismiss-duplicate/{other_id}")
+@router.post("/{contact_id}/dismiss-duplicate/{other_id}", response_model=Envelope[dict])
 async def dismiss_duplicate(
     contact_id: uuid.UUID,
     other_id: uuid.UUID,

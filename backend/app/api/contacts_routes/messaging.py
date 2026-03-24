@@ -145,7 +145,7 @@ class ComposeBody(BaseModel):
     channel: str = "email"
 
 
-@router.post("/{contact_id}/compose")
+@router.post("/{contact_id}/compose", response_model=Envelope[dict])
 async def compose_message(
     contact_id: uuid.UUID,
     body: ComposeBody | None = None,

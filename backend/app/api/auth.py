@@ -329,7 +329,7 @@ class ProfileUpdate(BaseModel):
     full_name: str | None = _Field(default=None, max_length=200)
 
 
-@router.put("/me")
+@router.put("/me", response_model=Envelope[dict])
 async def update_profile(
     body: ProfileUpdate,
     current_user: User = Depends(get_current_user),
@@ -347,7 +347,7 @@ class PasswordChange(BaseModel):
     new_password: str = _Field(max_length=128)
 
 
-@router.post("/change-password")
+@router.post("/change-password", response_model=Envelope[dict])
 async def change_password(
     body: PasswordChange,
     current_user: User = Depends(get_current_user),
@@ -363,7 +363,7 @@ async def change_password(
     return {"data": {"updated": True}, "error": None}
 
 
-@router.delete("/me")
+@router.delete("/me", response_model=Envelope[dict])
 async def delete_account(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),

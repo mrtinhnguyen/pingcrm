@@ -252,6 +252,7 @@ async def sync_telegram(
 @router.delete(
     "/api/v1/auth/telegram/disconnect",
     status_code=status.HTTP_200_OK,
+    response_model=Envelope[dict],
 )
 async def disconnect_telegram(
     current_user: User = Depends(get_current_user),
@@ -268,6 +269,7 @@ async def disconnect_telegram(
 @router.post(
     "/api/v1/auth/telegram/reset-session",
     status_code=status.HTTP_200_OK,
+    response_model=Envelope[dict],
 )
 async def reset_telegram_session(
     current_user: User = Depends(get_current_user),

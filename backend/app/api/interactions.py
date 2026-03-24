@@ -114,7 +114,7 @@ async def update_interaction(
     return envelope(InteractionResponse.model_validate(interaction).model_dump())
 
 
-@router.delete("/{contact_id}/interactions/{interaction_id}", status_code=status.HTTP_200_OK)
+@router.delete("/{contact_id}/interactions/{interaction_id}", status_code=status.HTTP_200_OK, response_model=Envelope[dict])
 async def delete_interaction(
     contact_id: uuid.UUID,
     interaction_id: uuid.UUID,

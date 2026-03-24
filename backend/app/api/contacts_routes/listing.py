@@ -173,7 +173,7 @@ async def contact_stats(
     }
 
 
-@router.get("/birthdays")
+@router.get("/birthdays", response_model=Envelope[list])
 async def get_upcoming_birthdays(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -218,7 +218,7 @@ async def get_upcoming_birthdays(
     )
 
 
-@router.get("/overdue")
+@router.get("/overdue", response_model=Envelope[list])
 async def get_overdue_contacts(
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),

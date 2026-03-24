@@ -359,6 +359,7 @@ async def get_contact_activity(
             "recency": {"value": breakdown.recency, "max": 3},
             "frequency": {"value": breakdown.frequency, "max": 2},
             "breadth": {"value": breakdown.breadth, "max": 1},
+            "tenure": {"value": breakdown.tenure, "max": 2},
         },
         "stats": {
             "inbound_365d": breakdown.inbound_365d,

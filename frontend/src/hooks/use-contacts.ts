@@ -210,6 +210,7 @@ export interface ActivityData {
     recency: { value: number; max: number };
     frequency: { value: number; max: number };
     breadth: { value: number; max: number };
+    tenure?: { value: number; max: number };
   };
   stats: {
     inbound_365d: number;

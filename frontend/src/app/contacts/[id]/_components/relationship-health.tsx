@@ -30,6 +30,7 @@ export function RelationshipHealth({
           { label: "Recency", ...dimensions.recency },
           { label: "Frequency", ...dimensions.frequency },
           { label: "Breadth", ...dimensions.breadth },
+          ...(dimensions.tenure ? [{ label: "Tenure", ...dimensions.tenure }] : []),
         ].map((dim) => (
           <div key={dim.label}>
             <div className="flex items-center justify-between mb-1">

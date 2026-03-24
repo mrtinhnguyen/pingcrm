@@ -15,9 +15,9 @@ Twitter uses the OAuth 2.0 Authorization Code flow with PKCE (Proof Key for Code
 
 Direct message conversations are imported as interactions. Each conversation captures participants, message content, and timestamps. Conversations are deduplicated by Twitter conversation ID. Per-contact sync uses the targeted `/dm_conversations/with/:participant_id` endpoint for efficiency.
 
-## Mention Sync
+## Mention & Reply Sync
 
-Tweets that @mention you or are replies to your tweets are imported as interactions. This provides visibility into public engagement with your contacts.
+Tweets that @mention you and your outbound replies are imported as interactions via **bird CLI** (zero API cost). Each sync stores a cursor (`twitter_mention_cursor` / `twitter_reply_cursor` in sync_settings) so only new tweets are processed on subsequent runs.
 
 ## Bio Monitoring
 
@@ -51,11 +51,14 @@ PingCRM uses the [Bird CLI](https://www.npmjs.com/package/@anthropic-ai/bird) (`
 
 ### What Bird CLI provides
 
-| Feature | Bird command | Fallback |
+| Feature | Bird command | OAuth fallback? |
 |---|---|---|
-| Tweet fetching | `bird user-tweets @handle -n 5` | Twitter API v2 |
-| Profile resolution (user ID) | `bird user-tweets @handle -n 1 --json-full` | Twitter API v2 |
-| Bio refresh (profile data) | `bird user-tweets @handle -n 1 --json-full` | Twitter API v2 |
+| Tweet fetching | `bird user-tweets @handle -n 5` | No |
+| Profile resolution (user ID) | `bird user-tweets @handle -n 1 --json-full` | No |
+| Bio refresh (profile data) | `bird user-tweets @handle -n 1 --json-full` | No |
+| **Mention sync** | `bird mentions -u @handle -n 50 --json` | No |
+| **Reply sync** | `bird user-tweets @handle -n 50 --json` (filtered to replies) | No |
+| **Handle → ID resolution** | `bird user-tweets @handle -n 1 --json-full` | No |
 
 ### Authentication
 
@@ -68,9 +71,15 @@ Bird requires two cookies extracted from an active browser session on x.com:
 
 Set these in your `.env` file. See the [Setup Guide](../setup.md#environment-variables-reference) for details.
 
-### Graceful degradation
+### Error handling (no OAuth fallback)
 
-Bird CLI is **best-effort**. If the CLI is not installed, times out, or returns an error, the system falls back to the Twitter API v2 transparently. The `last_error` module variable tracks the most recent failure for observability.
+Bird CLI is the **sole source** for mentions, replies, bio polling, and handle resolution. If bird CLI fails:
+
+1. A structured log entry is created (`logger.error` with `provider=twitter`)
+2. A **user notification** is created ("Twitter mention sync unavailable — bird CLI error: ...")
+3. The sync returns gracefully (0 results) — no crash
+
+The only remaining OAuth API usage is **DM sync** (`/dm_events`) and **one-time user ID lookup** (`/users/me`), which cannot be done via bird CLI.
 
 ### Tweet caching
 

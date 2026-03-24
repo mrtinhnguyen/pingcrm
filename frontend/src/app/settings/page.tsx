@@ -134,10 +134,6 @@ function SettingsContent() {
             handleTelegramSync={ctrl.handleTelegramSync}
             handleTwitterConnect={ctrl.handleTwitterConnect}
             handleTwitterSync={ctrl.handleTwitterSync}
-            bgSync={ctrl.bgSync}
-            setBgSync={ctrl.setBgSync}
-            syncFreq={ctrl.syncFreq}
-            setSyncFreq={ctrl.setSyncFreq}
           />
         )}
         {ctrl.activeTab === "import" && <ImportTab />}

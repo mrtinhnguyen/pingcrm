@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
 import { RefreshCw, Check, AlertCircle, Link2, Settings, Key, History, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SyncHistoryModal } from "../sync-history-modal";
+import { SyncSettingsModal } from "../sync-settings-modal";
 import {
   ConnectionBadge,
   SyncButtonWrapper,
@@ -26,7 +29,11 @@ export function TwitterCard({
   handleTwitterConnect,
   handleTwitterSync,
 }: TwitterCardProps) {
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+
   return (
+    <>
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5 hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
@@ -73,13 +80,13 @@ export function TwitterCard({
               </SyncButtonWrapper>
               <KebabMenu
                 items={[
-                  { icon: Settings, label: "Sync settings" },
+                  { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
                   {
                     icon: Key,
                     label: "Re-authorize",
                     onClick: () => void handleTwitterConnect(),
                   },
-                  { icon: History, label: "Sync history" },
+                  { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
                   { icon: Unplug, label: "Disconnect Twitter", danger: true },
                 ]}
@@ -135,5 +142,8 @@ export function TwitterCard({
         <SyncResultPanel details={twitterSync.details} status={twitterSync.status} />
       )}
     </div>
+    {showSyncHistory && <SyncHistoryModal platform="twitter" onClose={() => setShowSyncHistory(false)} />}
+    {showSyncSettings && <SyncSettingsModal platform="twitter" onClose={() => setShowSyncSettings(false)} />}
+    </>
   );
 }

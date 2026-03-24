@@ -387,10 +387,10 @@ export function TelegramIcon() {
 
 export function TwitterIcon() {
   return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-stone-500 dark:text-stone-400">
       <path
         d="M4 4l11.7 16h4.3L8.3 4H4zm1.7 0L20 20M20 4l-7.3 8"
-        stroke="#78716c"
+        stroke="currentColor"
         strokeWidth="2"
         strokeLinecap="round"
         strokeLinejoin="round"

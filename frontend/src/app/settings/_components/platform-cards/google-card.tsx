@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { RefreshCw, Check, AlertCircle, X, Link2, Settings, Key, History, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
+import { SyncHistoryModal } from "../sync-history-modal";
+import { SyncSettingsModal } from "../sync-settings-modal";
 import {
   ConnectionBadge,
   SyncButtonWrapper,
@@ -29,7 +32,11 @@ export function GoogleCard({
   handleGoogleConnect,
   handleGoogleSyncAll,
 }: GoogleCardProps) {
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+
   return (
+    <>
     <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5 hover:shadow-sm transition-shadow">
       <div className="flex items-start justify-between">
         <div className="flex items-start gap-4">
@@ -109,13 +116,13 @@ export function GoogleCard({
               </SyncButtonWrapper>
               <KebabMenu
                 items={[
-                  { icon: Settings, label: "Sync settings" },
+                  { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
                   {
                     icon: Key,
                     label: "Re-authorize",
                     onClick: () => void handleGoogleConnect(),
                   },
-                  { icon: History, label: "Sync history" },
+                  { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
                   { icon: Unplug, label: "Disconnect Gmail", danger: true },
                 ]}
@@ -171,5 +178,8 @@ export function GoogleCard({
         <SyncResultPanel details={googleSync.details} status={googleSync.status} />
       )}
     </div>
+    {showSyncHistory && <SyncHistoryModal platform="gmail" onClose={() => setShowSyncHistory(false)} />}
+    {showSyncSettings && <SyncSettingsModal platform="gmail" onClose={() => setShowSyncSettings(false)} />}
+    </>
   );
 }

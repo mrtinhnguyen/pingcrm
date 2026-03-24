@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { X, Link2, AlertCircle, RefreshCw, Check, Unplug, Key } from "lucide-react";
+import { X, Link2, AlertCircle, RefreshCw, Check, Unplug, Key, Settings, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { client } from "@/lib/api-client";
 import { ConnectionBadge, KebabMenu, SyncButtonWrapper } from "../shared";
+import { SyncHistoryModal } from "../sync-history-modal";
+import { SyncSettingsModal } from "../sync-settings-modal";
 import type { ConnectedAccounts } from "../../_hooks/use-settings-controller";
 import type { SyncPhase } from "../shared";
 
@@ -51,6 +53,8 @@ export interface LinkedInCardProps {
 
 export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardProps) {
   const [showModal, setShowModal] = useState(false);
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [code, setCode] = useState("");
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [syncStatus, setSyncStatus] = useState<SyncPhase>("idle");
@@ -163,6 +167,9 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
                 </SyncButtonWrapper>
                 <KebabMenu
                   items={[
+                    { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
+                    { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
+                    { icon: Unplug, label: "---" },
                     {
                       icon: Unplug,
                       label: "Disconnect LinkedIn",
@@ -243,6 +250,9 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
           </div>
         </div>
       )}
+
+      {showSyncHistory && <SyncHistoryModal platform="linkedin" onClose={() => setShowSyncHistory(false)} />}
+      {showSyncSettings && <SyncSettingsModal platform="linkedin" onClose={() => setShowSyncSettings(false)} />}
     </>
   );
 }

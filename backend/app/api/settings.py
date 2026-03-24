@@ -1,6 +1,6 @@
 """Settings API — user preference endpoints."""
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_current_user
@@ -45,11 +45,60 @@ async def update_priority(
     current_user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Envelope[PrioritySettingsData]:
-    current_user.priority_settings = body.model_dump()
+    existing = current_user.priority_settings or {}
+    existing.update(body.model_dump())
+    current_user.priority_settings = existing
     await db.flush()
     await db.refresh(current_user)
     settings = get_priority_settings(current_user)
     return {"data": settings, "error": None}
+
+
+class SuggestionPrefsInput(BaseModel):
+    max_suggestions: int | None = Field(default=None, ge=5, le=20)
+    include_dormant: bool | None = None
+    birthday_reminders: bool | None = None
+    preferred_channel: str | None = None
+
+
+class SuggestionPrefsData(BaseModel):
+    max_suggestions: int
+    include_dormant: bool
+    birthday_reminders: bool
+    preferred_channel: str
+
+
+_DEFAULT_SUGGESTION_PREFS = {
+    "max_suggestions": 10,
+    "include_dormant": True,
+    "birthday_reminders": True,
+    "preferred_channel": "auto",
+}
+
+
+@router.get("/suggestions", response_model=Envelope[SuggestionPrefsData])
+async def get_suggestion_prefs(
+    current_user: User = Depends(get_current_user),
+) -> Envelope[SuggestionPrefsData]:
+    stored = (current_user.priority_settings or {}).get("suggestion_prefs", {})
+    merged = {**_DEFAULT_SUGGESTION_PREFS, **stored}
+    return {"data": merged, "error": None}
+
+
+@router.put("/suggestions", response_model=Envelope[SuggestionPrefsData])
+async def update_suggestion_prefs(
+    body: SuggestionPrefsInput,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> Envelope[SuggestionPrefsData]:
+    settings = current_user.priority_settings or {}
+    prefs = settings.get("suggestion_prefs", {})
+    prefs.update(body.model_dump(exclude_none=True))
+    settings["suggestion_prefs"] = prefs
+    current_user.priority_settings = settings
+    await db.flush()
+    merged = {**_DEFAULT_SUGGESTION_PREFS, **prefs}
+    return {"data": merged, "error": None}
 
 
 class SyncSettingsInput(BaseModel):

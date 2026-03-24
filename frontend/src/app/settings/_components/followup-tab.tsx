@@ -21,11 +21,33 @@ export function FollowUpRulesTab() {
     message: string;
   } | null>(null);
 
-  // Suggestion preferences (UI-only for now)
+  // Suggestion preferences — persisted via /api/v1/settings/suggestions
   const [maxBatch, setMaxBatch] = useState("10");
   const [dormantRevival, setDormantRevival] = useState(true);
   const [birthdayReminders, setBirthdayReminders] = useState(true);
   const [preferredChannel, setPreferredChannel] = useState("auto");
+
+  // Load suggestion prefs
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await client.GET("/api/v1/settings/suggestions" as any, {});
+        const prefs = (data as any)?.data;
+        if (prefs) {
+          setMaxBatch(String(prefs.max_suggestions ?? 10));
+          setDormantRevival(prefs.include_dormant ?? true);
+          setBirthdayReminders(prefs.birthday_reminders ?? true);
+          setPreferredChannel(prefs.preferred_channel ?? "auto");
+        }
+      } catch {}
+    })();
+  }, []);
+
+  const saveSuggestionPref = async (updates: Record<string, unknown>) => {
+    try {
+      await client.PUT("/api/v1/settings/suggestions" as any, { body: updates });
+    } catch {}
+  };
 
   useEffect(() => {
     (async () => {
@@ -193,7 +215,7 @@ export function FollowUpRulesTab() {
             </div>
             <select
               value={maxBatch}
-              onChange={(e) => setMaxBatch(e.target.value)}
+              onChange={(e) => { setMaxBatch(e.target.value); void saveSuggestionPref({ max_suggestions: parseInt(e.target.value) }); }}
               className="w-full sm:w-auto text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
             >
               <option value="5">5</option>
@@ -210,7 +232,7 @@ export function FollowUpRulesTab() {
                 Suggest re-engaging contacts you haven&apos;t spoken to in a while
               </p>
             </div>
-            <Toggle checked={dormantRevival} onChange={setDormantRevival} />
+            <Toggle checked={dormantRevival} onChange={(v) => { setDormantRevival(v); void saveSuggestionPref({ include_dormant: v }); }} />
           </div>
 
           <div className="flex items-center justify-between">
@@ -220,7 +242,7 @@ export function FollowUpRulesTab() {
                 Generate suggestions for upcoming birthdays
               </p>
             </div>
-            <Toggle checked={birthdayReminders} onChange={setBirthdayReminders} />
+            <Toggle checked={birthdayReminders} onChange={(v) => { setBirthdayReminders(v); void saveSuggestionPref({ birthday_reminders: v }); }} />
           </div>
 
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -230,7 +252,7 @@ export function FollowUpRulesTab() {
             </div>
             <select
               value={preferredChannel}
-              onChange={(e) => setPreferredChannel(e.target.value)}
+              onChange={(e) => { setPreferredChannel(e.target.value); void saveSuggestionPref({ preferred_channel: e.target.value }); }}
               className="w-full sm:w-auto text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-1.5 text-stone-700 dark:text-stone-300 bg-white dark:bg-stone-900 focus:outline-none focus:ring-2 focus:ring-teal-400"
             >
               <option value="auto">Auto-detect</option>

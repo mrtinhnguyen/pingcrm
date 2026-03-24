@@ -124,7 +124,15 @@ export function GoogleCard({
                   },
                   { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
-                  { icon: Unplug, label: "Disconnect Gmail", danger: true },
+                  { icon: Unplug, label: "Disconnect Gmail", danger: true, onClick: async () => {
+                    const ga = connected.google_accounts?.[0];
+                    if (ga && confirm("Disconnect Gmail? Your synced emails will be kept.")) {
+                      await client.DELETE("/api/v1/auth/google/accounts/{account_id}", {
+                        params: { path: { account_id: ga.id } },
+                      });
+                      void fetchConnectionStatus();
+                    }
+                  }},
                 ]}
               />
             </>

@@ -315,3 +315,57 @@ async def google_callback(
         expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES),
     )
     return {"data": {"access_token": access_token, "token_type": "bearer"}, "error": None}
+
+
+# ---------------------------------------------------------------------------
+# Account management
+# ---------------------------------------------------------------------------
+
+
+class ProfileUpdate(BaseModel):
+    full_name: str | None = None
+
+
+@router.put("/me")
+async def update_profile(
+    body: ProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Update the authenticated user's profile."""
+    if body.full_name is not None:
+        current_user.full_name = body.full_name
+    await db.flush()
+    return {"data": {"updated": True}, "error": None}
+
+
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+async def change_password(
+    body: PasswordChange,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Change the authenticated user's password."""
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Current password is incorrect")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="New password must be at least 8 characters")
+    current_user.hashed_password = hash_password(body.new_password)
+    await db.flush()
+    return {"data": {"updated": True}, "error": None}
+
+
+@router.delete("/me")
+async def delete_account(
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    """Permanently delete the authenticated user's account and all data."""
+    await db.delete(current_user)
+    await db.flush()
+    return {"data": {"deleted": True}, "error": None}

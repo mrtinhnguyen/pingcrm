@@ -56,6 +56,7 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
     async def _sync(uid: uuid.UUID) -> dict:
         from app.integrations.telegram import sync_telegram_chats
         from app.services.scoring import calculate_score
+        from app.services.sync_history import record_sync_start, record_sync_complete, record_sync_failure
 
         async with task_session() as db:
             result = await db.execute(select(User).where(User.id == uid))
@@ -63,7 +64,15 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
             if user is None:
                 return {"status": "user_not_found"}
 
-            chat_result = await sync_telegram_chats(user, db, max_dialogs=max_dialogs)
+            sync_event = await record_sync_start(uid, "telegram", "manual" if lock_token else "scheduled", db)
+
+            try:
+                chat_result = await sync_telegram_chats(user, db, max_dialogs=max_dialogs)
+            except Exception as exc:
+                await record_sync_failure(sync_event, str(exc), db=db)
+                await db.commit()
+                raise
+
             chat_info = chat_result if isinstance(chat_result, dict) else {
                 "new_interactions": chat_result, "new_contacts": 0, "affected_contact_ids": [],
             }
@@ -77,6 +86,13 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
 
             if affected:
                 await dismiss_suggestions_for_contacts(affected)
+
+            await record_sync_complete(
+                sync_event,
+                records_created=chat_info.get("new_interactions", 0) + chat_info.get("new_contacts", 0),
+                details=chat_info,
+                db=db,
+            )
 
             # Mark sync timestamp
             from datetime import UTC, datetime

@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { RefreshCw, Check, AlertCircle, X, Link2, Settings, RotateCcw, History, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SyncHistoryModal } from "../sync-history-modal";
 import {
   ConnectionBadge,
   SyncButtonWrapper,
@@ -47,6 +49,7 @@ export function TelegramCard({
     handleTelegramVerify,
     handleTelegram2FA,
   } = telegramFlow;
+  const [showSyncHistory, setShowSyncHistory] = useState(false);
 
   return (
     <>
@@ -103,7 +106,7 @@ export function TelegramCard({
                   items={[
                     { icon: Settings, label: "Sync settings" },
                     { icon: RotateCcw, label: "Reset session" },
-                    { icon: History, label: "Sync history" },
+                    { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
                     { icon: Unplug, label: "---" },
                     { icon: Unplug, label: "Disconnect Telegram", danger: true },
                   ]}
@@ -289,6 +292,10 @@ export function TelegramCard({
             )}
           </div>
         </div>
+      )}
+
+      {showSyncHistory && (
+        <SyncHistoryModal platform="telegram" onClose={() => setShowSyncHistory(false)} />
       )}
     </>
   );

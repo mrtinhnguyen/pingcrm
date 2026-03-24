@@ -27,6 +27,7 @@ from app.api.settings import router as settings_router
 from app.api.linkedin import router as linkedin_router
 from app.api.activity import router as activity_router
 from app.api.extension import router as extension_router
+from app.api.sync_history import router as sync_history_router
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -93,6 +94,7 @@ app.include_router(settings_router)
 app.include_router(linkedin_router)
 app.include_router(activity_router)
 app.include_router(extension_router)
+app.include_router(sync_history_router)
 
 # Serve uploaded avatars
 _static_dir = Path(__file__).resolve().parent.parent / "static"

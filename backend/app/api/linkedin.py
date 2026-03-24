@@ -7,7 +7,7 @@ from datetime import datetime, UTC
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.auth import get_extension_or_web_user
@@ -102,38 +102,59 @@ async def push_linkedin_data(
     interactions_created = 0
     interactions_skipped = 0
     contacts_with_new_interactions: set[uuid.UUID] = set()
-    # Track all contacts touched in this push for backfill detection
     touched_contacts: list[Contact] = []
 
-    # --- Profiles ---
-    for profile in body.profiles:
-        # Normalize URL for matching (strip trailing slashes)
-        profile_url_normalized = profile.profile_url.rstrip("/") if profile.profile_url else ""
+    # --- Pre-load all user's LinkedIn contacts for in-memory matching ---
+    all_contacts_result = await db.execute(
+        select(Contact).where(
+            Contact.user_id == current_user.id,
+            or_(
+                Contact.linkedin_profile_id.isnot(None),
+                Contact.linkedin_url.isnot(None),
+            ),
+        )
+    )
+    all_linkedin_contacts = list(all_contacts_result.scalars().all())
+    profile_id_map: dict[str, Contact] = {
+        c.linkedin_profile_id: c for c in all_linkedin_contacts if c.linkedin_profile_id
+    }
+    url_map: dict[str, Contact] = {}
+    name_map: dict[str, Contact] = {}
+    for c in all_linkedin_contacts:
+        if c.linkedin_url:
+            url_map[c.linkedin_url.rstrip("/")] = c
+        if c.full_name:
+            name_map[c.full_name.lower()] = c
 
-        result = await db.execute(
-            select(Contact).where(
-                Contact.user_id == current_user.id,
-                Contact.linkedin_profile_id == profile.profile_id,
+    # --- Pre-load existing interaction refs for message dedup ---
+    all_refs: list[str] = []
+    for msg in body.messages:
+        if msg.content_hash:
+            all_refs.append(f"linkedin:{msg.conversation_id}:{msg.content_hash}")
+        else:
+            all_refs.append(f"linkedin:{msg.conversation_id}:{msg.timestamp}")
+    existing_refs: set[str] = set()
+    if all_refs:
+        refs_result = await db.execute(
+            select(Interaction.raw_reference_id).where(
+                Interaction.user_id == current_user.id,
+                Interaction.raw_reference_id.in_(all_refs),
             )
         )
-        contact = result.scalar_one_or_none()
+        existing_refs = set(refs_result.scalars().all())
 
+    # --- Profiles ---
+    from app.services.sync_utils import sync_set_field
+    for profile in body.profiles:
+        profile_url_normalized = profile.profile_url.rstrip("/") if profile.profile_url else ""
+
+        # In-memory lookup (no DB query per profile)
+        contact = profile_id_map.get(profile.profile_id)
         if not contact and profile_url_normalized:
-            # Try to find by linkedin_url (with and without trailing slash)
-            result = await db.execute(
-                select(Contact).where(
-                    Contact.user_id == current_user.id,
-                    Contact.linkedin_url.in_([
-                        profile_url_normalized,
-                        profile_url_normalized + "/",
-                    ]),
-                )
-            )
-            contact = result.scalar_one_or_none()
+            contact = url_map.get(profile_url_normalized)
 
         if contact:
             # Update fields — respect user-edited field protection
-            from app.services.sync_utils import sync_set_field
             sync_set_field(contact, "full_name", profile.full_name)
             if profile.headline:
                 contact.linkedin_headline = profile.headline  # platform-owned
@@ -180,6 +201,13 @@ async def push_linkedin_data(
             local_path = await _save_avatar(profile, str(contact.id))
             if local_path:
                 contact.avatar_url = local_path
+            # Update in-memory maps for message matching
+            if profile.profile_id:
+                profile_id_map[profile.profile_id] = contact
+            if profile_url_normalized:
+                url_map[profile_url_normalized] = contact
+            if contact.full_name:
+                name_map[contact.full_name.lower()] = contact
         touched_contacts.append(contact)
 
     # --- Messages ---
@@ -190,50 +218,26 @@ async def push_linkedin_data(
         else:
             raw_ref = f"linkedin:{msg.conversation_id}:{msg.timestamp}"
 
-        # Check for duplicate
-        existing = await db.execute(
-            select(Interaction.id).where(
-                Interaction.user_id == current_user.id,
-                Interaction.raw_reference_id == raw_ref,
-            )
-        )
-        if existing.scalar_one_or_none():
+        # Check for duplicate using pre-loaded set (no DB query)
+        if raw_ref in existing_refs:
             interactions_skipped += 1
             continue
 
-        # Find contact by profile_id or linkedin_url
-        result = await db.execute(
-            select(Contact).where(
-                Contact.user_id == current_user.id,
-                Contact.linkedin_profile_id == msg.profile_id,
-            )
-        )
-        contact = result.scalar_one_or_none()
+        # Find contact using in-memory maps (no DB query)
+        contact = profile_id_map.get(msg.profile_id)
 
         if not contact:
-            # Try matching by linkedin_url containing the profile_id slug
             msg_url = f"https://www.linkedin.com/in/{msg.profile_id}"
-            result = await db.execute(
-                select(Contact).where(
-                    Contact.user_id == current_user.id,
-                    Contact.linkedin_url.in_([msg_url, msg_url + "/"]),
-                )
-            )
-            contact = result.scalar_one_or_none()
+            contact = url_map.get(msg_url)
             if contact and not contact.linkedin_profile_id:
                 contact.linkedin_profile_id = msg.profile_id
+                profile_id_map[msg.profile_id] = contact
 
         if not contact and msg.profile_name:
-            # Try matching by full name (Voyager sends URN member ID, not slug)
-            result = await db.execute(
-                select(Contact).where(
-                    Contact.user_id == current_user.id,
-                    func.lower(Contact.full_name) == msg.profile_name.lower(),
-                ).limit(1)
-            )
-            contact = result.scalar_one_or_none()
+            contact = name_map.get(msg.profile_name.lower())
             if contact and not contact.linkedin_profile_id:
                 contact.linkedin_profile_id = msg.profile_id
+                profile_id_map[msg.profile_id] = contact
 
         if not contact:
             # Auto-create contact stub — split full name into given/family
@@ -249,6 +253,11 @@ async def push_linkedin_data(
             db.add(contact)
             await db.flush()
             contacts_created += 1
+            # Update in-memory maps
+            if msg.profile_id:
+                profile_id_map[msg.profile_id] = contact
+            if contact.full_name:
+                name_map[contact.full_name.lower()] = contact
 
         touched_contacts.append(contact)
 
@@ -310,7 +319,6 @@ async def push_linkedin_data(
     # Also include contacts not touched in this push but missing avatar
     # Include contacts with either slug-format profile_id OR a linkedin_url
     if len(backfill_needed) < 10:
-        from sqlalchemy import or_
         filters = [
             Contact.user_id == current_user.id,
             Contact.linkedin_profile_id.isnot(None),

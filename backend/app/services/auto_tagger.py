@@ -1,4 +1,4 @@
-"""AI-powered tag discovery and assignment using Anthropic Claude."""
+"""AI-powered tag discovery and assignment using OpenAI GPT (with Anthropic fallback)."""
 from __future__ import annotations
 
 import asyncio
@@ -10,7 +10,8 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "claude-haiku-4-5-20251001"
+# Prefer OpenAI, fallback to Anthropic
+_MODEL = "gpt-4o-mini"
 _BATCH_SIZE = 50
 
 # Reuse retry/semaphore patterns from event_classifier
@@ -18,6 +19,11 @@ _llm_semaphore = asyncio.Semaphore(5)
 _RETRY_MAX_ATTEMPTS = 3
 _RETRY_BASE_DELAY = 1.0
 _RETRY_BACKOFF_FACTOR = 2.0
+
+
+def _get_openai_client():
+    from openai import AsyncOpenAI
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def _get_anthropic_client():
@@ -41,7 +47,36 @@ def _parse_json_response(raw: str) -> Any:
         return None
 
 
-async def _call_with_retry(client, **kwargs) -> Any:
+async def _call_openai_with_retry(client, **kwargs) -> Any:
+    """Call OpenAI API with exponential backoff on transient errors."""
+    from openai import APIStatusError
+    import random
+
+    transient_codes = {429, 500, 503}
+    last_exc: Exception | None = None
+
+    for attempt in range(_RETRY_MAX_ATTEMPTS):
+        try:
+            return await asyncio.wait_for(
+                client.chat.completions.create(**kwargs),
+                timeout=60,
+            )
+        except APIStatusError as exc:
+            if exc.status_code not in transient_codes:
+                raise
+            last_exc = exc
+        except asyncio.TimeoutError as exc:
+            last_exc = exc
+
+        if attempt < _RETRY_MAX_ATTEMPTS - 1:
+            delay = _RETRY_BASE_DELAY * (_RETRY_BACKOFF_FACTOR ** attempt)
+            jitter = random.uniform(-0.5, 0.5)
+            await asyncio.sleep(max(0.0, delay + jitter))
+
+    raise last_exc  # type: ignore[misc]
+
+
+async def _call_anthropic_with_retry(client, **kwargs) -> Any:
     """Call Anthropic API with exponential backoff on transient errors."""
     from anthropic import APIStatusError
     import random
@@ -130,14 +165,15 @@ async def discover_taxonomy(
     Returns:
         Dict mapping category names to lists of tag strings.
     """
-    if not settings.ANTHROPIC_API_KEY:
-        logger.warning("discover_taxonomy: ANTHROPIC_API_KEY not configured.")
+    if not settings.OPENAI_API_KEY and not settings.ANTHROPIC_API_KEY:
+        logger.warning("discover_taxonomy: No AI provider configured.")
         return {}
 
     if not contacts_summary:
         return {}
 
-    client = _get_anthropic_client()
+    # Prefer OpenAI
+    use_openai = bool(settings.OPENAI_API_KEY)
 
     # Batch contacts
     batches: list[list[dict]] = []
@@ -185,13 +221,24 @@ async def discover_taxonomy(
 
         try:
             async with _llm_semaphore:
-                message = await _call_with_retry(
-                    client,
-                    model=_MODEL,
-                    max_tokens=2048,
-                    messages=[{"role": "user", "content": prompt}],
-                )
-            raw = message.content[0].text if message.content else ""
+                if use_openai:
+                    client = _get_openai_client()
+                    message = await _call_openai_with_retry(
+                        client,
+                        model=_MODEL,
+                        max_tokens=2048,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    raw = message.choices[0].message.content if message.choices else ""
+                else:
+                    client = _get_anthropic_client()
+                    message = await _call_anthropic_with_retry(
+                        client,
+                        model="claude-haiku-4-5-20251001",
+                        max_tokens=2048,
+                        messages=[{"role": "user", "content": prompt}],
+                    )
+                    raw = message.content[0].text if message.content else ""
             parsed = _parse_json_response(raw)
 
             if isinstance(parsed, dict):
@@ -222,8 +269,8 @@ async def deduplicate_taxonomy(
     - "VC/Investment" + "Venture Capital" → "Venture Capital"
     - Categories "Role/Expertise" + "Role" → "Role/Expertise"
     """
-    if not settings.ANTHROPIC_API_KEY:
-        logger.warning("deduplicate_taxonomy: ANTHROPIC_API_KEY not configured.")
+    if not settings.OPENAI_API_KEY and not settings.ANTHROPIC_API_KEY:
+        logger.warning("deduplicate_taxonomy: No AI provider configured.")
         return raw_taxonomy
 
     # Guard: skip if taxonomy is empty or small (≤10 tags total)
@@ -259,15 +306,26 @@ async def deduplicate_taxonomy(
     )
 
     try:
-        client = _get_anthropic_client()
+        use_openai = bool(settings.OPENAI_API_KEY)
         async with _llm_semaphore:
-            message = await _call_with_retry(
-                client,
-                model=_MODEL,
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
-            )
-        raw = message.content[0].text if message.content else ""
+            if use_openai:
+                client = _get_openai_client()
+                message = await _call_openai_with_retry(
+                    client,
+                    model=_MODEL,
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = message.choices[0].message.content if message.choices else ""
+            else:
+                client = _get_anthropic_client()
+                message = await _call_anthropic_with_retry(
+                    client,
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=4096,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = message.content[0].text if message.content else ""
         parsed = _parse_json_response(raw)
 
         if isinstance(parsed, dict) and all(
@@ -302,17 +360,18 @@ async def assign_tags(
     Args:
         contact_data: Dict with contact fields.
         taxonomy: The approved taxonomy (category -> tags).
-        client: Optional pre-created AsyncAnthropic client (reuse to avoid connection leaks).
+        client: Optional pre-created client (reuse to avoid connection leaks).
 
     Returns:
         List of tag strings to assign.
     """
-    if not settings.ANTHROPIC_API_KEY:
-        logger.warning("assign_tags: ANTHROPIC_API_KEY not configured.")
+    if not settings.OPENAI_API_KEY and not settings.ANTHROPIC_API_KEY:
+        logger.warning("assign_tags: No AI provider configured.")
         return []
 
+    use_openai = bool(settings.OPENAI_API_KEY)
     if client is None:
-        client = _get_anthropic_client()
+        client = _get_openai_client() if use_openai else _get_anthropic_client()
 
     # Flatten taxonomy for prompt
     taxonomy_lines = []
@@ -339,13 +398,22 @@ async def assign_tags(
 
     try:
         async with _llm_semaphore:
-            message = await _call_with_retry(
-                client,
-                model=_MODEL,
-                max_tokens=512,
-                messages=[{"role": "user", "content": prompt}],
-            )
-        raw = message.content[0].text if message.content else ""
+            if use_openai:
+                message = await _call_openai_with_retry(
+                    client,
+                    model=_MODEL,
+                    max_tokens=512,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = message.choices[0].message.content if message.choices else ""
+            else:
+                message = await _call_anthropic_with_retry(
+                    client,
+                    model="claude-haiku-4-5-20251001",
+                    max_tokens=512,
+                    messages=[{"role": "user", "content": prompt}],
+                )
+                raw = message.content[0].text if message.content else ""
         parsed = _parse_json_response(raw)
 
         if isinstance(parsed, dict):
@@ -369,7 +437,7 @@ async def assign_tags(
                 return result
         return []
     except Exception:
-        logger.exception("assign_tags: Anthropic API call failed.")
+        logger.exception("assign_tags: API call failed.")
         return []
 
 

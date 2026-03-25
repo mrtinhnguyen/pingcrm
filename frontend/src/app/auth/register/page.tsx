@@ -25,7 +25,7 @@ export default function RegisterPage() {
       const message =
         err instanceof Error
           ? err.message
-          : "Registration failed. Please try again.";
+          : "Đăng ký thất bại. Vui lòng thử lại.";
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -36,8 +36,8 @@ export default function RegisterPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600">Ping</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Create your account</p>
+          <h1 className="text-3xl font-bold text-blue-600">RealCRM</h1>
+          <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Tạo tài khoản của bạn</p>
         </div>
 
         <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
@@ -47,7 +47,7 @@ export default function RegisterPage() {
                 htmlFor="fullName"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
               >
-                Full name
+                Họ và tên
               </label>
               <input
                 id="fullName"
@@ -57,7 +57,7 @@ export default function RegisterPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="Jane Smith"
+                placeholder="Nguyễn Văn A"
               />
             </div>
 
@@ -85,7 +85,7 @@ export default function RegisterPage() {
                 htmlFor="password"
                 className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
               >
-                Password
+                Mật khẩu
               </label>
               <input
                 id="password"
@@ -110,15 +110,15 @@ export default function RegisterPage() {
               disabled={isSubmitting}
               className="w-full py-2.5 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
-              {isSubmitting ? "Creating account..." : "Create account"}
+              {isSubmitting ? "Đang tạo tài khoản..." : "Tạo tài khoản"}
             </button>
           </form>
         </div>
 
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-4">
-          Already have an account?{" "}
+          Đã có tài khoản?{" "}
           <Link href="/auth/login" className="text-blue-600 hover:underline">
-            Sign in
+            Đăng nhập
           </Link>
         </p>
       </div>

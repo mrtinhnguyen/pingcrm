@@ -8,7 +8,7 @@ title: Introduction
 
 An AI-powered personal networking CRM that helps you maintain professional relationships.
 
-**Upload your contacts, connect your accounts. Ping tells you who to reach out to and writes the message.**
+**Upload your contacts, connect your accounts. RealCRM tells you who to reach out to and writes the message.**
 
 ## What is RealCRM?
 
@@ -40,7 +40,7 @@ RealCRM is a single-player networking tool designed for professionals who want t
 ## Quick Start
 
 ```bash
-git clone https://github.com/sneg55/pingcrm.git
+git clone https://github.com/mrtinhnguyen/pingcrm.git
 cd pingcrm
 ```
 

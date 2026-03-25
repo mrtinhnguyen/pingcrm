@@ -74,7 +74,7 @@ const FEATURES = [
     ),
     title: "Weekly Digest",
     description:
-      "Every week: 3\u20135 people worth reaching out to, and why. Bio changes, job moves, long silences — nothing slips through. Need more? Ask Ping to surface additional contacts anytime.",
+      "Every week: 3\u20135 people worth reaching out to, and why. Bio changes, job moves, long silences — nothing slips through. Need more? Ask RealCRM to surface additional contacts anytime.",
   },
 ];
 
@@ -105,7 +105,7 @@ const STEPS = [
   {
     number: "02",
     label: "Monitor",
-    description: "Ping organizes your conversations, surfaces patterns, and flags when relationships need attention.",
+    description: "RealCRM organizes your conversations, surfaces patterns, and flags when relationships need attention.",
     visual: (
       <div className="flex items-end gap-1 justify-center h-10">
         {[3, 7, 5, 2, 6, 8, 4].map((h, i) => (
@@ -169,7 +169,7 @@ export default function LandingPage() {
             style={{ border: "1px solid var(--border-bright)", background: "var(--bg-elevated)" }}>
             <div className="glow-dot" style={{ width: "4px", height: "4px" }} />
             <span style={{ fontFamily: "'Space Mono', monospace", fontSize: "12px", color: "var(--text-muted)", letterSpacing: "0.05em" }}>
-              OPEN SOURCE &middot; SELF-HOSTABLE
+              NEW CRM GENERATE &mdash; AI-POWERED
             </span>
           </div>
 
@@ -190,7 +190,7 @@ export default function LandingPage() {
             </span>
             <br />
             <span className="text-4xl sm:text-5xl md:text-6xl" style={{ color: "var(--text-muted)", fontWeight: 400 }}>
-              Ping fixes that.
+              RealCRM fixes that.
             </span>
           </h1>
 
@@ -198,27 +198,13 @@ export default function LandingPage() {
             className="animate-fade-up delay-3 text-lg sm:text-xl leading-relaxed max-w-2xl mx-auto mb-10"
             style={{ color: "var(--text-muted)", fontFamily: "'Newsreader', Georgia, serif" }}
           >
-            Ping watches your relationships across Gmail, Telegram, Twitter, and LinkedIn — tells you{" "}
+            RealCRM watches your relationships across Gmail, Telegram, Twitter, and LinkedIn — tells you{" "}
             <em style={{ color: "var(--text)", fontStyle: "italic" }}>who&apos;s slipping away</em>, and{" "}
             <em style={{ color: "var(--text)", fontStyle: "italic" }}>writes the message</em> to bring them back.
           </p>
 
           <div className="animate-fade-up delay-4 flex flex-col sm:flex-row gap-4 justify-center items-center">
-            <a
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 hover:shadow-[0_0_24px_var(--accent-glow-strong)] hover:-translate-y-0.5"
-              style={{
-                fontFamily: "'Space Mono', monospace",
-                background: "linear-gradient(135deg, var(--accent-dim), var(--accent))",
-                color: "var(--bg)",
-                fontSize: "14px",
-              }}
-            >
-              <GitHubIcon size={18} />
-              Self-Host Now
-            </a>
+            
             <a
               href="#waitlist"
               className="flex items-center gap-2 px-6 py-3 rounded-lg text-sm tracking-wide transition-all duration-200 hover:border-[var(--border-bright)] hover:-translate-y-0.5"
@@ -230,7 +216,7 @@ export default function LandingPage() {
                 fontSize: "14px",
               }}
             >
-              Join Hosted Waitlist
+              Join Waitlist
             </a>
           </div>
 
@@ -251,13 +237,13 @@ export default function LandingPage() {
               className="text-xs tracking-[0.2em] uppercase mb-3"
               style={{ fontFamily: "'Space Mono', monospace", color: "var(--accent)" }}
             >
-              What Ping Does
+              What RealCRM Does
             </p>
             <h2
               className="text-3xl sm:text-4xl font-bold tracking-tight"
               style={{ fontFamily: "'Space Mono', monospace" }}
             >
-              Six ways Ping keeps your{" "}
+              Six ways RealCRM keeps your{" "}
               <span style={{ color: "var(--accent)" }}>network alive</span>
             </h2>
           </div>
@@ -342,62 +328,7 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
-
-      {/* ──── Open Source ──── */}
-      <section className="py-24 px-6 relative">
-        <div className="absolute inset-0 grid-bg grid-bg-fade opacity-20" />
-        <div className="relative max-w-3xl mx-auto text-center">
-          <div className="inline-flex mb-6">
-            <GitHubIcon size={48} />
-          </div>
-          <h2
-            className="text-3xl sm:text-4xl font-bold tracking-tight mb-4"
-            style={{ fontFamily: "'Space Mono', monospace" }}
-          >
-            Open source.{" "}
-            <span style={{ color: "var(--accent)" }}>Your data, your server.</span>
-          </h2>
-          <p className="text-lg leading-relaxed mb-8 max-w-xl mx-auto" style={{ color: "var(--text-muted)" }}>
-            RealCRM is fully open source. Self-host on your own infrastructure, audit every line of code, and own your relationship data completely.
-            No vendor lock-in, no data harvesting.
-          </p>
-
-          <div className="flex flex-wrap justify-center gap-2 mb-10">
-            {["Python", "FastAPI", "Next.js", "PostgreSQL", "Redis", "Claude AI"].map((tech) => (
-              <span
-                key={tech}
-                className="px-3 py-1 rounded text-xs"
-                style={{
-                  fontFamily: "'Space Mono', monospace",
-                  background: "var(--bg-surface)",
-                  border: "1px solid var(--border)",
-                  color: "var(--text-muted)",
-                  fontSize: "12px",
-                }}
-              >
-                {tech}
-              </span>
-            ))}
-          </div>
-
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2.5 px-6 py-3 rounded-lg text-sm font-bold tracking-wide transition-all duration-200 hover:border-[var(--text-muted)] hover:-translate-y-0.5"
-            style={{
-              fontFamily: "'Space Mono', monospace",
-              border: "1px solid var(--border-bright)",
-              background: "var(--bg-elevated)",
-              color: "var(--text)",
-              fontSize: "14px",
-            }}
-          >
-            <GitHubIcon size={18} />
-            Star on GitHub
-          </a>
-        </div>
-      </section>
+    
 
       <div className="glow-line mx-auto max-w-4xl" />
 

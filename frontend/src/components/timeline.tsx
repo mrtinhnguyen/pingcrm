@@ -93,7 +93,7 @@ export function Timeline({ interactions, onAddNote, contactName, className }: Ti
           <textarea
             className="w-full text-sm border border-stone-300 dark:border-stone-600 rounded-md p-2 resize-none focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500"
             rows={3}
-            placeholder="Write a note..."
+            placeholder="Viết ghi chú..."
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
           />

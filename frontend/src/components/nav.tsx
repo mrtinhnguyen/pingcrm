@@ -303,7 +303,7 @@ export function Nav() {
             className="flex items-center gap-2 text-lg font-display font-bold text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 transition-colors"
           >
             <LogoDot />
-            Ping
+            RealCRM
           </Link>
         </div>
 

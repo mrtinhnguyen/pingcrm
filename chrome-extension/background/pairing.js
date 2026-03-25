@@ -3,11 +3,11 @@
  *
  * Flow:
  *   1. User opens popup and sets their RealCRM instance URL.
- *   2. startPairing() generates a PING-XXXXXX code and starts polling the backend.
+ *   2. startPairing() generates a REALCRM-XXXXXX code and starts polling the backend.
  *   3. Backend marks the code as redeemed when the user visits Settings → Extensions.
  *   4. On 200, the token and apiUrl are persisted; polling stops automatically.
  *
- * Code format: "PING-" + 6 chars from an unambiguous alphanumeric charset.
+ * Code format: "REALCRM-" + 6 chars from an unambiguous alphanumeric charset.
  * Expiry: 10 minutes (backend enforces this; extension auto-regenerates on 410).
  *
  * Storage keys written:
@@ -17,7 +17,7 @@
 
 const PAIRING_CHARSET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"; // 31 chars, no O/0/I/1/L
 const PAIRING_CODE_LENGTH = 6;
-const PAIRING_PREFIX = "PING-";
+const PAIRING_PREFIX = "REALCRM-";
 const PAIRING_POLL_INTERVAL_MS = 3000;   // Poll every 3 seconds
 const PAIRING_EXPIRY_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -34,7 +34,7 @@ let _codeGeneratedAt = null;
  * The charset has 31 characters; we accept only values in [0, 31*8) = [0, 248)
  * so that each character maps to exactly 8 raw byte values.
  *
- * @returns {string} e.g. "PING-K7R2MQ"
+ * @returns {string} e.g. "REALCRM-K7R2MQ"
  */
 function generatePairingCode() {
   const charsetLen = PAIRING_CHARSET.length; // 31
@@ -76,7 +76,7 @@ async function getStoredApiUrl() {
  * Handles 200 (paired), 404 (pending), 410 (expired), 429 (skip cycle).
  *
  * @param {string} apiUrl - RealCRM backend base URL
- * @param {string} code   - Current pairing code, e.g. "PING-K7R2MQ"
+ * @param {string} code   - Current pairing code, e.g. "REALCRM-K7R2MQ"
  * @returns {Promise<"paired"|"pending"|"expired"|"rate_limited"|"error">}
  */
 async function _pollOnce(apiUrl, code) {

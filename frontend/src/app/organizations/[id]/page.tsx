@@ -180,7 +180,7 @@ function OrgNotesField({ value, onSave }: { value: string | null; onSave: (v: st
 
   return (
     <div className="group/field mt-4">
-      <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Notes</label>
+      <label className="mb-1 block text-xs font-medium text-zinc-500 dark:text-zinc-400">Ghi chú</label>
       {editing ? (
         <div className="space-y-2">
           <textarea
@@ -192,14 +192,14 @@ function OrgNotesField({ value, onSave }: { value: string | null; onSave: (v: st
             onKeyDown={(e) => { if (e.key === "Escape") cancel(); }}
           />
           <div className="flex items-center gap-2 justify-end">
-            <button onClick={cancel} className="px-2.5 py-1 text-xs font-medium rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">Cancel</button>
-            <button onClick={save} className="px-2.5 py-1 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700">Save</button>
+            <button onClick={cancel} className="px-2.5 py-1 text-xs font-medium rounded-md text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 border border-zinc-200 dark:border-zinc-700">Hủy</button>
+            <button onClick={save} className="px-2.5 py-1 text-xs font-medium rounded-md bg-teal-600 text-white hover:bg-teal-700">Lưu</button>
           </div>
         </div>
       ) : (
         <div className="flex items-start gap-1.5">
           <p className="text-sm text-zinc-600 dark:text-zinc-400 flex-1">
-            {value || <span className="italic text-zinc-400 dark:text-zinc-500">No notes</span>}
+            {value || <span className="italic text-zinc-400 dark:text-zinc-500">Chưa có ghi chú</span>}
           </p>
           <button
             onClick={() => { setDraft(value ?? ""); setEditing(true); }}
@@ -274,7 +274,7 @@ export default function OrganizationDetailPage() {
       const res = await client.GET("/api/v1/organizations/{org_id}" as any, {
         params: { path: { org_id: id } },
       });
-      if (res.error) throw new Error("Failed to load organization");
+      if (res.error) throw new Error("Tải tổ chức thất bại");
       return (res.data as any)?.data as OrganizationData;
     },
   });
@@ -320,7 +320,7 @@ export default function OrganizationDetailPage() {
   if (isLoading) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-zinc-500 dark:text-zinc-400">
-        Loading organization...
+        Đang tải tổ chức...
       </div>
     );
   }
@@ -328,7 +328,7 @@ export default function OrganizationDetailPage() {
   if (error || !data) {
     return (
       <div className="flex min-h-[50vh] items-center justify-center text-red-500">
-        Organization not found.
+        Không tìm thấy tổ chức.
       </div>
     );
   }
@@ -344,7 +344,7 @@ export default function OrganizationDetailPage() {
       <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
-            aria-label="Back to organizations"
+            aria-label="Quay lại danh sách tổ chức"
             onClick={() => router.push("/organizations")}
             className="rounded-md p-1 text-zinc-400 dark:text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-600 dark:hover:text-zinc-300"
           >
@@ -357,34 +357,34 @@ export default function OrganizationDetailPage() {
         </div>
 
         <button
-          aria-label="Delete organization"
+          aria-label="Xóa tổ chức"
           onClick={() => setShowDeleteModal(true)}
           className="rounded-md px-3 py-1.5 text-sm text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"
         >
-          <Trash2 className="mr-1 inline h-4 w-4" /> Delete
+          <Trash2 className="mr-1 inline h-4 w-4" /> Xóa
         </button>
       </div>
 
       {/* Stats Row */}
       <div className="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard icon={Users} label="Contacts" value={org.contact_count} />
-        <StatCard icon={BarChart3} label="Avg Score" value={org.avg_relationship_score} />
-        <StatCard icon={MessageSquare} label="Interactions" value={org.total_interactions} />
+        <StatCard icon={Users} label="Danh bạ" value={org.contact_count} />
+        <StatCard icon={BarChart3} label="Điểm TB" value={org.avg_relationship_score} />
+        <StatCard icon={MessageSquare} label="Tương tác" value={org.total_interactions} />
         <StatCard
           icon={Clock}
-          label="Last Activity"
-          value={org.last_interaction_at ? formatDistanceToNow(new Date(org.last_interaction_at), { addSuffix: true }) : "Never"}
+          label="Hoạt động cuối"
+          value={org.last_interaction_at ? formatDistanceToNow(new Date(org.last_interaction_at), { addSuffix: true }) : "Chưa có"}
         />
       </div>
 
       {/* Info Panel — inline editable */}
       <div className="mb-6 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5">
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-          Details
+          Chi tiết
         </h2>
         <div className="grid grid-cols-1 gap-1 sm:grid-cols-2">
           <OrgInlineField icon={Globe} label="Website" value={org.website ?? org.domain} onSave={(v) => saveField("website", v)} href={safeHref(org.website ?? org.domain)} />
-          <OrgInlineField icon={MapPin} label="Location" value={org.location} onSave={(v) => saveField("location", v)} />
+          <OrgInlineField icon={MapPin} label="Địa điểm" value={org.location} onSave={(v) => saveField("location", v)} />
           <OrgInlineField icon={Linkedin} label="LinkedIn" value={org.linkedin_url} onSave={(v) => saveField("linkedin_url", v)} href={safeHref(org.linkedin_url)} />
           <OrgInlineField icon={Twitter} label="Twitter" value={org.twitter_handle} onSave={(v) => saveField("twitter_handle", v)} href={org.twitter_handle ? (org.twitter_handle.startsWith("http") ? org.twitter_handle : `https://x.com/${org.twitter_handle.replace(/^@/, "")}`) : undefined} />
         </div>
@@ -397,17 +397,17 @@ export default function OrganizationDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="w-full max-w-sm rounded-xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 p-6 shadow-xl">
             <h3 className="mb-2 text-base font-semibold text-zinc-900 dark:text-zinc-100">
-              Delete organization?
+              Xóa tổ chức?
             </h3>
             <p className="mb-5 text-sm text-zinc-500 dark:text-zinc-400">
-              Contacts will be unlinked but not deleted. This action cannot be undone.
+              Danh bạ sẽ bị hủy liên kết nhưng không bị xóa. Hành động này không thể hoàn tác.
             </p>
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => setShowDeleteModal(false)}
                 className="rounded-md border border-zinc-200 dark:border-zinc-700 px-3 py-1.5 text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={() => {
@@ -417,7 +417,7 @@ export default function OrganizationDetailPage() {
                 disabled={deleteMutation.isPending}
                 className="rounded-md bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
-                {deleteMutation.isPending ? "Deleting…" : "Delete"}
+                {deleteMutation.isPending ? "Đang xóa…" : "Xóa"}
               </button>
             </div>
           </div>
@@ -428,10 +428,10 @@ export default function OrganizationDetailPage() {
       <div className="rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900">
         <div className="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 px-5 py-3">
           <h2 className="text-sm font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-            Contacts ({contacts.length})
+            Danh bạ ({contacts.length})
           </h2>
           <div className="flex items-center gap-1 text-xs">
-            <span className="text-zinc-400 dark:text-zinc-500">Sort:</span>
+            <span className="text-zinc-400 dark:text-zinc-500">Sắp xếp:</span>
             {(["score", "name", "recent"] as const).map((s) => (
               <button
                 key={s}
@@ -442,22 +442,22 @@ export default function OrganizationDetailPage() {
                     : "text-zinc-500 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
                 }`}
               >
-                {s === "score" ? "Score" : s === "name" ? "Name" : "Recent"}
+                {s === "score" ? "Điểm" : s === "name" ? "Tên" : "Gần đây"}
               </button>
             ))}
           </div>
         </div>
 
         {contacts.length === 0 ? (
-          <div className="px-5 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">No contacts in this organization.</div>
+          <div className="px-5 py-8 text-center text-sm text-zinc-400 dark:text-zinc-500">Chưa có danh bạ trong tổ chức này.</div>
         ) : (
           <table className="w-full">
             <thead>
               <tr className="border-b border-zinc-100 dark:border-zinc-800 text-left text-xs text-zinc-500 dark:text-zinc-400">
-                <th scope="col" className="px-5 py-2 font-medium">Name</th>
-                <th scope="col" className="px-5 py-2 font-medium">Title</th>
-                <th scope="col" className="px-5 py-2 font-medium text-center">Score</th>
-                <th scope="col" className="px-5 py-2 font-medium text-right">Last Interaction</th>
+                <th scope="col" className="px-5 py-2 font-medium">Tên</th>
+                <th scope="col" className="px-5 py-2 font-medium">Chức danh</th>
+                <th scope="col" className="px-5 py-2 font-medium text-center">Điểm</th>
+                <th scope="col" className="px-5 py-2 font-medium text-right">Tương tác cuối</th>
               </tr>
             </thead>
             <tbody>
@@ -476,7 +476,7 @@ export default function OrganizationDetailPage() {
                         name={contact.full_name ?? ""}
                         size="sm"
                       />
-                      {contact.full_name || "Unknown"}
+                      {contact.full_name || "Chưa rõ"}
                     </Link>
                   </td>
                   <td className="px-5 py-3 text-sm text-zinc-500 dark:text-zinc-400">
@@ -488,7 +488,7 @@ export default function OrganizationDetailPage() {
                   <td className="px-5 py-3 text-right text-sm text-zinc-500 dark:text-zinc-400">
                     {contact.last_interaction_at
                       ? formatDistanceToNow(new Date(contact.last_interaction_at), { addSuffix: true })
-                      : "Never"}
+                      : "Chưa có"}
                   </td>
                 </tr>
               ))}

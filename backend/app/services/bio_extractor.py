@@ -1,4 +1,4 @@
-"""AI-powered structured data extraction from contact bios using Claude Haiku."""
+"""AI-powered structured data extraction from contact bios using OpenAI GPT."""
 from __future__ import annotations
 
 import asyncio
@@ -11,10 +11,16 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-_MODEL = "claude-haiku-4-5-20251001"
+# Prefer OpenAI, fallback to Anthropic
+_MODEL = "gpt-4o-mini"
 _RETRY_MAX_ATTEMPTS = 3
 _RETRY_BASE_DELAY = 1.0
 _RETRY_BACKOFF_FACTOR = 2.0
+
+
+def _get_openai_client():
+    from openai import AsyncOpenAI
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def _get_anthropic_client():
@@ -38,7 +44,35 @@ def _parse_json_response(raw: str) -> Any:
         return None
 
 
-async def _call_with_retry(client, **kwargs) -> Any:
+async def _call_openai_with_retry(client, **kwargs) -> Any:
+    """Call OpenAI API with exponential backoff on transient errors."""
+    from openai import APIStatusError
+
+    transient_codes = {429, 500, 503}
+    last_exc: Exception | None = None
+
+    for attempt in range(_RETRY_MAX_ATTEMPTS):
+        try:
+            return await asyncio.wait_for(
+                client.chat.completions.create(**kwargs),
+                timeout=30,
+            )
+        except APIStatusError as exc:
+            if exc.status_code not in transient_codes:
+                raise
+            last_exc = exc
+        except asyncio.TimeoutError as exc:
+            last_exc = exc
+
+        if attempt < _RETRY_MAX_ATTEMPTS - 1:
+            delay = _RETRY_BASE_DELAY * (_RETRY_BACKOFF_FACTOR ** attempt)
+            jitter = random.uniform(-0.5, 0.5)
+            await asyncio.sleep(max(0.0, delay + jitter))
+
+    raise last_exc  # type: ignore[misc]
+
+
+async def _call_anthropic_with_retry(client, **kwargs) -> Any:
     """Call Anthropic API with exponential backoff on transient errors."""
     from anthropic import APIStatusError
 
@@ -137,15 +171,29 @@ Return JSON only, no explanation. Use exactly these keys (omit any that are empt
   "company_location": "city, country"
 }}"""
 
-    client = _get_anthropic_client()
-    response = await _call_with_retry(
-        client,
-        model=_MODEL,
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}],
-    )
+    # Prefer OpenAI, fallback to Anthropic
+    if settings.OPENAI_API_KEY:
+        client = _get_openai_client()
+        response = await _call_openai_with_retry(
+            client,
+            model=_MODEL,
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.choices[0].message.content
+    elif settings.ANTHROPIC_API_KEY:
+        client = _get_anthropic_client()
+        response = await _call_anthropic_with_retry(
+            client,
+            model="claude-haiku-4-5-20251001",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw = response.content[0].text
+    else:
+        logger.warning("extract_from_bios: No AI provider configured.")
+        return {}
 
-    raw = response.content[0].text
     parsed = _parse_json_response(raw)
     if not isinstance(parsed, dict):
         return {}

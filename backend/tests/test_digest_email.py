@@ -18,7 +18,7 @@ def test_format_date():
 
 def test_build_html_empty():
     html = _build_html("user@test.com", [])
-    assert "Ping" in html
+    assert "RealCRM" in html
     assert "weekly networking digest" in html
 
 
@@ -35,4 +35,4 @@ def test_build_html_with_items():
     html = _build_html("user@test.com", items)
     assert "Alice" in html
     assert "It's been a while" in html
-    assert "Open in Ping" in html
+    assert "Open in RealCRM" in html

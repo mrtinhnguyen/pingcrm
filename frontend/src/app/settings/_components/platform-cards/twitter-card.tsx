@@ -47,11 +47,11 @@ export function TwitterCard({
               <ConnectionBadge connected={connected.twitter} />
             </div>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-              Sync DMs, mentions, and bio changes from X.
+              Đồng bộ DM, mentions và thay đổi bio từ X.
             </p>
             {connected.twitter && connected.twitter_username && (
               <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">
-                Connected as <strong>@{connected.twitter_username}</strong>
+                Đã kết nối <strong>@{connected.twitter_username}</strong>
               </p>
             )}
           </div>
@@ -73,24 +73,24 @@ export function TwitterCard({
                     <RefreshCw className="w-3.5 h-3.5" />
                   )}
                   {twitterSync.status === "loading"
-                    ? "Syncing..."
+                    ? "Đang đồng bộ..."
                     : twitterSync.status === "success"
-                    ? "Done"
-                    : "Sync now"}
+                    ? "Xong"
+                    : "Đồng bộ ngay"}
                 </button>
               </SyncButtonWrapper>
               <KebabMenu
                 items={[
-                  { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
+                  { icon: Settings, label: "Cài đặt đồng bộ", onClick: () => setShowSyncSettings(true) },
                   {
                     icon: Key,
-                    label: "Re-authorize",
+                    label: "Cấp quyền lại",
                     onClick: () => void handleTwitterConnect(),
                   },
-                  { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
+                  { icon: History, label: "Lịch sử đồng bộ", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
-                  { icon: Unplug, label: "Disconnect Twitter", danger: true, onClick: async () => {
-                    if (confirm("Disconnect Twitter? Your synced messages will be kept but no new data will sync.")) {
+                  { icon: Unplug, label: "Ngắt kết nối Twitter", danger: true, onClick: async () => {
+                    if (confirm("Ngắt kết nối Twitter? Tin nhắn đã đồng bộ sẽ được giữ lại nhưng không có dữ liệu mới.")) {
                       await client.DELETE("/api/v1/auth/twitter/disconnect" as any, {});
                       window.location.reload();
                     }
@@ -109,7 +109,7 @@ export function TwitterCard({
               ) : (
                 <Link2 className="w-3.5 h-3.5" />
               )}
-              Connect
+              Kết nối
             </button>
           )}
         </div>

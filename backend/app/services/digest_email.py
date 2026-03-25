@@ -56,7 +56,7 @@ def _build_html(user_email: str, items: list[dict]) -> str:
                style="display: inline-block; margin-top: 8px; padding: 8px 16px;
                        background: #6366f1; color: #ffffff; text-decoration: none;
                        border-radius: 6px; font-size: 13px; font-weight: 500;">
-              Open in Ping
+              Open in RealCRM &rarr;
             </a>
           </td>
         </tr>"""
@@ -66,7 +66,7 @@ def _build_html(user_email: str, items: list[dict]) -> str:
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Ping: Your weekly networking digest</title>
+  <title>RealCRM: Your weekly networking digest</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">
   <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f3f4f6; padding: 32px 16px;">
@@ -81,10 +81,10 @@ def _build_html(user_email: str, items: list[dict]) -> str:
             <td style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
                         padding: 32px 40px; text-align: center;">
               <p style="margin: 0 0 8px 0; font-size: 28px; font-weight: 700; color: #ffffff;">
-                Ping
+                RealCRM
               </p>
               <p style="margin: 0; font-size: 16px; color: #e0e7ff;">
-                Your weekly networking digest
+                Your weekly networking digest for RealCRM &rarr;
               </p>
             </td>
           </tr>
@@ -185,7 +185,7 @@ async def send_weekly_digest(user_id: uuid.UUID, db: AsyncSession) -> dict:
             }
         )
 
-    subject = "Ping: Your weekly networking digest"
+    subject = "RealCRM: Your weekly networking digest"
     html = _build_html(user_email, items)
 
     # MVP: log instead of sending via SMTP

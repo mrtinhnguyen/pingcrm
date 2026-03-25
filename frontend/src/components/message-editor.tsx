@@ -193,7 +193,7 @@ export function MessageEditor({
             "w-full text-sm border rounded-md p-3 resize-none focus:outline-none focus:ring-2 focus:ring-blue-400 transition-colors bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500 min-h-[120px]",
             isOverLimit ? "border-red-300 dark:border-red-700" : "border-gray-300 dark:border-stone-600"
           )}
-          placeholder="Write a message..."
+          placeholder="Viết tin nhắn..."
         />
         <span
           className={cn(

@@ -73,11 +73,11 @@ export function TelegramCard({
                 <ConnectionBadge connected={connected.telegram} />
               </div>
               <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                Chat history and contact sync via MTProto session.
+                Lịch sử chat và đồng bộ danh bạ qua MTProto.
               </p>
               {connected.telegram && connected.telegram_username && (
                 <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">
-                  Connected as <strong>@{connected.telegram_username}</strong>
+                  Đã kết nối <strong>@{connected.telegram_username}</strong>
                 </p>
               )}
             </div>
@@ -99,25 +99,25 @@ export function TelegramCard({
                       <RefreshCw className="w-3.5 h-3.5" />
                     )}
                     {telegramSync.status === "loading"
-                      ? "Syncing..."
+                      ? "Đang đồng bộ..."
                       : telegramSync.status === "success"
-                      ? "Done"
-                      : "Sync now"}
+                      ? "Xong"
+                      : "Đồng bộ ngay"}
                   </button>
                 </SyncButtonWrapper>
                 <KebabMenu
                   items={[
-                    { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
-                    { icon: RotateCcw, label: "Reset session", onClick: async () => {
-                      if (confirm("Reset your Telegram session? You'll need to re-enter your phone number and code.")) {
+                    { icon: Settings, label: "Cài đặt đồng bộ", onClick: () => setShowSyncSettings(true) },
+                    { icon: RotateCcw, label: "Đặt lại phiên", onClick: async () => {
+                      if (confirm("Đặt lại phiên Telegram? Bạn sẽ cần nhập lại số điện thoại và mã.")) {
                         await client.POST("/api/v1/auth/telegram/reset-session" as any, {});
                         window.location.reload();
                       }
                     }},
-                    { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
+                    { icon: History, label: "Lịch sử đồng bộ", onClick: () => setShowSyncHistory(true) },
                     { icon: Unplug, label: "---" },
-                    { icon: Unplug, label: "Disconnect Telegram", danger: true, onClick: async () => {
-                      if (confirm("Disconnect Telegram? Your synced messages will be kept but no new data will sync.")) {
+                    { icon: Unplug, label: "Ngắt kết nối Telegram", danger: true, onClick: async () => {
+                      if (confirm("Ngắt kết nối Telegram? Tin nhắn đã đồng bộ sẽ được giữ lại nhưng không có dữ liệu mới.")) {
                         await client.DELETE("/api/v1/auth/telegram/disconnect" as any, {});
                         window.location.reload();
                       }
@@ -131,7 +131,7 @@ export function TelegramCard({
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
               >
                 <Link2 className="w-3.5 h-3.5" />
-                Connect
+                Kết nối
               </button>
             )}
           </div>
@@ -179,10 +179,10 @@ export function TelegramCard({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
           <div className="bg-white dark:bg-stone-900 rounded-xl p-6 w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">Connect Telegram</h3>
+              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">Kết nối Telegram</h3>
               <button
                 onClick={closeTelegramModal}
-                aria-label="Close"
+                aria-label="Đóng"
                 className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300"
               >
                 <X className="w-5 h-5" />
@@ -195,7 +195,7 @@ export function TelegramCard({
                   htmlFor="telegram-phone"
                   className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1"
                 >
-                  Phone number
+                  Số điện thoại
                 </label>
                 <input
                   id="telegram-phone"
@@ -210,14 +210,14 @@ export function TelegramCard({
                     onClick={closeTelegramModal}
                     className="flex-1 px-3 py-2 text-sm rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
                   >
-                    Cancel
+                    Hủy
                   </button>
                   <button
                     onClick={() => void handleTelegramSendCode()}
                     disabled={!telegramPhone.trim() || telegramConnect.status === "loading"}
                     className="flex-1 px-3 py-2 text-sm rounded-lg bg-teal-600 text-white font-medium hover:bg-teal-700 disabled:opacity-50"
                   >
-                    {telegramConnect.status === "loading" ? "Sending..." : "Send code"}
+                    {telegramConnect.status === "loading" ? "Đang gửi..." : "Gửi mã"}
                   </button>
                 </div>
               </>
@@ -229,7 +229,7 @@ export function TelegramCard({
                   htmlFor="telegram-code"
                   className="block text-sm text-stone-500 dark:text-stone-400 mb-3"
                 >
-                  Enter the code sent to your Telegram app.
+                  Nhập mã được gửi đến ứng dụng Telegram của bạn.
                 </label>
                 <input
                   id="telegram-code"
@@ -244,14 +244,14 @@ export function TelegramCard({
                     onClick={closeTelegramModal}
                     className="flex-1 px-3 py-2 text-sm rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
                   >
-                    Cancel
+                    Hủy
                   </button>
                   <button
                     onClick={() => void handleTelegramVerify()}
                     disabled={!telegramCode.trim() || telegramConnect.status === "loading"}
                     className="flex-1 px-3 py-2 text-sm rounded-lg bg-teal-600 text-white font-medium hover:bg-teal-700 disabled:opacity-50"
                   >
-                    {telegramConnect.status === "loading" ? "Verifying..." : "Verify"}
+                    {telegramConnect.status === "loading" ? "Đang xác minh..." : "Xác minh"}
                   </button>
                 </div>
               </>
@@ -263,14 +263,14 @@ export function TelegramCard({
                   htmlFor="telegram-password"
                   className="block text-sm text-stone-500 dark:text-stone-400 mb-3"
                 >
-                  Your account has two-step verification. Enter your Telegram password.
+                  Tài khoản của bạn có xác thực hai bước. Nhập mật khẩu Telegram của bạn.
                 </label>
                 <input
                   id="telegram-password"
                   type="password"
                   value={telegramPassword}
                   onChange={(e) => setTelegramPassword(e.target.value)}
-                  placeholder="Telegram password"
+                  placeholder="Mật khẩu Telegram"
                   className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-sm mb-4 focus:outline-none focus:ring-2 focus:ring-teal-400"
                 />
                 <div className="flex gap-2">
@@ -278,7 +278,7 @@ export function TelegramCard({
                     onClick={closeTelegramModal}
                     className="flex-1 px-3 py-2 text-sm rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
                   >
-                    Cancel
+                    Hủy
                   </button>
                   <button
                     onClick={() => void handleTelegram2FA()}
@@ -287,7 +287,7 @@ export function TelegramCard({
                     }
                     className="flex-1 px-3 py-2 text-sm rounded-lg bg-teal-600 text-white font-medium hover:bg-teal-700 disabled:opacity-50"
                   >
-                    {telegramConnect.status === "loading" ? "Verifying..." : "Submit"}
+                    {telegramConnect.status === "loading" ? "Đang xác minh..." : "Gửi"}
                   </button>
                 </div>
               </>

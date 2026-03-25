@@ -391,10 +391,10 @@ export default function DashboardPage() {
             <div className="w-16 h-16 rounded-full bg-teal-50 dark:bg-teal-950 flex items-center justify-center mx-auto mb-4">
               <Users className="w-8 h-8 text-teal-400" />
             </div>
-            <h2 className="text-lg font-display font-bold text-stone-900 dark:text-stone-100 mb-2">Chào mừng đến với Ping!</h2>
+            <h2 className="text-lg font-display font-bold text-stone-900 dark:text-stone-100 mb-2">Chào mừng đến với RealCRM!</h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-6 max-w-md mx-auto">
               Bắt đầu bằng cách kết nối tài khoản hoặc nhập danh bạ.
-              Ping sẽ giúp bạn duy trì các mối quan hệ.
+              RealCRM sẽ giúp bạn duy trì các mối quan hệ.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link

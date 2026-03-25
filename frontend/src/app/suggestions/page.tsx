@@ -416,7 +416,7 @@ export default function SuggestionsPage() {
             </div>
             <h2 className="text-lg font-bold text-stone-900 dark:text-stone-100 mb-2">No pending suggestions</h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-6">
-              Generate new suggestions to get started, or check back later — Ping runs analysis daily.
+              Generate new suggestions to get started, or check back later — RealCRM runs analysis daily.
             </p>
             <button
               onClick={() => { setToastDismissed(false); generateSuggestions.mutate(); }}

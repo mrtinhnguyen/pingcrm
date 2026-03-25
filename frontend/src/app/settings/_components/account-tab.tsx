@@ -41,13 +41,13 @@ export function AccountTab() {
         body: { full_name: displayName },
       });
       if (error) {
-        setProfileMsg({ type: "error", text: (error as any)?.detail || "Failed to save" });
+        setProfileMsg({ type: "error", text: (error as any)?.detail || "Lưu thất bại" });
       } else {
-        setProfileMsg({ type: "success", text: "Profile updated" });
+        setProfileMsg({ type: "success", text: "Đã cập nhật hồ sơ" });
         setTimeout(() => setProfileMsg(null), 3000);
       }
     } catch {
-      setProfileMsg({ type: "error", text: "Failed to save profile" });
+      setProfileMsg({ type: "error", text: "Lưu hồ sơ thất bại" });
     } finally {
       setSavingProfile(false);
     }
@@ -56,11 +56,11 @@ export function AccountTab() {
   const handleChangePassword = async () => {
     setPwMsg(null);
     if (newPw !== confirmPw) {
-      setPwMsg({ type: "error", text: "New passwords don't match" });
+      setPwMsg({ type: "error", text: "Mật khẩu mới không khớp" });
       return;
     }
     if (newPw.length < 8) {
-      setPwMsg({ type: "error", text: "Password must be at least 8 characters" });
+      setPwMsg({ type: "error", text: "Mật khẩu phải có ít nhất 8 ký tự" });
       return;
     }
     setSavingPw(true);
@@ -69,16 +69,16 @@ export function AccountTab() {
         body: { current_password: currentPw, new_password: newPw },
       });
       if (error) {
-        setPwMsg({ type: "error", text: (error as any)?.detail || "Failed to change password" });
+        setPwMsg({ type: "error", text: (error as any)?.detail || "Đổi mật khẩu thất bại" });
       } else {
-        setPwMsg({ type: "success", text: "Password updated" });
+        setPwMsg({ type: "success", text: "Đã cập nhật mật khẩu" });
         setCurrentPw("");
         setNewPw("");
         setConfirmPw("");
         setTimeout(() => setPwMsg(null), 3000);
       }
     } catch {
-      setPwMsg({ type: "error", text: "Failed to change password" });
+      setPwMsg({ type: "error", text: "Đổi mật khẩu thất bại" });
     } finally {
       setSavingPw(false);
     }
@@ -147,28 +147,28 @@ export function AccountTab() {
             disabled={savingProfile}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
           >
-            {savingProfile ? "Saving..." : "Save profile"}
+            {savingProfile ? "Đang lưu..." : "Lưu hồ sơ"}
           </button>
         </div>
       </div>
 
       {/* Change Password */}
       <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5">
-        <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-1">Change Password</h3>
-        <p className="text-xs text-stone-500 dark:text-stone-400 mb-5">Update your account password.</p>
+        <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100 mb-1">Đổi mật khẩu</h3>
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-5">Cập nhật mật khẩu tài khoản của bạn.</p>
 
         <div className="space-y-3 max-w-sm">
           <div>
-            <label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">Current password</label>
-            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Enter current password" className="w-full text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2.5 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 dark:placeholder:text-stone-600" />
+            <label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">Mật khẩu hiện tại</label>
+            <input type="password" value={currentPw} onChange={(e) => setCurrentPw(e.target.value)} placeholder="Nhập mật khẩu hiện tại" className="w-full text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2.5 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 dark:placeholder:text-stone-600" />
           </div>
           <div>
-            <label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">New password</label>
-            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="Enter new password" className="w-full text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2.5 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 dark:placeholder:text-stone-600" />
+            <label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">Mật khẩu mới</label>
+            <input type="password" value={newPw} onChange={(e) => setNewPw(e.target.value)} placeholder="Nhập mật khẩu mới" className="w-full text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2.5 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 dark:placeholder:text-stone-600" />
           </div>
           <div>
-            <label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">Confirm new password</label>
-            <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Confirm new password" className="w-full text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2.5 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 dark:placeholder:text-stone-600" />
+            <label className="text-xs font-medium text-stone-500 dark:text-stone-400 mb-1 block">Xác nhận mật khẩu mới</label>
+            <input type="password" value={confirmPw} onChange={(e) => setConfirmPw(e.target.value)} placeholder="Xác nhận mật khẩu mới" className="w-full text-sm border border-stone-200 dark:border-stone-700 rounded-lg px-3 py-2.5 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-300 dark:placeholder:text-stone-600" />
           </div>
         </div>
 
@@ -184,7 +184,7 @@ export function AccountTab() {
             disabled={savingPw || !currentPw || !newPw || !confirmPw}
             className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm disabled:opacity-50"
           >
-            {savingPw ? "Updating..." : "Update password"}
+            {savingPw ? "Đang cập nhật..." : "Cập nhật mật khẩu"}
           </button>
         </div>
       </div>
@@ -193,33 +193,33 @@ export function AccountTab() {
       <div className="bg-white dark:bg-stone-900 rounded-xl border border-red-200 dark:border-red-800 p-5">
         <div className="flex items-center gap-2 mb-1">
           <AlertTriangle className="w-4 h-4 text-red-500" />
-          <h3 className="text-sm font-semibold text-red-700 dark:text-red-400">Danger Zone</h3>
+          <h3 className="text-sm font-semibold text-red-700 dark:text-red-400">Vùng nguy hiểm</h3>
         </div>
-        <p className="text-xs text-stone-500 dark:text-stone-400 mb-5">Irreversible actions. Proceed with caution.</p>
+        <p className="text-xs text-stone-500 dark:text-stone-400 mb-5">Hành động không thể hoàn tác. Hãy cẩn thận.</p>
 
         <div className="space-y-4">
           <div className="flex items-center justify-between p-4 border border-stone-200 dark:border-stone-700 rounded-lg">
             <div>
-              <p className="text-sm font-medium text-stone-700 dark:text-stone-300">Export all data</p>
-              <p className="text-xs text-stone-400 dark:text-stone-500">Download all your contacts, interactions, and notes</p>
+              <p className="text-sm font-medium text-stone-700 dark:text-stone-300">Xuất tất cả dữ liệu</p>
+              <p className="text-xs text-stone-400 dark:text-stone-500">Tải xuống tất cả danh bạ, tương tác và ghi chú của bạn</p>
             </div>
             <button
               onClick={() => alert("Data export is coming soon.")}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
             >
-              <Download className="w-3.5 h-3.5" /> Export
+              <Download className="w-3.5 h-3.5" /> Xuất
             </button>
           </div>
           <div className="flex items-center justify-between p-4 border border-red-200 dark:border-red-800 rounded-lg bg-red-50/50 dark:bg-red-950/50">
             <div>
-              <p className="text-sm font-medium text-red-700 dark:text-red-400">Delete account</p>
-              <p className="text-xs text-red-500/80 dark:text-red-400/80">Permanently delete your account and all data. This cannot be undone.</p>
+              <p className="text-sm font-medium text-red-700 dark:text-red-400">Xóa tài khoản</p>
+              <p className="text-xs text-red-500/80 dark:text-red-400/80">Xóa vĩnh viễn tài khoản và tất cả dữ liệu. Không thể hoàn tác.</p>
             </div>
             <button
               onClick={() => setShowDeleteConfirm(true)}
               className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg bg-red-600 text-white hover:bg-red-700 transition-colors"
             >
-              <Trash2 className="w-3.5 h-3.5" /> Delete account
+              <Trash2 className="w-3.5 h-3.5" /> Xóa tài khoản
             </button>
           </div>
         </div>
@@ -234,17 +234,17 @@ export function AccountTab() {
                 <AlertTriangle className="w-5 h-5 text-red-600 dark:text-red-400" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">Delete your account?</h3>
-                <p className="text-sm text-stone-500 dark:text-stone-400">This cannot be undone.</p>
+                <h3 className="text-base font-semibold text-stone-900 dark:text-stone-100">Xóa tài khoản của bạn?</h3>
+                <p className="text-sm text-stone-500 dark:text-stone-400">Không thể hoàn tác.</p>
               </div>
             </div>
             <p className="text-sm text-stone-600 dark:text-stone-300 mb-5">
-              All your contacts, interactions, suggestions, and connected accounts will be permanently deleted.
+              Tất cả danh bạ, tương tác, gợi ý và tài khoản đã kết nối của bạn sẽ bị xóa vĩnh viễn.
             </p>
             <div className="flex gap-2">
-              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-3 py-2 text-sm rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800">Cancel</button>
+              <button onClick={() => setShowDeleteConfirm(false)} className="flex-1 px-3 py-2 text-sm rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800">Hủy</button>
               <button onClick={() => void handleDeleteAccount()} disabled={deleting} className="flex-1 px-3 py-2 text-sm rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 disabled:opacity-50">
-                {deleting ? "Deleting..." : "Delete everything"}
+                {deleting ? "Đang xóa..." : "Xóa tất cả"}
               </button>
             </div>
           </div>

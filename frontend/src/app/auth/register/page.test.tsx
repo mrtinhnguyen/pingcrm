@@ -48,7 +48,7 @@ describe("RegisterPage", () => {
 
   it("shows app name", () => {
     render(<RegisterPage />);
-    expect(screen.getByText("Ping")).toBeInTheDocument();
+    expect(screen.getByText("RealCRM")).toBeInTheDocument();
   });
 
   it("calls register with correct args and redirects on success", async () => {

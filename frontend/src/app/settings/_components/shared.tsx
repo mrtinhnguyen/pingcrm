@@ -166,7 +166,7 @@ export function SyncResultPanel({
         </div>
       )}
       {!hasStats && !hasErrors && status === "error" && (
-        <p className="text-red-600 dark:text-red-400">{details.message || "Sync failed"}</p>
+        <p className="text-red-600 dark:text-red-400">{details.message || "Đồng bộ thất bại"}</p>
       )}
     </div>
   );
@@ -174,11 +174,11 @@ export function SyncResultPanel({
 
 /* ── Telegram sync progress card ── */
 const PHASE_LABELS: Record<string, string> = {
-  chats: "Collecting dialogs...",
-  messages: "Syncing messages...",
-  groups: "Scanning groups...",
-  bios: "Checking bios...",
-  done: "Done!",
+  chats: "Đang thu thập hội thoại...",
+  messages: "Đang đồng bộ tin nhắn...",
+  groups: "Đang quét nhóm...",
+  bios: "Đang kiểm tra tiểu sử...",
+  done: "Hoàn tất!",
 };
 
 export function TelegramSyncProgressCard({

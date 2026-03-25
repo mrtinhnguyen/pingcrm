@@ -478,7 +478,7 @@ function MiniNav({ activeScreen }: { activeScreen: number }) {
       <div className="flex items-center gap-1.5">
         <div className="glow-dot" style={{ width: "5px", height: "5px" }} />
         <span className="text-xs font-bold" style={{ fontFamily: "'Space Mono', monospace", color: "var(--accent)" }}>
-          Ping
+          RealCRM
         </span>
       </div>
       <div className="flex gap-3">

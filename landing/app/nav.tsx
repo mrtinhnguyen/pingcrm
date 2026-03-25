@@ -1,6 +1,6 @@
 "use client";
 
-const GITHUB_URL = "https://github.com/sneg55/pingcrm";
+const GITHUB_URL = "https://github.com/mrtinhnguyen/pingcrm";
 
 function GitHubIcon({ size = 20 }: { size?: number }) {
   return (
@@ -31,7 +31,7 @@ function PingLogo() {
         className="text-lg font-bold tracking-tight"
         style={{ fontFamily: "'Space Mono', monospace", color: "var(--text)" }}
       >
-        Ping<span style={{ color: "var(--accent)" }}>CRM</span>
+        Real<span style={{ color: "var(--accent)" }}>CRM</span>
       </span>
     </div>
   );
@@ -47,23 +47,13 @@ export function Nav() {
         <PingLogo />
         <div className="flex items-center gap-6">
           <a
-            href="https://docs.pingcrm.xyz/"
+            href="https://docs.realcrm.vn/"
             target="_blank"
             rel="noopener noreferrer"
             className="text-sm transition-colors duration-200 hover:!text-[var(--text)]"
             style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-muted)", fontSize: "13px" }}
           >
             Docs
-          </a>
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-2 text-sm transition-colors duration-200 hover:!text-[var(--text)]"
-            style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-muted)", fontSize: "13px" }}
-          >
-            <GitHubIcon size={16} />
-            Star
           </a>
           <a
             href="#waitlist"
@@ -91,7 +81,7 @@ export function Footer() {
         <div className="flex items-center gap-6">
           {[
             { label: "GitHub", href: GITHUB_URL, external: true },
-            { label: "Docs", href: "https://docs.pingcrm.xyz/", external: true },
+            { label: "Docs", href: "https://docs.realcrm.vn/", external: true },
             { label: "Waitlist", href: "#waitlist", external: false },
           ].map((link) => (
             <a
@@ -109,13 +99,13 @@ export function Footer() {
         <p className="text-xs" style={{ fontFamily: "'Space Mono', monospace", color: "var(--text-dim)" }}>
           Built by{" "}
           <a
-            href="https://sawinyh.com"
+            href="https://tonyx.dev"
             target="_blank"
             rel="noopener noreferrer"
             className="transition-colors duration-200 hover:!text-[var(--text)]"
             style={{ color: "var(--accent)", textDecoration: "none" }}
           >
-            Sawinyh.com
+            Tony Tinh
           </a>
         </p>
       </div>

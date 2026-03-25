@@ -91,7 +91,7 @@ function TagsPills({
                 setDraft("");
               }
             }}
-            placeholder="Tag name..."
+            placeholder="Tên thẻ..."
             className="text-[11px] border border-teal-300 dark:border-teal-700 rounded-full px-2 py-0.5 w-24 focus:outline-none focus:ring-1 focus:ring-teal-400 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100"
             list="tag-suggestions"
           />

@@ -208,7 +208,7 @@ export function EditableListField({
               }}
               onBlur={handleSave}
               className="w-full text-sm border border-gray-300 dark:border-stone-600 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500"
-              placeholder="Comma-separated values"
+              placeholder="Các giá trị phân cách bằng dấu phẩy"
             />
           </div>
         ) : (

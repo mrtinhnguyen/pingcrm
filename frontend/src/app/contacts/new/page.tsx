@@ -62,14 +62,14 @@ export default function NewContactPage() {
           </Link>
           <span className="text-sm text-gray-500 dark:text-stone-400">
             <Link href="/contacts" className="hover:underline">
-              Contacts
+              Danh bạ
             </Link>{" "}
-            / New contact
+            / Thêm danh bạ
           </span>
         </div>
 
         <div className="bg-white dark:bg-stone-900 rounded-xl border border-gray-200 dark:border-stone-700 p-6 shadow-sm">
-          <h1 className="text-xl font-bold text-gray-900 dark:text-stone-100 mb-6">Add contact</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-stone-100 mb-6">Thêm danh bạ</h1>
 
           <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
             <div>
@@ -77,7 +77,7 @@ export default function NewContactPage() {
                 htmlFor="fullName"
                 className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
               >
-                Full name <span className="text-red-500">*</span>
+                Họ và tên <span className="text-red-500">*</span>
               </label>
               <input
                 id="fullName"
@@ -86,7 +86,7 @@ export default function NewContactPage() {
                 value={fullName}
                 onChange={(e) => setFullName(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-stone-800 text-gray-900 dark:text-stone-100 placeholder:text-gray-400 dark:placeholder:text-stone-500"
-                placeholder="Jane Smith"
+                placeholder="Nguyễn Văn A"
               />
             </div>
 
@@ -104,7 +104,7 @@ export default function NewContactPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-stone-800 text-gray-900 dark:text-stone-100 placeholder:text-gray-400 dark:placeholder:text-stone-500"
-                  placeholder="jane@example.com"
+                  placeholder="nguyenvana@example.com"
                 />
               </div>
 
@@ -113,7 +113,7 @@ export default function NewContactPage() {
                   htmlFor="phone"
                   className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
                 >
-                  Phone
+                  Điện thoại
                 </label>
                 <input
                   id="phone"
@@ -121,7 +121,7 @@ export default function NewContactPage() {
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-stone-800 text-gray-900 dark:text-stone-100 placeholder:text-gray-400 dark:placeholder:text-stone-500"
-                  placeholder="+1 555 000 0000"
+                  placeholder="+84 912 345 678"
                 />
               </div>
             </div>
@@ -132,7 +132,7 @@ export default function NewContactPage() {
                   htmlFor="company"
                   className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
                 >
-                  Company
+                  Công ty
                 </label>
                 <input
                   id="company"
@@ -140,7 +140,7 @@ export default function NewContactPage() {
                   value={company}
                   onChange={(e) => setCompany(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-stone-800 text-gray-900 dark:text-stone-100 placeholder:text-gray-400 dark:placeholder:text-stone-500"
-                  placeholder="Acme Corp"
+                  placeholder="Công ty ABC"
                 />
               </div>
 
@@ -149,7 +149,7 @@ export default function NewContactPage() {
                   htmlFor="title"
                   className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
                 >
-                  Title
+                  Chức danh
                 </label>
                 <input
                   id="title"
@@ -157,7 +157,7 @@ export default function NewContactPage() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-stone-800 text-gray-900 dark:text-stone-100 placeholder:text-gray-400 dark:placeholder:text-stone-500"
-                  placeholder="Software Engineer"
+                  placeholder="Giám đốc kinh doanh"
                 />
               </div>
             </div>
@@ -168,7 +168,7 @@ export default function NewContactPage() {
                   htmlFor="twitterHandle"
                   className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
                 >
-                  Twitter handle
+                  Twitter
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-stone-500 text-sm">
@@ -190,7 +190,7 @@ export default function NewContactPage() {
                   htmlFor="telegramUsername"
                   className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
                 >
-                  Telegram username
+                  Telegram
                 </label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-stone-500 text-sm">
@@ -213,7 +213,7 @@ export default function NewContactPage() {
                 htmlFor="tags"
                 className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
               >
-                Tags
+                Thẻ
               </label>
               <input
                 id="tags"
@@ -221,7 +221,7 @@ export default function NewContactPage() {
                 value={tags}
                 onChange={(e) => setTags(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 bg-white dark:bg-stone-800 text-gray-900 dark:text-stone-100 placeholder:text-gray-400 dark:placeholder:text-stone-500"
-                placeholder="investor, advisor, customer (comma-separated)"
+                placeholder="nhà đầu tư, cố vấn, khách hàng (phân cách bằng dấu phẩy)"
               />
             </div>
 
@@ -230,7 +230,7 @@ export default function NewContactPage() {
                 htmlFor="notes"
                 className="block text-sm font-medium text-gray-700 dark:text-stone-300 mb-1"
               >
-                Notes
+                Ghi chú
               </label>
               <textarea
                 id="notes"
@@ -238,7 +238,7 @@ export default function NewContactPage() {
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none bg-white dark:bg-stone-800 text-gray-900 dark:text-stone-100 placeholder:text-gray-400 dark:placeholder:text-stone-500"
-                placeholder="Any additional information about this contact..."
+                placeholder="Thông tin bổ sung về danh bạ này..."
               />
             </div>
 
@@ -253,14 +253,14 @@ export default function NewContactPage() {
                 href="/contacts"
                 className="px-4 py-2 rounded-lg border border-gray-300 dark:border-stone-700 text-sm text-gray-600 dark:text-stone-300 hover:bg-gray-50 dark:hover:bg-stone-800 transition-colors"
               >
-                Cancel
+                Hủy
               </Link>
               <button
                 type="submit"
                 disabled={createContact.isPending}
                 className="px-5 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
               >
-                {createContact.isPending ? "Creating..." : "Create contact"}
+                {createContact.isPending ? "Đang tạo..." : "Tạo danh bạ"}
               </button>
             </div>
           </form>

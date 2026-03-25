@@ -12,7 +12,7 @@ RealCRM syncs LinkedIn messages and profiles through a Chrome extension. The ext
 Connecting the extension uses a one-time pairing code instead of a password:
 
 1. Install the RealCRM Chrome extension.
-2. Open the extension popup — it displays a code like `PING-X7K3M2`.
+2. Open the extension popup — it displays a code like `REALCRM-X7K3M2`.
 3. Open RealCRM **Settings → Integrations → LinkedIn** and click **Connect**.
 4. Enter the code in the modal and click **Pair**.
 5. The extension polls the backend and, once matched, shows **Connected**.

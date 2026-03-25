@@ -1,4 +1,4 @@
-"""LLM-based event classifier using Anthropic Claude."""
+"""LLM-based event classifier using OpenAI GPT (with Anthropic fallback)."""
 from __future__ import annotations
 
 import asyncio
@@ -36,12 +36,18 @@ _SYSTEM_PROMPT = (
 # Semaphore to cap parallel LLM calls at 5.
 _llm_semaphore = asyncio.Semaphore(5)
 
-# Retry configuration for transient Anthropic API errors.
-_RETRY_TRANSIENT_STATUS_CODES = {429, 500, 529}
+# Retry configuration for transient API errors.
+_RETRY_TRANSIENT_STATUS_CODES = {429, 500, 503}
 _RETRY_MAX_ATTEMPTS = 3
 _RETRY_BASE_DELAY = 1.0  # seconds
 _RETRY_BACKOFF_FACTOR = 2.0
 _RETRY_JITTER = 0.5  # ± seconds
+
+
+def _get_openai_client():
+    """Return an AsyncOpenAI client. Imported lazily to avoid import-time side-effects."""
+    from openai import AsyncOpenAI  # noqa: PLC0415
+    return AsyncOpenAI(api_key=settings.OPENAI_API_KEY)
 
 
 def _get_anthropic_client():
@@ -87,12 +93,40 @@ def _parse_classifier_response(raw: str) -> dict[str, Any]:
     return {"event_type": event_type, "confidence": confidence, "summary": summary}
 
 
-async def _call_anthropic_with_retry(client, **kwargs) -> Any:
-    """Call client.messages.create with exponential backoff on transient errors.
+async def _call_openai_with_retry(client, **kwargs) -> Any:
+    """Call OpenAI API with exponential backoff on transient errors."""
+    from openai import APIStatusError  # noqa: PLC0415
 
-    Retries on APIStatusError with status codes in _RETRY_TRANSIENT_STATUS_CODES.
-    Raises the last exception if all attempts are exhausted.
-    """
+    last_exc: Exception | None = None
+    for attempt in range(_RETRY_MAX_ATTEMPTS):
+        try:
+            return await asyncio.wait_for(
+                client.chat.completions.create(**kwargs),
+                timeout=30,
+            )
+        except APIStatusError as exc:
+            if exc.status_code not in _RETRY_TRANSIENT_STATUS_CODES:
+                raise
+            last_exc = exc
+        except asyncio.TimeoutError as exc:
+            last_exc = exc
+
+        if attempt < _RETRY_MAX_ATTEMPTS - 1:
+            delay = _RETRY_BASE_DELAY * (_RETRY_BACKOFF_FACTOR ** attempt)
+            jitter = random.uniform(-_RETRY_JITTER, _RETRY_JITTER)
+            sleep_time = max(0.0, delay + jitter)
+            logger.warning(
+                "_call_openai_with_retry: transient error on attempt %d/%d, "
+                "retrying in %.2fs: %s",
+                attempt + 1, _RETRY_MAX_ATTEMPTS, sleep_time, last_exc,
+            )
+            await asyncio.sleep(sleep_time)
+
+    raise last_exc  # type: ignore[misc]
+
+
+async def _call_anthropic_with_retry(client, **kwargs) -> Any:
+    """Call Anthropic API with exponential backoff on transient errors."""
     from anthropic import APIStatusError  # noqa: PLC0415
 
     last_exc: Exception | None = None
@@ -103,7 +137,7 @@ async def _call_anthropic_with_retry(client, **kwargs) -> Any:
                 timeout=30,
             )
         except APIStatusError as exc:
-            if exc.status_code not in _RETRY_TRANSIENT_STATUS_CODES:
+            if exc.status_code not in {429, 500, 529}:  # Anthropic specific codes
                 raise
             last_exc = exc
         except asyncio.TimeoutError as exc:
@@ -129,7 +163,7 @@ async def _call_anthropic_with_retry(client, **kwargs) -> Any:
 
 
 async def classify_tweet(tweet_text: str, contact_name: str) -> dict[str, Any]:
-    """Classify a single tweet using Anthropic Claude.
+    """Classify a single tweet using OpenAI GPT (with Anthropic fallback).
 
     Args:
         tweet_text: The raw tweet content.
@@ -139,8 +173,8 @@ async def classify_tweet(tweet_text: str, contact_name: str) -> dict[str, Any]:
         A dict with keys ``event_type`` (str), ``confidence`` (float),
         ``summary`` (str).
     """
-    if not settings.ANTHROPIC_API_KEY:
-        logger.warning("classify_tweet: ANTHROPIC_API_KEY not configured; returning 'none'.")
+    if not settings.OPENAI_API_KEY and not settings.ANTHROPIC_API_KEY:
+        logger.warning("classify_tweet: No AI provider configured; returning 'none'.")
         return {"event_type": "none", "confidence": 0.0, "summary": ""}
 
     prompt = (
@@ -155,18 +189,33 @@ async def classify_tweet(tweet_text: str, contact_name: str) -> dict[str, Any]:
     )
 
     try:
-        client = _get_anthropic_client()
-        message = await _call_anthropic_with_retry(
-            client,
-            model="claude-sonnet-4-20250514",
-            max_tokens=256,
-            system=_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = message.content[0].text if message.content else ""
+        # Prefer OpenAI
+        if settings.OPENAI_API_KEY:
+            client = _get_openai_client()
+            response = await _call_openai_with_retry(
+                client,
+                model="gpt-4o-mini",
+                max_tokens=256,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            raw = response.choices[0].message.content if response.choices else ""
+        else:
+            # Fallback to Anthropic
+            client = _get_anthropic_client()
+            response = await _call_anthropic_with_retry(
+                client,
+                model="claude-sonnet-4-20250514",
+                max_tokens=256,
+                system=_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = response.content[0].text if response.content else ""
         return _parse_classifier_response(raw)
     except Exception:
-        logger.exception("classify_tweet: Anthropic API call failed.")
+        logger.exception("classify_tweet: API call failed.")
         return {"event_type": "none", "confidence": 0.0, "summary": ""}
 
 
@@ -175,7 +224,7 @@ async def classify_bio_change(
     new_bio: str,
     contact_name: str,
 ) -> dict[str, Any]:
-    """Detect meaningful changes between two bio versions using Anthropic Claude.
+    """Detect meaningful changes between two bio versions using OpenAI GPT.
 
     Args:
         old_bio: Previous bio text.
@@ -186,8 +235,8 @@ async def classify_bio_change(
         A dict with keys ``event_type`` (str), ``confidence`` (float),
         ``summary`` (str).
     """
-    if not settings.ANTHROPIC_API_KEY:
-        logger.warning("classify_bio_change: ANTHROPIC_API_KEY not configured; returning 'none'.")
+    if not settings.OPENAI_API_KEY and not settings.ANTHROPIC_API_KEY:
+        logger.warning("classify_bio_change: No AI provider configured; returning 'none'.")
         return {"event_type": "none", "confidence": 0.0, "summary": ""}
 
     if not old_bio and not new_bio:
@@ -207,18 +256,33 @@ async def classify_bio_change(
     )
 
     try:
-        client = _get_anthropic_client()
-        message = await _call_anthropic_with_retry(
-            client,
-            model="claude-sonnet-4-20250514",
-            max_tokens=256,
-            system=_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        raw = message.content[0].text if message.content else ""
+        # Prefer OpenAI
+        if settings.OPENAI_API_KEY:
+            client = _get_openai_client()
+            response = await _call_openai_with_retry(
+                client,
+                model="gpt-4o-mini",
+                max_tokens=256,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": prompt},
+                ],
+            )
+            raw = response.choices[0].message.content if response.choices else ""
+        else:
+            # Fallback to Anthropic
+            client = _get_anthropic_client()
+            response = await _call_anthropic_with_retry(
+                client,
+                model="claude-sonnet-4-20250514",
+                max_tokens=256,
+                system=_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = response.content[0].text if response.content else ""
         return _parse_classifier_response(raw)
     except Exception:
-        logger.exception("classify_bio_change: Anthropic API call failed.")
+        logger.exception("classify_bio_change: API call failed.")
         return {"event_type": "none", "confidence": 0.0, "summary": ""}
 
 

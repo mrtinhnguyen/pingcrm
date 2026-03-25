@@ -1266,7 +1266,7 @@ describe("SettingsPage", () => {
     const connectButtons = screen.getAllByText("Connect");
     await user.click(connectButtons[3]);
     expect(screen.getByText("Connect LinkedIn Extension", { selector: "h3" })).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("PING-XXXXXX")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("REALCRM-XXXXXX")).toBeInTheDocument();
   });
 
   it("Pair button is disabled with empty code", async () => {
@@ -1291,9 +1291,9 @@ describe("SettingsPage", () => {
     const connectButtons = screen.getAllByText("Connect");
     await user.click(connectButtons[3]);
 
-    const input = screen.getByPlaceholderText("PING-XXXXXX");
+    const input = screen.getByPlaceholderText("REALCRM-XXXXXX");
     await user.type(input, "abc123");
-    expect((input as HTMLInputElement).value).toBe("PING-ABC123");
+    expect((input as HTMLInputElement).value).toBe("REALCRM-ABC123");
   });
 
   it("pairs LinkedIn extension successfully and closes modal", async () => {
@@ -1324,7 +1324,7 @@ describe("SettingsPage", () => {
     const connectButtons = screen.getAllByText("Connect");
     await user.click(connectButtons[3]);
 
-    await user.type(screen.getByPlaceholderText("PING-XXXXXX"), "ABC123");
+    await user.type(screen.getByPlaceholderText("REALCRM-XXXXXX"), "ABC123");
     await user.click(screen.getByText("Pair"));
 
     await waitFor(() => {
@@ -1352,7 +1352,7 @@ describe("SettingsPage", () => {
     const connectButtons = screen.getAllByText("Connect");
     await user.click(connectButtons[3]);
 
-    await user.type(screen.getByPlaceholderText("PING-XXXXXX"), "BAD123");
+    await user.type(screen.getByPlaceholderText("REALCRM-XXXXXX"), "BAD123");
     await user.click(screen.getByText("Pair"));
 
     await waitFor(() => {
@@ -1371,10 +1371,10 @@ describe("SettingsPage", () => {
 
     const connectButtons = screen.getAllByText("Connect");
     await user.click(connectButtons[3]);
-    expect(screen.getByPlaceholderText("PING-XXXXXX")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("REALCRM-XXXXXX")).toBeInTheDocument();
 
     await user.click(screen.getByText("Cancel"));
-    expect(screen.queryByPlaceholderText("PING-XXXXXX")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("REALCRM-XXXXXX")).not.toBeInTheDocument();
   });
 
   it("closes LinkedIn modal on X button click", async () => {
@@ -1389,7 +1389,7 @@ describe("SettingsPage", () => {
 
     const closeBtn = screen.getByLabelText("Close");
     await user.click(closeBtn);
-    expect(screen.queryByPlaceholderText("PING-XXXXXX")).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText("REALCRM-XXXXXX")).not.toBeInTheDocument();
   });
 
   it("shows Sync now and kebab menu when LinkedIn extension is paired", async () => {

@@ -16,6 +16,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/calendar.readonly",
     "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/drive.readonly",
 ]
 
 _CLIENT_CONFIG = {
@@ -46,9 +47,14 @@ def exchange_code(code: str, redirect_uri: str | None = None) -> dict[str, Any]:
 
     Returns a dict with keys: access_token, refresh_token, id_token, expiry.
     """
+    import warnings
+
     flow = Flow.from_client_config(_CLIENT_CONFIG, scopes=SCOPES)
     flow.redirect_uri = redirect_uri or settings.GOOGLE_REDIRECT_URI
-    flow.fetch_token(code=code)
+    # Suppress scope mismatch warning - Google may return additional scopes
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        flow.fetch_token(code=code)
     credentials: Credentials = flow.credentials
     return {
         "access_token": credentials.token,

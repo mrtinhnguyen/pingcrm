@@ -30,20 +30,20 @@ function formatTimeAgo(dateStr: string): string {
   const minutes = Math.floor(diff / 60_000);
   const hours = Math.floor(diff / 3_600_000);
   const days = Math.floor(diff / 86_400_000);
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  if (hours < 24) return `${hours}h ago`;
-  return `${days}d ago`;
+  if (minutes < 1) return "vừa xong";
+  if (minutes < 60) return `${minutes}phút trước`;
+  if (hours < 24) return `${hours}giờ trước`;
+  return `${days}ngày trước`;
 }
 
 function formatCode(raw: string): string {
   const upper = raw.toUpperCase().replace(/[^A-Z0-9-]/g, "");
-  if (upper.startsWith("PING-")) {
+  if (upper.startsWith("REALCRM-")) {
     const suffix = upper.slice(5).replace(/-/g, "").slice(0, 6);
-    return suffix.length > 0 ? `PING-${suffix}` : "PING-";
+    return suffix.length > 0 ? `REALCRM-${suffix}` : "REALCRM-";
   }
   const alphanum = upper.replace(/-/g, "").slice(0, 6);
-  return alphanum.length > 0 ? `PING-${alphanum}` : "";
+  return alphanum.length > 0 ? `REALCRM-${alphanum}` : "";
 }
 
 export interface LinkedInCardProps {
@@ -111,7 +111,7 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
   }
 
   const pairButtonDisabled =
-    status === "loading" || !code.trim() || code.trim() === "PING-";
+    status === "loading" || !code.trim() || code.trim() === "REALCRM-";
 
   return (
     <>
@@ -128,15 +128,15 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
             </div>
             <div>
               <div className="flex items-center gap-2.5">
-                <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">LinkedIn Extension</h3>
+                <h3 className="text-sm font-semibold text-stone-900 dark:text-stone-100">Tiện ích LinkedIn</h3>
                 <ConnectionBadge connected={isPaired} />
               </div>
               <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-                Sync LinkedIn messages and profiles via browser extension
+                Đồng bộ tin nhắn và hồ sơ LinkedIn qua tiện ích trình duyệt
               </p>
               {isPaired && connected.linkedin_extension_paired_at && (
                 <p className="text-xs text-teal-600 dark:text-teal-400 mt-1">
-                  Connected via extension &middot; Paired {formatTimeAgo(connected.linkedin_extension_paired_at)}
+                  Đã kết nối qua tiện ích &middot; Ghép cặp {formatTimeAgo(connected.linkedin_extension_paired_at)}
                 </p>
               )}
             </div>
@@ -159,20 +159,20 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
                       <RefreshCw className="w-3.5 h-3.5" />
                     )}
                     {syncStatus === "loading"
-                      ? "Syncing..."
+                      ? "Đang đồng bộ..."
                       : syncStatus === "success"
-                      ? "Done"
-                      : "Sync now"}
+                      ? "Xong"
+                      : "Đồng bộ ngay"}
                   </button>
                 </SyncButtonWrapper>
                 <KebabMenu
                   items={[
-                    { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
-                    { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
+                    { icon: Settings, label: "Cài đặt đồng bộ", onClick: () => setShowSyncSettings(true) },
+                    { icon: History, label: "Lịch sử đồng bộ", onClick: () => setShowSyncHistory(true) },
                     { icon: Unplug, label: "---" },
                     {
                       icon: Unplug,
-                      label: "Disconnect LinkedIn",
+                      label: "Ngắt kết nối LinkedIn",
                       danger: true,
                       onClick: () => void handleDisconnect(),
                     },
@@ -185,7 +185,7 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
               >
                 <Link2 className="w-3.5 h-3.5" />
-                Connect
+                Kết nối
               </button>
             )}
           </div>
@@ -196,10 +196,10 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" role="dialog" aria-modal="true">
           <div className="bg-white dark:bg-stone-900 rounded-xl p-6 w-full max-w-sm shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">Connect LinkedIn Extension</h3>
+              <h3 className="text-lg font-semibold text-stone-900 dark:text-stone-100">Kết nối Tiện ích LinkedIn</h3>
               <button
                 onClick={closeModal}
-                aria-label="Close"
+                aria-label="Đóng"
                 className="text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300"
               >
                 <X className="w-5 h-5" />
@@ -207,28 +207,28 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
             </div>
 
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">
-              Install the RealCRM extension, open it, and enter the pairing code shown below.
+              Cài đặt tiện ích RealCRM, mở nó và nhập mã ghép cặp bên dưới.
             </p>
 
             <label
               htmlFor="linkedin-pair-code"
               className="block text-sm font-medium text-stone-700 dark:text-stone-300 mb-1"
             >
-              Pairing code
+              Mã ghép cặp
             </label>
             <input
               id="linkedin-pair-code"
               type="text"
               value={code}
               onChange={(e) => setCode(formatCode(e.target.value))}
-              placeholder="PING-XXXXXX"
+              placeholder="REALCRM-XXXXXX"
               className="w-full px-3 py-2 rounded-lg border border-stone-300 dark:border-stone-700 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 text-sm mb-4 font-mono tracking-wider focus:outline-none focus:ring-2 focus:ring-teal-400"
             />
 
             {status === "error" && (
               <p className="text-xs mb-3 flex items-center gap-1 text-red-500 dark:text-red-400">
                 <AlertCircle className="w-3 h-3" />
-                Invalid or expired code — check the extension and try again
+                Mã không hợp lệ hoặc hết hạn — kiểm tra tiện ích và thử lại
               </p>
             )}
 
@@ -237,14 +237,14 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
                 onClick={closeModal}
                 className="flex-1 px-3 py-2 text-sm rounded-lg border border-stone-300 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800"
               >
-                Cancel
+                Hủy
               </button>
               <button
                 onClick={() => void handlePair()}
                 disabled={pairButtonDisabled}
                 className="flex-1 px-3 py-2 text-sm rounded-lg bg-teal-600 text-white font-medium hover:bg-teal-700 disabled:opacity-50"
               >
-                {status === "loading" ? "Pairing..." : "Pair"}
+                {status === "loading" ? "Đang ghép cặp..." : "Ghép cặp"}
               </button>
             </div>
           </div>

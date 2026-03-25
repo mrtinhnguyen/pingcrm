@@ -22,7 +22,7 @@ export default function LoginPage() {
       router.push("/dashboard");
     } catch (err: unknown) {
       const message =
-        err instanceof Error ? err.message : "Invalid credentials. Please try again.";
+        err instanceof Error ? err.message : "Thông tin đăng nhập không hợp lệ. Vui lòng thử lại.";
       setError(message);
     } finally {
       setIsSubmitting(false);
@@ -33,7 +33,7 @@ export default function LoginPage() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center px-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-blue-600">Ping</h1>
+          <h1 className="text-3xl font-bold text-blue-600">RealCRM</h1>
           <p className="text-gray-500 dark:text-gray-400 mt-1 text-sm">Đăng nhập vào tài khoản của bạn</p>
         </div>
 
@@ -54,7 +54,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="email@vidu.com"
+                placeholder="email@realcrm.vn"
               />
             </div>
 
@@ -73,7 +73,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-                placeholder="••••••••"
+                placeholder="••••••••••••"
               />
             </div>
 

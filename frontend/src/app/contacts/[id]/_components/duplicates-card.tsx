@@ -266,7 +266,7 @@ export function DuplicatesCard({ contactId }: { contactId: string }) {
                 <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-stone-400 dark:text-stone-500" />
                 <input
                   type="text"
-                  placeholder="Search all contacts to merge..."
+                  placeholder="Tìm kiếm danh bạ để gộp..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   className="w-full pl-8 pr-3 py-1.5 text-xs border border-stone-200 dark:border-stone-700 rounded-md focus:outline-none focus:ring-2 focus:ring-teal-400 bg-white dark:bg-stone-800 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500"

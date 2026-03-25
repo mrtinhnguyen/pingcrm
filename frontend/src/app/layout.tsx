@@ -1,24 +1,30 @@
 import type { Metadata } from "next";
-import { DM_Sans, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
+import { Inter, Be_Vietnam_Pro, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/lib/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Nav } from "@/components/nav";
 import { ErrorReporter } from "@/components/error-reporter";
 
-const dmSans = DM_Sans({
-  subsets: ["latin"],
+// Inter - Font hiện đại, hỗ trợ tiếng Việt tốt
+const inter = Inter({
+  subsets: ["latin", "vietnamese"],
   variable: "--font-body",
+  display: "swap",
 });
 
-const jakarta = Plus_Jakarta_Sans({
-  subsets: ["latin"],
+// Be Vietnam Pro - Font chuyên dụng cho tiếng Việt
+const beVietnamPro = Be_Vietnam_Pro({
+  subsets: ["latin", "vietnamese"],
   variable: "--font-display",
+  weight: ["400", "500", "600", "700"],
+  display: "swap",
 });
 
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin"],
   variable: "--font-mono",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -41,7 +47,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${dmSans.variable} ${jakarta.variable} ${jetbrainsMono.variable} font-body bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50`}
+        className={`${inter.variable} ${beVietnamPro.variable} ${jetbrainsMono.variable} font-body bg-stone-50 text-stone-900 dark:bg-stone-950 dark:text-stone-50`}
         suppressHydrationWarning
       >
         <ThemeProvider>

@@ -242,6 +242,7 @@ async def google_callback(
             tokens["id_token"],
             google_requests.Request(),
             settings.GOOGLE_CLIENT_ID,
+            clock_skew_in_seconds=10,  # Allow 10 seconds clock skew
         )
     except Exception as exc:
         logger.error("Google ID token verification failed: %s", exc, exc_info=True)

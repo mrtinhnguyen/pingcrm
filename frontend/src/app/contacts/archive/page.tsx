@@ -182,7 +182,7 @@ function ArchivedContactsInner() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-stone-500" />
             <input
               type="text"
-              placeholder="Search archived contacts..."
+              placeholder="Tìm kiếm danh bạ đã lưu trữ..."
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border border-stone-200 dark:border-stone-700 focus:outline-none focus:ring-2 focus:ring-teal-400 placeholder:text-stone-400 dark:placeholder:text-stone-500 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100"

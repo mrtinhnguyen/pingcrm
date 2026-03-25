@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     TWITTER_REDIRECT_URI: str = "http://localhost:3000/auth/twitter/callback"
 
     ANTHROPIC_API_KEY: str = ""
+    OPENAI_API_KEY: str = ""  # Preferred AI provider
 
     TELEGRAM_API_ID: int = 0
     TELEGRAM_API_HASH: str = ""
@@ -32,6 +33,10 @@ class Settings(BaseSettings):
 
     CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://127.0.0.1:3000"]
     CHROME_EXTENSION_ID: str = ""
+
+    # Bird CLI - Twitter/X cookie-based access (optional)
+    AUTH_TOKEN: str = ""
+    CT0: str = ""
 
     class Config:
         env_file = ".env"

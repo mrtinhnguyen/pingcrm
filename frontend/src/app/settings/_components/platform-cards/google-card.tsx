@@ -54,7 +54,7 @@ export function GoogleCard({
               <ConnectionBadge connected={connected.google} />
             </div>
             <p className="text-xs text-stone-500 dark:text-stone-400 mt-0.5">
-              Sync email threads, contacts, and calendar from Google.
+              Đồng bộ email, danh bạ và lịch từ Google.
             </p>
             {connected.google && (
               <>
@@ -75,7 +75,7 @@ export function GoogleCard({
                             await fetchConnectionStatus();
                           }}
                           className="text-stone-400 dark:text-stone-500 hover:text-red-500 transition-colors"
-                          title="Remove account"
+                          title="Xóa tài khoản"
                         >
                           <X className="w-3 h-3" />
                         </button>
@@ -108,25 +108,25 @@ export function GoogleCard({
                     <RefreshCw className="w-3.5 h-3.5" />
                   )}
                   {googleSync.status === "loading"
-                    ? "Syncing..."
+                    ? "Đang đồng bộ..."
                     : googleSync.status === "success"
-                    ? "Done"
-                    : "Sync now"}
+                    ? "Xong"
+                    : "Đồng bộ ngay"}
                 </button>
               </SyncButtonWrapper>
               <KebabMenu
                 items={[
-                  { icon: Settings, label: "Sync settings", onClick: () => setShowSyncSettings(true) },
+                  { icon: Settings, label: "Cài đặt đồng bộ", onClick: () => setShowSyncSettings(true) },
                   {
                     icon: Key,
-                    label: "Re-authorize",
+                    label: "Cấp quyền lại",
                     onClick: () => void handleGoogleConnect(),
                   },
-                  { icon: History, label: "Sync history", onClick: () => setShowSyncHistory(true) },
+                  { icon: History, label: "Lịch sử đồng bộ", onClick: () => setShowSyncHistory(true) },
                   { icon: Unplug, label: "---" },
-                  { icon: Unplug, label: "Disconnect Gmail", danger: true, onClick: async () => {
+                  { icon: Unplug, label: "Ngắt kết nối Gmail", danger: true, onClick: async () => {
                     const ga = connected.google_accounts?.[0];
-                    if (ga && confirm("Disconnect Gmail? Your synced emails will be kept.")) {
+                    if (ga && confirm("Ngắt kết nối Gmail? Email đã đồng bộ sẽ được giữ lại.")) {
                       await client.DELETE("/api/v1/auth/google/accounts/{account_id}", {
                         params: { path: { account_id: ga.id } },
                       });
@@ -147,7 +147,7 @@ export function GoogleCard({
               ) : (
                 <Link2 className="w-3.5 h-3.5" />
               )}
-              Connect
+              Kết nối
             </button>
           )}
         </div>

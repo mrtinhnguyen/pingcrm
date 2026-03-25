@@ -97,7 +97,7 @@ function DaysAgo({ dateStr }: { dateStr?: string | null }) {
   const isOverdue = days > 30;
   return (
     <span className={`font-mono-data text-xs ${isOverdue ? "font-medium text-red-500" : "text-stone-500 dark:text-stone-400"}`}>
-      {days}d
+      {days} ngày
     </span>
   );
 }

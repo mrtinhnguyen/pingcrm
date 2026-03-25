@@ -20,7 +20,7 @@ export function AddNoteInput({ onSave }: { onSave: (content: string) => void }) 
       <div className="flex-1">
         <textarea
           rows={focused ? 3 : 1}
-          placeholder="Add a note..."
+          placeholder="Thêm ghi chú..."
           value={text}
           onChange={(e) => setText(e.target.value)}
           onFocus={() => setFocused(true)}

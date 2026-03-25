@@ -14,7 +14,7 @@ function CopyButton({ text }: { text: string }) {
   return (
     <button
       onClick={copy}
-      aria-label="Copy"
+      aria-label="Sao chép"
       className="p-0.5 rounded text-stone-300 dark:text-stone-600 hover:text-stone-500 dark:hover:text-stone-400 transition-colors shrink-0"
     >
       {copied ? "✓" : "⧉"}

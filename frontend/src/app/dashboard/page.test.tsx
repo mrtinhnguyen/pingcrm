@@ -89,7 +89,7 @@ describe("DashboardPage", () => {
   it("shows empty state welcome message when there are no contacts", () => {
     mockDashboard();
     renderPage();
-    expect(screen.getByText("Welcome to Ping!")).toBeInTheDocument();
+    expect(screen.getByText("Welcome to RealCRM!")).toBeInTheDocument();
   });
 
   it("shows empty state description text", () => {

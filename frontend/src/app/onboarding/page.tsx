@@ -80,11 +80,11 @@ function OnboardingInner() {
             <div className="flex flex-col items-center text-center flex-1 justify-center">
               <div className="text-5xl mb-4">👋</div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
-                Welcome to Ping!
+                Welcome to RealCRM!
               </h1>
               <p className="text-gray-500 dark:text-gray-400 text-sm mb-6 max-w-sm">
-                Ping helps you keep track of your professional relationships,
-                follow-ups, and interactions — all in one place.
+                RealCRM helps you keep track of your professional relationships,
+                follow-ups, and interactions — all in one place for your business growth.
               </p>
               <p className="text-sm text-gray-400 dark:text-gray-500 mb-8">
                 Let&apos;s take a couple of minutes to set up your account.
@@ -163,7 +163,7 @@ function OnboardingInner() {
               </h2>
               <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
                 Upload a CSV file or sync from Google Contacts to bring your
-                existing network into Ping.
+                existing network into RealCRM.
               </p>
 
               <div className="space-y-3 mb-6">
@@ -213,7 +213,7 @@ function OnboardingInner() {
                 You&apos;re all set!
               </h2>
               <p className="text-gray-500 dark:text-gray-400 text-sm mb-8 max-w-sm">
-                Your Ping account is ready. Head to your dashboard to see your
+                Your RealCRM account is ready. Head to your dashboard to see your
                 contacts and follow-up suggestions.
               </p>
               <Link

@@ -416,7 +416,7 @@ export function TagTaxonomyPanel() {
                       onChange={(e) =>
                         setNewTagInputs({ ...newTagInputs, [category]: e.target.value })
                       }
-                      placeholder="Add tag..."
+                      placeholder="Thêm thẻ..."
                       className="w-28 px-2 py-1 text-sm rounded-md border border-stone-200 dark:border-stone-700 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500"
                     />
                     <button
@@ -443,7 +443,7 @@ export function TagTaxonomyPanel() {
                 type="text"
                 value={newCategoryName}
                 onChange={(e) => setNewCategoryName(e.target.value)}
-                placeholder="New category name..."
+                placeholder="Tên danh mục mới..."
                 className="flex-1 px-3 py-2 text-sm rounded-lg border border-dashed border-stone-300 dark:border-stone-600 focus:outline-none focus:ring-1 focus:ring-teal-500 focus:border-teal-500 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 placeholder:text-stone-400 dark:placeholder:text-stone-500"
               />
               <button

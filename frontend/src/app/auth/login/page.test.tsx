@@ -30,7 +30,7 @@ describe("LoginPage", () => {
 
   it("renders sign in form", () => {
     render(<LoginPage />);
-    expect(screen.getByText("Sign in to your account")).toBeInTheDocument();
+    expect(screen.getByText("Sign in to your RealCRM account")).toBeInTheDocument();
     expect(screen.getByLabelText("Email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Sign in" })).toBeInTheDocument();
@@ -38,7 +38,7 @@ describe("LoginPage", () => {
 
   it("renders link to register page", () => {
     render(<LoginPage />);
-    const link = screen.getByText("Create one");
+    const link = screen.getByText("Create one for RealCRM");
     expect(link).toBeInTheDocument();
     expect(link.closest("a")).toHaveAttribute("href", "/auth/register");
   });
@@ -73,7 +73,7 @@ describe("LoginPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign in" }));
 
     await waitFor(() => {
-      expect(screen.getByText("Incorrect email or password")).toBeInTheDocument();
+      expect(screen.getByText("Incorrect email or password for RealCRM")).toBeInTheDocument();
     });
     expect(mockPush).not.toHaveBeenCalled();
   });
@@ -120,6 +120,6 @@ describe("LoginPage", () => {
 
   it("shows app name", () => {
     render(<LoginPage />);
-    expect(screen.getByText("Ping")).toBeInTheDocument();
+    expect(screen.getByText("RealCRM")).toBeInTheDocument();
   });
 });

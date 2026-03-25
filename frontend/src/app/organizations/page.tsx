@@ -55,16 +55,16 @@ function MergeModal({
       >
         <div className="flex items-center gap-2 mb-4">
           <GitMerge className="w-5 h-5 text-blue-600" />
-          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Merge Organizations</h2>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-gray-100">Gộp Tổ chức</h2>
         </div>
 
         <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-          All contacts from the selected organizations will be moved under one organization. Select which to keep:
+          Tất cả danh bạ từ các tổ chức được chọn sẽ được chuyển về một tổ chức. Chọn tổ chức để giữ lại:
         </p>
 
         <div className="mb-5">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-            Keep as target organization:
+            Giữ làm tổ chức đích:
           </label>
           <div className="space-y-1.5 max-h-48 overflow-y-auto">
             {orgs.map((org) => (
@@ -84,7 +84,7 @@ function MergeModal({
                   className="text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm text-gray-900 dark:text-gray-100">{org.name}</span>
-                <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">{org.contact_count} contacts</span>
+                <span className="text-xs text-gray-400 dark:text-gray-500 ml-auto">{org.contact_count} danh bạ</span>
               </label>
             ))}
           </div>
@@ -95,7 +95,7 @@ function MergeModal({
             onClick={onClose}
             className="px-4 py-2 text-sm rounded-lg border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
           >
-            Cancel
+            Hủy
           </button>
           <button
             onClick={() => targetId && onMerge(targetId)}
@@ -103,7 +103,7 @@ function MergeModal({
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             <GitMerge className="w-4 h-4" />
-            {isPending ? "Merging..." : "Merge"}
+            {isPending ? "Đang gộp..." : "Gộp"}
           </button>
         </div>
       </div>
@@ -130,7 +130,7 @@ function BulkActionBar({
     <div className="sticky top-14 z-30 bg-blue-600 text-white px-4 py-2.5 rounded-lg mb-4 flex items-center gap-3 shadow-lg">
       <div className="flex items-center gap-2 flex-shrink-0">
         <CheckSquare className="w-4 h-4" />
-        <span className="text-sm font-medium">{selectedCount} selected</span>
+        <span className="text-sm font-medium">{selectedCount} đã chọn</span>
       </div>
 
       <div className="h-5 w-px bg-blue-400" />
@@ -142,7 +142,7 @@ function BulkActionBar({
           className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-blue-500 hover:bg-blue-400 transition-colors disabled:opacity-50"
         >
           <GitMerge className="w-3 h-3" />
-          Merge {selectedCount} Orgs
+          Gộp {selectedCount} Tổ chức
         </button>
       )}
 
@@ -152,7 +152,7 @@ function BulkActionBar({
         className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-medium rounded-md bg-red-500/80 hover:bg-red-500 transition-colors disabled:opacity-50"
       >
         <Trash2 className="w-3 h-3" />
-        Delete
+        Xóa
       </button>
 
       <div className="flex-1" />
@@ -161,7 +161,7 @@ function BulkActionBar({
         onClick={onClear}
         className="text-xs text-blue-200 hover:text-white underline"
       >
-        Clear selection
+        Bỏ chọn
       </button>
     </div>
   );
@@ -270,7 +270,7 @@ function OrganizationsPageContent() {
 
   const handleDeleteSelected = async () => {
     const count = selectedOrgIds.size;
-    if (!confirm(`Delete ${count} organization${count > 1 ? "s" : ""}? Contacts will be unlinked but not deleted.`)) return;
+    if (!confirm(`Xóa ${count} tổ chức${count > 1 ? "" : ""}? Danh bạ sẽ bị hủy liên kết nhưng không bị xóa.`)) return;
     await Promise.all(
       Array.from(selectedOrgIds).map((id) => deleteOrg.mutateAsync(id))
     );
@@ -278,7 +278,7 @@ function OrganizationsPageContent() {
   };
 
   const handleDeleteSingle = (org: Organization) => {
-    if (!confirm(`Delete "${org.name}"? Contacts will be unlinked but not deleted.`)) return;
+    if (!confirm(`Xóa "${org.name}"? Danh bạ sẽ bị hủy liên kết nhưng không bị xóa.`)) return;
     deleteOrg.mutate(org.id);
     setSelectedOrgIds((prev) => { const next = new Set(prev); next.delete(org.id); return next; });
   };
@@ -290,10 +290,10 @@ function OrganizationsPageContent() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Organizations</h1>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Tổ chức</h1>
             {meta && (
               <p className="text-sm text-gray-500 dark:text-gray-400 mt-0.5">
-                {meta.total} organization{meta.total !== 1 ? "s" : ""}
+                {meta.total} tổ chức
               </p>
             )}
           </div>
@@ -304,7 +304,7 @@ function OrganizationsPageContent() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500" />
             <input
               type="text"
-              placeholder="Search organizations..."
+              placeholder="Tìm kiếm tổ chức..."
               value={searchInput}
               onChange={(e) => {
                 const value = e.target.value;
@@ -343,18 +343,18 @@ function OrganizationsPageContent() {
         )}
 
         {isLoading && (
-          <div className="text-center py-12 text-gray-400 dark:text-gray-500">Loading organizations...</div>
+          <div className="text-center py-12 text-gray-400 dark:text-gray-500">Đang tải tổ chức...</div>
         )}
 
         {isError && (
           <div className="text-center py-12 text-red-500">
-            Failed to load organizations.
+            Tải tổ chức thất bại.
           </div>
         )}
 
         {!isLoading && !isError && organizations.length === 0 && (
           <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-            No organizations found.
+            Không tìm thấy tổ chức nào.
           </div>
         )}
 
@@ -372,15 +372,15 @@ function OrganizationsPageContent() {
                       }}
                       onChange={toggleSelectAll}
                       className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                      aria-label="Select all organizations"
+                      aria-label="Chọn tất cả tổ chức"
                     />
                   </th>
                   {([
-                    { key: "name" as SortKey, label: "Organization", align: "text-left", icon: null },
-                    { key: "contacts" as SortKey, label: "Contacts", align: "text-center", icon: Users },
-                    { key: "score" as SortKey, label: "Avg Score", align: "text-center", icon: BarChart3 },
-                    { key: "interactions" as SortKey, label: "Interactions", align: "text-center", icon: MessageSquare },
-                    { key: "activity" as SortKey, label: "Last Activity", align: "text-right", icon: null },
+                    { key: "name" as SortKey, label: "Tổ chức", align: "text-left", icon: null },
+                    { key: "contacts" as SortKey, label: "Danh bạ", align: "text-center", icon: Users },
+                    { key: "score" as SortKey, label: "Điểm TB", align: "text-center", icon: BarChart3 },
+                    { key: "interactions" as SortKey, label: "Tương tác", align: "text-center", icon: MessageSquare },
+                    { key: "activity" as SortKey, label: "Hoạt động cuối", align: "text-right", icon: null },
                   ]).map((col) => (
                     <th
                       key={col.key}
@@ -411,7 +411,7 @@ function OrganizationsPageContent() {
                           checked={isSelected}
                           onChange={() => toggleSelectOrg(org.id)}
                           className="w-4 h-4 rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500"
-                          aria-label={`Select ${org.name}`}
+                          aria-label={`Chọn ${org.name}`}
                         />
                       </td>
                       <td className="px-4 py-3">
@@ -444,13 +444,13 @@ function OrganizationsPageContent() {
                       <td className="px-4 py-3 text-right text-xs text-gray-400 dark:text-gray-500">
                         {org.last_interaction_at
                           ? formatDistanceToNow(new Date(org.last_interaction_at), { addSuffix: true })
-                          : "Never"}
+                          : "Chưa có"}
                       </td>
                       <td className="px-4 py-3">
                         <button
                           onClick={() => handleDeleteSingle(org)}
                           className="p-1 rounded text-gray-300 dark:text-gray-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
-                          title={`Delete ${org.name}`}
+                          title={`Xóa ${org.name}`}
                         >
                           <Trash2 className="w-4 h-4" />
                         </button>
@@ -470,17 +470,17 @@ function OrganizationsPageContent() {
               onClick={() => setParams({ page: String(page - 1) })}
               className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
-              Previous
+              Trước
             </button>
             <span className="text-sm text-gray-500 dark:text-gray-400">
-              Page {page} of {meta.total_pages}
+              Trang {page} / {meta.total_pages}
             </span>
             <button
               disabled={page >= meta.total_pages}
               onClick={() => setParams({ page: String(page + 1) })}
               className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 disabled:opacity-40 hover:bg-gray-100 dark:hover:bg-gray-800"
             >
-              Next
+              Tiếp theo
             </button>
           </div>
         )}

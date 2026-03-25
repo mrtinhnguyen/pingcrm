@@ -34,6 +34,9 @@ def test_celery_task_registry():
         "app.services.tasks.reactivate_snoozed_suggestions",
         "app.services.tasks.refresh_org_stats",
         "app.services.tasks.backfill_org_logos_task",
+        "app.services.tasks.apply_tags_to_contacts",
+        "app.services.tasks.cleanup_stale_telegram_locks",
+        "app.services.tasks.scan_meeting_preps",
     }
 
     missing = expected_tasks - registered

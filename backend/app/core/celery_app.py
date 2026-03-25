@@ -77,5 +77,10 @@ celery_app.conf.update(
             "task": "app.services.tasks.cleanup_stale_telegram_locks",
             "schedule": crontab(minute=15),
         },
+        # Scan for upcoming meetings and send prep emails every 10 minutes
+        "scan-meeting-preps-every-10m": {
+            "task": "app.services.tasks.scan_meeting_preps",
+            "schedule": crontab(minute="*/10"),
+        },
     },
 )

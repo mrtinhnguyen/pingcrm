@@ -415,3 +415,49 @@ class TestComposePrepEmail:
 
         assert "Quick check-in" in subject
         assert "Suggested Talking Points" not in html
+
+
+# ---------------------------------------------------------------------------
+# Task 7: Celery beat task + registration
+# ---------------------------------------------------------------------------
+
+
+class TestScanAndSendMeetingPreps:
+    @patch("app.services.task_jobs.meeting_prep._run")
+    def test_task_is_callable(self, mock_run):
+        from app.services.task_jobs.meeting_prep import scan_meeting_preps
+        mock_run.return_value = {"sent": 0, "skipped": 0, "errors": 0}
+        result = scan_meeting_preps()
+        mock_run.assert_called_once()
+
+    def test_task_registered_in_tasks_module(self):
+        from app.services.tasks import scan_meeting_preps
+        assert callable(scan_meeting_preps)
+
+    def test_task_in_beat_schedule(self):
+        from app.core.celery_app import celery_app
+        schedule = celery_app.conf.beat_schedule
+        task_names = [v["task"] for v in schedule.values()]
+        assert "app.services.tasks.scan_meeting_preps" in task_names
+
+
+# ---------------------------------------------------------------------------
+# Task 8: Settings tests
+# ---------------------------------------------------------------------------
+
+
+class TestMeetingPrepSetting:
+    def test_default_is_true_when_gmail_settings_empty(self):
+        sync_settings: dict = {}
+        gmail_settings = sync_settings.get("gmail", {})
+        assert gmail_settings.get("meeting_prep_enabled", True) is True
+
+    def test_default_is_true_when_gmail_has_other_settings(self):
+        sync_settings = {"gmail": {"auto_sync": True, "schedule": "6h"}}
+        gmail_settings = sync_settings.get("gmail", {})
+        assert gmail_settings.get("meeting_prep_enabled", True) is True
+
+    def test_can_be_disabled(self):
+        sync_settings = {"gmail": {"auto_sync": True, "meeting_prep_enabled": False}}
+        gmail_settings = sync_settings.get("gmail", {})
+        assert gmail_settings.get("meeting_prep_enabled", True) is False

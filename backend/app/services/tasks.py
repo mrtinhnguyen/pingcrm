@@ -52,6 +52,9 @@ from app.services.task_jobs.maintenance import (
 from app.services.task_jobs.tagging import (
     apply_tags_to_contacts,
 )
+from app.services.task_jobs.meeting_prep import (
+    scan_meeting_preps,
+)
 
 __all__ = [
     # common
@@ -93,4 +96,6 @@ __all__ = [
     "backfill_org_logos_task",
     # tagging
     "apply_tags_to_contacts",
+    # meeting prep
+    "scan_meeting_preps",
 ]

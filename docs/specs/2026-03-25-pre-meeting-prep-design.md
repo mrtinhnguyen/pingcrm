@@ -53,7 +53,7 @@ https://www.googleapis.com/auth/gmail.send
 ```
 
 ### Re-authorization flow
-- Add `gmail.send` to the scope list in the Google OAuth URL builder
+- Add `gmail.send` to the scope list in `google_auth.py` (which already has `include_granted_scopes="true"`, so existing read-only tokens continue working)
 - Existing users: when `gmail.send` is needed but not granted, create a notification: "Gmail permissions updated — please re-authorize to enable pre-meeting prep emails"
 - Re-auth redirects to Google consent screen showing the new permission
 - On callback, store the updated refresh token
@@ -113,15 +113,18 @@ For unknown attendees (email not matching any contact):
 ## Components to Build
 
 ### 1. Gmail Send Service (`backend/app/integrations/gmail_send.py`)
-- `send_email(user, to, subject, html_body)` — sends via Gmail API
-- Uses `google-api-python-client` (already in requirements)
-- Handles OAuth token refresh if needed
+- `send_email(user, subject, html_body)` — **sync** function (not async), sends via Gmail API
+- Uses `google-api-python-client` (already in requirements) — `googleapiclient` is blocking I/O, consistent with existing `_build_gmail_service` pattern
+- Called from within Celery task's async wrapper (same pattern as all other Google API calls)
+- Sends to the user's own email address (self-prep brief)
+- Uses the GoogleAccount that owns the calendar where the meeting lives
+- Handles OAuth token refresh if needed (catches `google.auth.exceptions.RefreshError`)
 - Returns success/failure
 
 ### 2. Meeting Prep Composer (`backend/app/services/meeting_prep.py`)
-- `get_upcoming_meetings(user_id, window_start, window_end, db)` — queries Interaction records with platform="meeting" in the time window
+- `get_upcoming_meetings(user_id, window_start, window_end, db)` — queries Interaction records with platform="meeting" in the time window. **Groups by event ID** (extracted from `raw_reference_id` prefix `gcal:{event_id}:*`) to reconstruct the full attendee list per meeting. Returns list of `(event_id, event_title, event_time, list[contact_id])`.
 - `build_prep_brief(user, contacts, db)` — gathers contact context (bios, interactions, score)
-- `generate_talking_points(contact_context)` — Claude Haiku call for AI talking points
+- `generate_talking_points(contact_context)` — Claude Haiku (`claude-haiku-4-5-20251001`) call for AI talking points
 - `compose_prep_email(meeting, attendee_briefs, talking_points)` — renders HTML email
 
 ### 3. Celery Beat Task (`backend/app/services/task_jobs/meeting_prep.py`)
@@ -129,6 +132,7 @@ For unknown attendees (email not matching any contact):
 - Scans for meetings in 30-40 min window
 - Deduplicates via Redis
 - Calls composer + Gmail send
+- **Must be registered** in `backend/app/services/tasks.py` (re-export module) and added to `test_task_registry.py` expected task list
 
 ### 4. OAuth Scope Update (`backend/app/api/auth.py`)
 - Add `gmail.send` to Google OAuth scope list
@@ -146,23 +150,27 @@ from google.oauth2.credentials import Credentials
 import base64
 from email.mime.text import MIMEText
 
-async def send_email(user, subject, html_body):
+def send_email(google_account, subject, html_body):
+    """Sync function — called from Celery task async wrapper.
+    Uses the GoogleAccount that owns the calendar event."""
     creds = Credentials(
         token=None,
-        refresh_token=user.google_refresh_token,
+        refresh_token=google_account.refresh_token,
         client_id=settings.GOOGLE_CLIENT_ID,
         client_secret=settings.GOOGLE_CLIENT_SECRET,
         token_uri="https://oauth2.googleapis.com/token",
     )
     service = build("gmail", "v1", credentials=creds)
     message = MIMEText(html_body, "html")
-    message["to"] = user.email
+    message["to"] = google_account.email  # user sends to themselves
     message["subject"] = subject
     raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
     service.users().messages().send(
         userId="me", body={"raw": raw}
     ).execute()
 ```
+
+**Multi-account note:** Users may have multiple Google accounts connected (via `GoogleAccount` model). The prep email is sent from the account that owns the calendar where the meeting lives. The task iterates `GoogleAccount` entries per user (same pattern as calendar sync in `task_jobs/google.py`).
 
 ## Celery Beat Schedule
 
@@ -179,6 +187,7 @@ async def send_email(user, subject, html_body):
 |----------|----------|
 | Gmail send fails (network) | Log error, skip this meeting, will retry on next beat run if still in window |
 | Gmail send fails (auth/scope) | Create notification: "Re-authorize Gmail for meeting prep emails", skip |
+| Token refresh fails (`google.auth.exceptions.RefreshError`) | Token revoked — create notification to re-authorize, skip this account |
 | Claude API fails | Send email without talking points section (graceful degradation) |
 | No known attendees | Skip sending (no value in an empty prep brief) |
 | Meeting cancelled between sync and send | Gmail API may return error, caught and logged |
@@ -198,3 +207,7 @@ async def send_email(user, subject, html_body):
 - Unit test for `scan_and_send_meeting_preps` with mocked Gmail API
 - Integration test for OAuth scope upgrade flow
 - Test dedup: same meeting doesn't trigger twice
+- Test: meeting with only unknown attendees → skip sending
+- Test: user with `meeting_prep_enabled: false` → skip
+- Test: Claude API timeout → email sent without talking points (graceful degradation)
+- Test: task registered in `tasks.py` and beat schedule (test_task_registry)

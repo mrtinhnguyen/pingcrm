@@ -171,6 +171,32 @@ async def list_contacts_paginated(
     count_result = await db.execute(select(func.count()).select_from(base_query.subquery()))
     total = count_result.scalar_one()
 
+    # When searching, compute relevance weight so name matches rank above
+    # notes/interaction matches. Relevance is the primary sort; the user's
+    # chosen sort is the tiebreaker within the same relevance tier.
+    relevance_prefix = []
+    if search:
+        from sqlalchemy import case, literal
+        safe = search.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        pat = f"%{safe}%"
+        relevance = case(
+            # Tier 1: name starts with the search term
+            (func.lower(Contact.full_name).like(f"{safe.lower()}%"), literal(1)),
+            # Tier 2: name contains the search term
+            (Contact.full_name.ilike(pat), literal(2)),
+            (Contact.given_name.ilike(pat), literal(2)),
+            (Contact.family_name.ilike(pat), literal(2)),
+            # Tier 3: company/title match
+            (Contact.company.ilike(pat), literal(3)),
+            (Contact.title.ilike(pat), literal(3)),
+            # Tier 4: handle/bio match
+            (Contact.twitter_handle.ilike(pat), literal(4)),
+            (Contact.telegram_username.ilike(pat), literal(4)),
+            # Tier 5: everything else (notes, emails, interaction text)
+            else_=literal(5),
+        ).label("relevance")
+        relevance_prefix = [relevance.asc()]
+
     if sort_by == "created":
         order_clause = [Contact.created_at.desc()]
     elif sort_by == "interaction":
@@ -180,23 +206,20 @@ async def list_contacts_paginated(
     elif sort_by == "company":
         order_clause = [Contact.company.is_(None).asc(), Contact.company.asc(), Contact.created_at.desc()]
     elif sort_by == "birthday":
-        # Sort by days until next birthday using MM-DD suffix.
-        # birthday is stored as "MM-DD" or "YYYY-MM-DD"; right(birthday, 5) extracts "MM-DD".
-        # Compare to today's MM-DD: if >= today, birthday is upcoming this year;
-        # if < today, it already passed and wraps to next year (add 366 offset).
-        from sqlalchemy import case
+        from sqlalchemy import case as case_fn
         today_mmdd = datetime.now(UTC).strftime("%m-%d")
         bday_mmdd = func.right(Contact.birthday, 5)
-        days_proxy = case(
+        days_proxy = case_fn(
             (bday_mmdd >= today_mmdd, bday_mmdd),
-            else_=func.concat("z", bday_mmdd),  # 'z' > any MM-DD, so past dates sort last
+            else_=func.concat("z", bday_mmdd),
         )
         order_clause = [Contact.birthday.is_(None).asc(), days_proxy.asc()]
     elif sort_by == "overdue":
-        # Sort by how long since last interaction (most overdue first)
         order_clause = [Contact.last_interaction_at.asc().nullsfirst(), Contact.relationship_score.asc()]
     else:
         order_clause = [Contact.relationship_score.desc(), Contact.created_at.desc()]
+
+    order_clause = relevance_prefix + order_clause
 
     offset = (page - 1) * page_size
     result = await db.execute(

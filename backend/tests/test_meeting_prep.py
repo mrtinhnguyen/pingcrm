@@ -461,3 +461,70 @@ class TestMeetingPrepSetting:
         sync_settings = {"gmail": {"auto_sync": True, "meeting_prep_enabled": False}}
         gmail_settings = sync_settings.get("gmail", {})
         assert gmail_settings.get("meeting_prep_enabled", True) is False
+
+
+# ---------------------------------------------------------------------------
+# Task 9: Integration test
+# ---------------------------------------------------------------------------
+
+
+class TestMeetingPrepIntegration:
+    """End-to-end test: build brief → talking points → compose email."""
+
+    @pytest.mark.asyncio
+    @patch("app.services.meeting_prep._call_anthropic_with_retry")
+    @patch("app.services.meeting_prep.settings")
+    async def test_full_flow(self, mock_settings, mock_retry_call):
+        from app.services.meeting_prep import (
+            build_prep_brief,
+            compose_prep_email,
+            generate_talking_points,
+        )
+
+        mock_settings.ANTHROPIC_API_KEY = "test-key"
+        mock_settings.FRONTEND_URL = "https://pingcrm.sawinyh.com"
+
+        mock_response = MagicMock()
+        mock_response.content = [MagicMock(text="- Discuss project timeline\n- Ask about team expansion")]
+        mock_retry_call.return_value = mock_response
+
+        contact = _FakeContact(
+            full_name="Alice Smith",
+            title="CTO",
+            company="TechCo",
+            relationship_score=9,
+            interaction_count=25,
+            twitter_bio="Tech leader",
+            linkedin_headline="CTO at TechCo",
+            telegram_bio="Available on Telegram",
+        )
+        ix = _FakeInteraction(
+            contact_id=contact.id,
+            user_id=contact.user_id,
+            platform="gmail",
+            content_preview="Synced on product roadmap",
+            occurred_at=datetime(2026, 3, 23, tzinfo=UTC),
+        )
+
+        db = AsyncMock()
+        db.execute.side_effect = [
+            _FakeResult([contact]),
+            _FakeResult([ix]),
+        ]
+
+        briefs = await build_prep_brief([contact.id], db)
+        assert len(briefs) == 1
+        assert briefs[0]["name"] == "Alice Smith"
+
+        talking_points = await generate_talking_points(briefs, "Weekly sync")
+        assert len(talking_points) > 0
+
+        meeting = {"title": "Weekly sync", "occurred_at": datetime(2026, 3, 25, 15, 0, tzinfo=UTC)}
+        subject, html = compose_prep_email(meeting, briefs, talking_points)
+
+        assert "Weekly sync" in subject
+        assert "Alice Smith" in html
+        assert "CTO" in html
+        assert "TechCo" in html
+        assert "Tech leader" in html
+        assert "Telegram" in html

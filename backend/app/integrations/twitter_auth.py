@@ -132,10 +132,29 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
         await db.flush()
         return None
 
+    # Lock to prevent concurrent refresh race condition:
+    # Two Celery tasks (DM sync + activity poll) dispatch simultaneously.
+    # The first rotates the refresh token; the second would use the old
+    # (now-dead) token and get 400. Lock ensures only one refreshes.
+    import redis as _redis
+    from app.core.config import settings as _cfg
+    _r = _redis.from_url(_cfg.REDIS_URL)
+    lock_key = f"tw_refresh_lock:{user.id}"
+
+    if not _r.set(lock_key, "1", nx=True, ex=30):
+        # Another task is already refreshing — wait and re-read the user's token
+        import asyncio
+        await asyncio.sleep(2)
+        await db.refresh(user)
+        if user.twitter_access_token:
+            return {"Authorization": f"Bearer {user.twitter_access_token}"}
+        return None
+
     try:
         tokens = await refresh_twitter_token(user.twitter_refresh_token)
         store_tokens(user, tokens)
         await db.flush()
+        _r.delete(lock_key)
         return {"Authorization": f"Bearer {tokens['access_token']}"}
     except httpx.HTTPStatusError as e:
         logger.error(
@@ -144,18 +163,36 @@ async def _refresh_and_retry(user: User, db: AsyncSession) -> dict[str, str] | N
             e.response.status_code,
             e.response.text[:200],
         )
-        # Only notify on definitive auth failures (400/401), not rate limits (429) or server errors (5xx)
+        # Definitive auth failure (400/401): clear tokens to stop daily retry spam
         if e.response.status_code in (400, 401):
+            user.twitter_access_token = None
+            user.twitter_refresh_token = None
+            user.twitter_token_expires_at = None
+            logger.warning("Twitter tokens cleared for user %s (refresh permanently failed)", user.id)
+
+            # Deduplicate: only create notification if none in last 24h
             from app.models.notification import Notification
-            db.add(Notification(
-                user_id=user.id,
-                notification_type="system",
-                title="Twitter connection expired",
-                body="Failed to refresh your Twitter token. Please reconnect in Settings to restore Twitter sync.",
-                link="/settings",
-            ))
+            from datetime import UTC, datetime, timedelta
+            from sqlalchemy import select, func
+            recent = await db.execute(
+                select(func.count()).where(
+                    Notification.user_id == user.id,
+                    Notification.title == "Twitter connection expired",
+                    Notification.created_at >= datetime.now(UTC) - timedelta(hours=24),
+                )
+            )
+            if recent.scalar_one() == 0:
+                db.add(Notification(
+                    user_id=user.id,
+                    notification_type="system",
+                    title="Twitter connection expired",
+                    body="Failed to refresh your Twitter token. Please reconnect in Settings to restore Twitter sync.",
+                    link="/settings",
+                ))
             await db.flush()
+        _r.delete(lock_key)
         return None
     except Exception:
         logger.exception("Twitter token refresh failed for user %s (network error)", user.id)
+        _r.delete(lock_key)
         return None

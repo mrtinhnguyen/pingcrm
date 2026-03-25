@@ -94,6 +94,17 @@ def sync_telegram_chats_for_user(self, user_id: str, max_dialogs: int = 100, loc
                 db=db,
             )
 
+            # Auto-merge deterministic duplicates (same email/phone/telegram)
+            new_contacts = chat_info.get("new_contacts", 0)
+            if new_contacts > 0:
+                try:
+                    from app.services.identity_resolution import find_deterministic_matches
+                    merged = await find_deterministic_matches(uid, db)
+                    if merged:
+                        logger.info("telegram sync: auto-merged %d duplicate(s) for user %s", len(merged), uid)
+                except Exception:
+                    logger.warning("telegram sync: auto-merge failed for user %s", uid, exc_info=True)
+
             # Mark sync timestamp
             from datetime import UTC, datetime
             user.telegram_last_synced_at = datetime.now(UTC)

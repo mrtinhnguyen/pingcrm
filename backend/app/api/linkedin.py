@@ -308,6 +308,17 @@ async def push_linkedin_data(
         )
         await db.flush()
 
+    # Auto-merge deterministic duplicates after new contacts created
+    if contacts_created > 0:
+        try:
+            from app.services.identity_resolution import find_deterministic_matches
+            merged = await find_deterministic_matches(current_user.id, db)
+            if merged:
+                logger.info("linkedin push: auto-merged %d duplicate(s) for user %s", len(merged), current_user.id)
+        except Exception:
+            logger.warning("linkedin push: auto-merge failed for user %s", current_user.id, exc_info=True)
+        await db.flush()
+
     # Collect contacts that need backfill: have a linkedin_profile_id but are
     # missing avatar_url (or title/company). Check touched contacts first,
     # then query for any other contacts missing avatars (up to 10 total).

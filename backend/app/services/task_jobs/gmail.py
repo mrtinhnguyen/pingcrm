@@ -59,6 +59,17 @@ def sync_gmail_for_user(self, user_id: str) -> dict:
                         logger.warning("gmail: score recalc failed for contact %s", cid, exc_info=True)
 
             await record_sync_complete(sync_event, records_created=new_count, db=db)
+
+            # Auto-merge deterministic duplicates (same email/phone)
+            if new_count > 0:
+                try:
+                    from app.services.identity_resolution import find_deterministic_matches
+                    merged = await find_deterministic_matches(uid, db)
+                    if merged:
+                        logger.info("gmail sync: auto-merged %d duplicate(s) for user %s", len(merged), uid)
+                except Exception:
+                    logger.warning("gmail sync: auto-merge failed for user %s", uid, exc_info=True)
+
             await db.commit()
 
         return {"status": "ok", "new_interactions": new_count}

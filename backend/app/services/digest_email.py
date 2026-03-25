@@ -106,7 +106,7 @@ def _build_html(user_email: str, items: list[dict]) -> str:
             <td style="padding: 24px 40px; background: #f9fafb; text-align: center;
                         border-top: 1px solid #e5e7eb;">
               <p style="margin: 0; font-size: 12px; color: #9ca3af;">
-                You're receiving this because you use PingCRM.
+                You're receiving this because you use RealCRM.
                 <a href="{_BASE_URL}/settings/notifications"
                    style="color: #6366f1; text-decoration: none;">Manage preferences</a>
               </p>

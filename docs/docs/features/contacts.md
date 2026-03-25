@@ -5,7 +5,7 @@ title: Contact Management
 
 # Contact Management
 
-Contacts are the core entity in PingCRM. The contact list and detail pages let you browse, search, edit, and interact with your professional network.
+Contacts are the core entity in RealCRM. The contact list and detail pages let you browse, search, edit, and interact with your professional network.
 
 ## Contact List
 

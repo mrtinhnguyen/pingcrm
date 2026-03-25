@@ -1,5 +1,5 @@
 /**
- * Service worker for PingCRM LinkedIn Companion v2.
+ * Service worker for RealCRM LinkedIn Companion v2.
  * Message router — delegates to imported modules.
  *
  * importScripts loads modules synchronously at service worker startup.
@@ -58,7 +58,7 @@ async function _maybeRunVoyagerSync() {
   if (result.skipped) return;
 
   if (result.error) {
-    console.warn("[PingCRM SW] Post-capture Voyager sync error:", result.error);
+    console.warn("[RealCRM SW] Post-capture Voyager sync error:", result.error);
     return;
   }
 
@@ -84,16 +84,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const jsid = cookies.find(c => c.name === "JSESSIONID")?.value;
         const valid = !!(liAt && jsid);
         await chrome.storage.local.set({ cookiesValid: valid });
-        console.log("[PingCRM SW] Cookie refresh:", valid ? "valid" : "missing", "li_at:", !!liAt, "JSESSIONID:", !!jsid);
+        console.log("[RealCRM SW] Cookie refresh:", valid ? "valid" : "missing", "li_at:", !!liAt, "JSESSIONID:", !!jsid);
 
         if (valid) {
           // Trigger throttled sync in background
           _maybeRunVoyagerSync().catch(e =>
-            console.warn("[PingCRM SW] Auto-sync after page visit failed:", e.message)
+            console.warn("[RealCRM SW] Auto-sync after page visit failed:", e.message)
           );
         }
       } catch (e) {
-        console.warn("[PingCRM SW] Cookie refresh failed:", e.message);
+        console.warn("[RealCRM SW] Cookie refresh failed:", e.message);
       }
       sendResponse({ ok: true });
     })();
@@ -180,7 +180,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         fetch(`${apiUrl}/api/v1/extension/pair`, {
           method: "DELETE",
           headers: { Authorization: `Bearer ${token}` },
-        }).catch(e => console.debug("[PingCRM SW] Disconnect notify failed:", e.message));
+        }).catch(e => console.debug("[RealCRM SW] Disconnect notify failed:", e.message));
       }
 
       await chrome.storage.local.clear();
@@ -438,5 +438,5 @@ async function _runPendingBackfill() {
 
 chrome.runtime.onInstalled.addListener(() => {
   const manifest = chrome.runtime.getManifest();
-  console.log(`[PingCRM] LinkedIn Companion v${manifest.version} installed`);
+  console.log(`[RealCRM] LinkedIn Companion v${manifest.version} installed`);
 });

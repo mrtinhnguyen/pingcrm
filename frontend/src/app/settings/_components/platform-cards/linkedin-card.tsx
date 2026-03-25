@@ -207,7 +207,7 @@ export function LinkedInCard({ connected, fetchConnectionStatus }: LinkedInCardP
             </div>
 
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-4">
-              Install the PingCRM extension, open it, and enter the pairing code shown below.
+              Install the RealCRM extension, open it, and enter the pairing code shown below.
             </p>
 
             <label

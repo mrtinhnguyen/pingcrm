@@ -17,11 +17,11 @@ import { AccountTab } from "./_components/account-tab";
 
 /* ── Tab metadata (labels + icons for the bar) ── */
 const TABS = [
-  { id: "integrations", label: "Integrations", icon: Plug },
-  { id: "import", label: "Import", icon: FileDown },
-  { id: "followup", label: "Follow-up Rules", icon: Clock },
-  { id: "tags", label: "Tags", icon: Tag },
-  { id: "account", label: "Account", icon: User },
+  { id: "integrations", label: "Tích hợp", icon: Plug },
+  { id: "import", label: "Nhập", icon: FileDown },
+  { id: "followup", label: "Quy tắc Theo dõi", icon: Clock },
+  { id: "tags", label: "Thẻ", icon: Tag },
+  { id: "account", label: "Tài khoản", icon: User },
 ] as const;
 
 /* ── Tab bar ── */
@@ -91,13 +91,13 @@ function SettingsContent() {
     return (
       <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
         <div className="max-w-3xl mx-auto px-4 py-8">
-          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-1">Settings</h1>
+          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100 mb-1">Cài đặt</h1>
           <p className="text-sm text-stone-500 dark:text-stone-400 mb-8">
-            Manage integrations, imports, follow-up rules, tags, and your account.
+            Quản lý tích hợp, nhập dữ liệu, quy tắc theo dõi, thẻ và tài khoản của bạn.
           </p>
           <div className="flex items-center gap-2 text-sm text-stone-400 dark:text-stone-500 mt-12 justify-center">
             <RefreshCw className="w-4 h-4 animate-spin" />
-            Loading accounts...
+            Đang tải tài khoản...
           </div>
         </div>
       </div>
@@ -108,9 +108,9 @@ function SettingsContent() {
     <div className="min-h-screen bg-stone-50 dark:bg-stone-950">
       <div className="max-w-3xl mx-auto px-4 py-8">
         <div className="mb-6">
-          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Settings</h1>
+          <h1 className="text-2xl font-bold text-stone-900 dark:text-stone-100">Cài đặt</h1>
           <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
-            Manage integrations, imports, follow-up rules, tags, and your account.
+            Quản lý tích hợp, nhập dữ liệu, quy tắc theo dõi, thẻ và tài khoản của bạn.
           </p>
         </div>
 

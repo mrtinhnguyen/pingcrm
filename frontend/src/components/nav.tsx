@@ -12,20 +12,20 @@ import { cn } from "@/lib/utils";
 import { ThemeToggle } from "@/components/theme-toggle";
 
 const navLinks = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/suggestions", label: "Suggestions", icon: Sparkles },
+  { href: "/dashboard", label: "Bảng điều khiển", icon: LayoutDashboard },
+  { href: "/suggestions", label: "Gợi ý", icon: Sparkles },
   {
     href: "/contacts",
-    label: "Contacts",
+    label: "Danh bạ",
     icon: Users,
     children: [
-      { href: "/contacts", label: "All Contacts", icon: Users },
-      { href: "/contacts/archive", label: "Archive", icon: Archive },
-      { href: "/identity", label: "Resolve Duplicates", icon: GitMerge },
+      { href: "/contacts", label: "Tất cả danh bạ", icon: Users },
+      { href: "/contacts/archive", label: "Lưu trữ", icon: Archive },
+      { href: "/identity", label: "Gộp trùng lặp", icon: GitMerge },
     ],
   },
-  { href: "/organizations", label: "Orgs", icon: Building2 },
-  { href: "/settings", label: "Settings", icon: Settings },
+  { href: "/organizations", label: "Tổ chức", icon: Building2 },
+  { href: "/settings", label: "Cài đặt", icon: Settings },
 ];
 
 function LogoDot() {
@@ -35,9 +35,9 @@ function LogoDot() {
   if (syncing) {
     return (
       <span
-        title="Telegram sync in progress"
+        title="Đang đồng bộ Telegram"
         className="relative flex items-center justify-center w-2.5 h-2.5"
-        aria-label="Telegram sync in progress"
+        aria-label="Đang đồng bộ Telegram"
       >
         <span className="absolute inline-flex w-full h-full rounded-full bg-sky-400 opacity-75 animate-ping" />
         <span className="relative inline-flex w-2 h-2 rounded-full bg-sky-500" />
@@ -196,7 +196,7 @@ function NavSearch() {
         className="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm text-stone-400 border border-stone-200 hover:border-stone-300 hover:text-stone-500 dark:text-stone-500 dark:border-stone-700 dark:hover:border-stone-600 dark:hover:text-stone-400 transition-colors whitespace-nowrap"
       >
         <Search className="w-3.5 h-3.5 shrink-0" />
-        <span className="hidden sm:inline">Search contacts</span>
+        <span className="hidden sm:inline">Tìm kiếm danh bạ</span>
         <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[10px] font-mono bg-stone-100 dark:bg-stone-800 rounded text-stone-400 dark:text-stone-500">
           ⌘K
         </kbd>
@@ -218,7 +218,7 @@ function NavSearch() {
               navigate(results[0].id);
             }
           }}
-          placeholder="Search contacts..."
+          placeholder="Tìm kiếm danh bạ..."
           className="w-40 sm:w-56 text-sm bg-transparent outline-none placeholder:text-stone-400 dark:placeholder:text-stone-500 dark:text-stone-100"
         />
       </div>
@@ -226,7 +226,7 @@ function NavSearch() {
         <div className="absolute top-full left-0 right-0 mt-1 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg z-50 flex flex-col">
           <div className="max-h-72 overflow-auto">
             {results.length === 0 ? (
-              <p className="px-3 py-4 text-sm text-stone-400 dark:text-stone-500 text-center">No contacts found</p>
+              <p className="px-3 py-4 text-sm text-stone-400 dark:text-stone-500 text-center">Không tìm thấy danh bạ</p>
             ) : (
               results.map((c) => (
                 <button
@@ -239,7 +239,7 @@ function NavSearch() {
                   </div>
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">
-                      {c.full_name || c.emails?.[0] || "Unnamed"}
+                      {c.full_name || c.emails?.[0] || "Chưa đặt tên"}
                     </p>
                     {c.company && (
                       <p className="text-xs text-stone-400 dark:text-stone-500 truncate">{c.company}</p>
@@ -258,7 +258,7 @@ function NavSearch() {
               }}
               className="shrink-0 w-full px-3 py-2 text-xs text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 border-t border-stone-100 dark:border-stone-800 transition-colors rounded-b-lg"
             >
-              View all results for &ldquo;{query}&rdquo;
+              Xem tất cả kết quả cho &ldquo;{query}&rdquo;
             </button>
           )}
         </div>
@@ -314,7 +314,7 @@ export function Nav() {
         <button
           onClick={() => setMobileMenuOpen(v => !v)}
           className="md:hidden p-2 rounded-md text-stone-500 hover:bg-stone-100 dark:text-stone-400 dark:hover:bg-stone-800 transition-colors"
-          aria-label="Toggle menu"
+          aria-label="Chuyển đổi menu"
           aria-expanded={mobileMenuOpen}
           aria-controls="mobile-nav-menu"
         >
@@ -399,7 +399,7 @@ export function Nav() {
                       className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition-colors"
                     >
                       <LogOut className="w-4 h-4" />
-                      Sign out
+                      Đăng xuất
                     </button>
                   </div>
                 )}
@@ -409,7 +409,7 @@ export function Nav() {
                 href="/auth/login"
                 className="px-3 py-1.5 rounded-md text-sm font-medium text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 transition-colors"
               >
-                Sign in
+                Đăng nhập
               </Link>
             )}
           </div>

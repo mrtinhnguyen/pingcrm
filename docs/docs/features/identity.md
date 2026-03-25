@@ -5,7 +5,7 @@ title: Identity Resolution
 
 # Identity Resolution
 
-The **Identity Resolution** page (`/identity`) detects and merges duplicate contacts that represent the same person across different platforms. PingCRM uses a multi-tier matching system to surface candidates, from deterministic exact matches to probabilistic scoring.
+The **Identity Resolution** page (`/identity`) detects and merges duplicate contacts that represent the same person across different platforms. RealCRM uses a multi-tier matching system to surface candidates, from deterministic exact matches to probabilistic scoring.
 
 ## Tier 1: Deterministic Matching
 
@@ -21,7 +21,7 @@ Because these signals are unique identifiers, false positives are extremely rare
 
 ## Tier 2: Probabilistic Matching
 
-When no exact identifier overlap exists, PingCRM computes a weighted similarity score across five signals:
+When no exact identifier overlap exists, RealCRM computes a weighted similarity score across five signals:
 
 | Signal | Weight |
 |---|---|

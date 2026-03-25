@@ -14,7 +14,7 @@ export function ThemeToggle() {
       className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-teal-500 focus-visible:ring-offset-2 dark:focus-visible:ring-offset-stone-900 bg-stone-200 dark:bg-stone-700"
       role="switch"
       aria-checked={isDark}
-      aria-label="Toggle dark mode"
+      aria-label="Chuyển đổi chế độ tối"
     >
       <span
         className={`inline-flex h-5 w-5 items-center justify-center rounded-full bg-white shadow-sm transition-transform duration-200 ${

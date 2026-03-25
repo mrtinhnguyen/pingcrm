@@ -1,4 +1,4 @@
-# PingCRM - AI Networking CRM
+# RealCRM - AI Networking CRM
 
 ## Project Overview
 Personal networking CRM that helps maintain professional relationships.

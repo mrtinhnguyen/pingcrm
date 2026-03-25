@@ -1,818 +1,442 @@
-# PingCRM
+# RealCRM
 
-**Open-Source Personal Networking CRM — AI-Powered, Self-Hostable**
+**Hệ thống CRM Kết nối Mạng lưới Cá nhân Mã nguồn Mở — Được hỗ trợ bởi AI, Tự lưu trữ**
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
-[![GitHub stars](https://img.shields.io/github/stars/sneg55/pingcrm)](https://github.com/sneg55/pingcrm/stargazers)
-[![Build](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml/badge.svg)](https://github.com/sneg55/pingcrm/actions/workflows/deploy.yml)
 
-Auto-syncs Gmail, Telegram, Twitter/X, and LinkedIn. Detects life events. Drafts contextual follow-ups with AI. Tells you who to reach out to and why.
+Tự động đồng bộ Gmail, Telegram, Twitter/X và LinkedIn. Phát hiện sự kiện trong cuộc sống. Soạn thảo tin nhắn theo ngữ cảnh với AI. Cho bạn biết nên liên hệ với ai và tại sao.
 
-> **[Full Documentation](https://docs.pingcrm.xyz/)** · **[Self-Host Now](https://docs.pingcrm.xyz/setup)** · **[Join Hosted Waitlist](https://pingcrm.xyz)**
-
-## Why PingCRM?
-
-| Feature | PingCRM | Monica | Dex |
-|---|---|---|---|
-| Price | Free (self-hosted) | Free / $9/mo hosted | Free tier / $12/mo |
-| AI message drafting | Yes | No | No |
-| Gmail sync | Yes (threads) | No | Yes (contacts) |
-| Telegram sync | Yes | No | No |
-| Twitter/X sync | Yes (DMs + mentions) | No | Import only |
-| LinkedIn sync | Yes (Chrome extension) | No | Yes |
-| Relationship scoring | Yes (0–10) | No | Reminders only |
-| Life event detection | Yes (multi-source) | Manual only | Job changes only |
-| Identity resolution | Yes (4-tier) | No | Partial |
-| Open source | Yes (AGPL-3.0) | Yes (AGPL-3.0) | No |
-| Self-hostable | Yes | Yes | No |
-
-## Table of Contents
-
-- [Features](#features)
-- [Tech Stack](#tech-stack)
-- [Prerequisites](#prerequisites)
-- [Setup Guide](#setup-guide)
-  - [1. Clone the Repository](#1-clone-the-repository)
-  - [2. Database Setup](#2-database-setup-postgresql)
-  - [3. Redis Setup](#3-redis-setup)
-  - [4. Backend Setup](#4-backend-setup)
-  - [5. Frontend Setup](#5-frontend-setup)
-  - [6. Platform Credentials](#6-platform-credentials)
-  - [7. Running the Application](#7-running-the-application)
-- [Environment Variables](#environment-variables)
-- [Project Structure](#project-structure)
-- [API Reference](#api-reference)
-- [Celery Beat Schedule](#celery-beat-schedule)
-- [Testing](#testing)
+> **[Tài liệu đầy đủ](https://docs.realcrm.vn/)** · **[Tự lưu trữ ngay](https://docs.realcrm.vn/setup)** · **[Tham gia danh sách chờ](https://realcrm.vn)**
 
 ---
 
-## Features
+## Mục lục
 
-### Dashboard (`/dashboard`)
-
-The main screen provides a real-time overview of your networking activity:
-
-- **Total Contacts** -- count of all contacts in your CRM
-- **Pending Suggestions** -- follow-up suggestions awaiting your action
-- **Identity Matches** -- potential duplicate contacts detected across platforms
-- **Reach Out This Week** -- top 3 contacts recommended for follow-up, with reasons and AI-drafted messages
-- **Recent Activity** -- contacts you've interacted with recently
-- **Relationship Health** -- breakdown of contacts by status (active, warming, going cold)
-
-### Contact Management
-
-#### Contact List (`/contacts`)
-
-- Paginated, sortable contact list with search
-- **Full-text search** across contact names, emails, companies, Twitter handles, Telegram usernames, Twitter bios, Telegram bios, and interaction message content
-- Sort by name, relationship score, or last interaction date
-- Filter by tags
-- Relationship strength color indicators (green/yellow/red)
-- Avatar display with fallback initials
-- **Bulk actions** -- multi-select contacts to add/remove tags, set priority level, set company, archive, merge, or delete
-
-#### Contact Detail (`/contacts/[id]`)
-
-- **Inline editing** -- click any field to edit directly (name, email, company, title, phone, tags, notes, Twitter handle, Telegram username, LinkedIn URL)
-- **Company autocomplete** -- when editing the Company field, search existing organizations with a dropdown. Select an org to link the contact, or type a new name
-- **Quick message composer** -- always-visible collapsed bar above the timeline. Click to expand into a full message editor with channel selection (email, Telegram, Twitter)
-- **Interaction timeline** -- chronological feed of all touchpoints across email, Telegram, Twitter, and manual notes, with platform icons and direction indicators. Bio changes appear as event pills in the timeline.
-- **Add manual notes** -- record offline conversations or meetings
-- **Telegram common groups** -- sidebar card showing shared Telegram groups with a contact (cached for 24 hours)
-- **Rate limit handling** -- Telegram send shows countdown timer on 429 with Retry-After header
-- **Duplicate detection** -- find and merge potential duplicate contacts
-- **Relationship score badge** -- color-coded score with label (Active, Warm, Cooling, At Risk)
-- **Edit and delete notes** -- hover pencil/trash icons on manual notes in the timeline
-- **Auto-sync on visit** -- Telegram and Twitter messages sync automatically when viewing a contact
-- **Auto-dismiss suggestions** -- pending follow-up suggestions dismissed when new interactions are synced
-- **Delete contact** with confirmation dialog
-
-#### Import Methods
-
-- **CSV upload** -- drag-and-drop or file picker. Supports columns: `name`, `email`, `twitter`, `telegram`, `company`, `notes`
-- **Google Contacts sync** -- one-click OAuth import of name, email, phone, company, and title
-- **Manual entry** -- add contacts one at a time through the UI (`/contacts/new`)
-
-### Platform Integrations
-
-#### Gmail (`Settings > Gmail`)
-
-- OAuth 2.0 connection with Google
-- Multi-account support -- connect multiple Google accounts
-- **Email sync** -- imports email threads as interactions (sender, recipient, subject, timestamps, body snippets)
-- **Google Contacts sync** -- one-way import of contacts from your Google address book
-- **Google Calendar sync** -- imports calendar events as meeting interactions
-- All syncs run as background Celery tasks with notification on completion or failure
-
-#### Telegram (`Settings > Telegram`)
-
-- MTProto client integration (accesses your actual chat history, not bot API)
-- Phone number + OTP verification flow
-- Two-step verification (2FA) support for accounts with cloud passwords
-- **Chat sync** -- imports DM conversations as interactions (skips unchanged dialogs to reduce API calls)
-- **Group member sync** -- discovers contacts from shared Telegram groups
-- **Bio sync** -- captures Telegram bios for your contacts (7-day freshness filter to reduce API calls)
-- **Common groups** -- view which Telegram groups you share with a specific contact
-- **Rate gate** -- Redis-based cross-operation coordination prevents FloodWaitError cascades
-- Background sync with progress notifications
-
-#### Twitter/X (`Settings > Twitter`)
-
-- OAuth 2.0 PKCE authentication flow
-- **Bird CLI** (`@steipete/bird`) -- cookie-based tweet/profile fetching bypassing API rate limits, with Twitter API as fallback
-- **DM sync** -- imports direct message conversations using per-conversation API (`/dm_conversations/with/:id`)
-- **Mention sync** -- tracks @mentions and replies
-- **Bio monitoring** -- detects bio changes (job changes, milestones), stores them as events, and adds them to the contact timeline
-- Background sync with retry logic and failure notifications
-
-#### LinkedIn (`Chrome Extension`)
-
-- Companion Chrome extension (`chrome-extension/`) for passive LinkedIn data capture
-- **Profile sync** -- captures name, headline, company, location, avatar when visiting profiles
-- **Message sync** -- captures DM conversations from full-page messaging and overlay chat
-- **Avatar download** -- high-res profile photos saved locally with SSRF domain allowlist
-- Content-hash deduplication prevents duplicate messages
-- Settings persist across browser sessions via chrome.storage.local
-
-### Identity Resolution (`/identity`)
-
-Automatically detects when contacts across different platforms are the same person:
-
-- **Tier 1: Deterministic matching** (auto-merge) -- same email, same phone number, email found in Twitter bio
-- **Tier 2: Probabilistic matching** (scored) -- weighted formula:
-  - Email domain match: 40%
-  - Name similarity: 20%
-  - Company match: 20%
-  - Username similarity: 10%
-  - Mutual signals: 10%
-  - Auto-merges above 85% confidence
-  - Colleague guard: caps score when names differ but company/email domain match (prevents false positives for coworkers)
-- **Tier 4: Manual review** -- side-by-side comparison cards for low-confidence matches
-- **Merge or reject** -- one-click actions to combine duplicate profiles or dismiss false matches
-- **Scan button** -- trigger identity resolution on demand
-
-### Organizations (`/organizations`)
-
-Manage companies and organizations your contacts belong to:
-
-#### Organization List (`/organizations`)
-
-- Flat table with sortable column headers (name, contacts, avg score, interactions, last activity)
-- Click any column header to sort; active sort shows arrow indicator
-- **Domain favicon** -- automatically fetches favicon from the org's domain as a logo
-- **Search** -- filter organizations by name
-- **Select and merge** -- checkbox selection with bulk merge for duplicate organizations
-- **Per-row delete** -- trash icon on each row with confirmation dialog
-- **Bulk actions bar** -- appears on selection with merge and delete options
-- Pagination for large datasets
-
-#### Organization Detail (`/organizations/[id]`)
-
-- **Inline editing** -- hover any field to reveal pencil icon, click to edit in place (name, location, website, LinkedIn, Twitter, notes)
-- **Stats cards** -- contacts count, avg relationship score, total interactions, last activity (from materialized view, refreshed hourly)
-- **Contacts table** -- sortable list of active contacts in the organization with score badges
-- **Auto-hidden** -- organizations with zero active (non-archived) contacts are hidden from the list
-- **Delete organization** -- unlinks contacts but does not delete them
-
-### Smart Follow-Up Suggestions (`/suggestions`)
-
-AI-generated recommendations for who to reach out to and why:
-
-- **Time-based triggers** -- no interaction in 90+ days, declining relationship score
-- **Event-based triggers** -- detected job changes, fundraising announcements, product launches from Twitter activity
-- **Scheduled triggers** -- user-set manual reminders with snooze reactivation
-- **AI message composer** -- generates contextual draft messages using Claude 3.5 Haiku, considering:
-  - Contact profile (name, company, role)
-  - Last interaction summary and when it occurred
-  - Detected events (the reason for reaching out now)
-  - Conversation tone (formal vs. casual, based on past messages)
-  - Preferred channel (email, Telegram, Twitter)
-- **Actions per suggestion:**
-  - Edit the AI-drafted message and mark as sent
-  - Snooze (2 weeks / 1 month / 3 months)
-  - Dismiss entirely
-- **Generate new suggestions** on demand with one click
-
-### Relationship Scoring
-
-Automatic scoring of relationship health based on interaction patterns:
-
-| Signal | Points |
-|--------|--------|
-| Message exchanged in last 30 days | +5 |
-| Reply within 48 hours | +3 |
-| Introduction or referral made | +2 |
-| Mutual interaction (both sides initiate) | +2 |
-| Per month of silence | -2 |
-
-Score interpretation:
-
-- **8+** (Green) -- Active relationship, no follow-up needed
-- **4-7** (Yellow) -- Warm, could use a check-in soon
-- **1-3** (Orange) -- Cooling off, follow-up recommended
-- **0 or below** (Red) -- At risk of going cold
-
-### Context Detection Engine
-
-Monitors Twitter activity from contacts and classifies events worth acting on:
-
-| Event | Signal Source | Example |
-|-------|-------------|---------|
-| Job change | Twitter bio update, tweet | "Excited to join Stripe" |
-| Fundraising | Tweet, email mention | "We just closed our seed round" |
-| Product launch | Tweet | "We shipped today" |
-| Promotion | Twitter bio | New title in bio |
-| Personal milestone | Tweet | Wedding, move, new baby |
-| Conference/event | Tweet, email | Speaking at or attending an event |
-
-Uses Claude for LLM-powered event classification with confidence scoring.
-
-### Notifications (`/notifications`)
-
-In-app notification center for all system events:
-
-- Sync completion and failure alerts
-- New follow-up suggestion notifications
-- Bio change detections
-- Identity match discoveries
-- Mark individual or all notifications as read
-- Click any notification to navigate to the relevant page
-- Unread badge in navigation
-
-### Settings (`/settings`)
-
-Central hub for managing all platform connections and data sync:
-
-- **Gmail** -- connect/disconnect, view connected email, sync contacts, sync calendar events
-- **Telegram** -- connect via phone number, OTP verification, 2FA support, sync chats
-- **Twitter** -- OAuth connect/disconnect, sync DMs and mentions
-- **CSV Import** -- upload contact spreadsheets with drag-and-drop
-- Connection status badges showing connected accounts and usernames
-
-### Onboarding (`/onboarding`)
-
-Guided 4-step setup flow for new users:
-
-1. Welcome screen
-2. Connect Google account
-3. Import contacts
-4. Done -- redirects to dashboard
-
-### Authentication
-
-- **Google OAuth** -- sign in with Google account
-- **Email/password** -- register and login with email
-- JWT-based session management (24-hour token expiry)
-- Protected routes with automatic redirect to login
-
-### Error Handling
-
-- Global error boundary with recovery action
-- 404 Not Found page
-- Per-page error states with retry buttons
-- Empty states with helpful guidance for new users
+- [Tính năng](#tính-năng)
+- [Yêu cầu hệ thống](#yêu-cầu-hệ-thống)
+- [Hướng dẫn cài đặt](#hướng-dẫn-cài-đặt)
+  - [Bước 1: Clone Repository](#bước-1-clone-repository)
+  - [Bước 2: Cài đặt PostgreSQL](#bước-2-cài-đặt-postgresql)
+  - [Bước 3: Cài đặt Redis](#bước-3-cài-đặt-redis)
+  - [Bước 4: Thiết lập Backend](#bước-4-thiết-lập-backend)
+  - [Bước 5: Thiết lập Frontend](#bước-5-thiết-lập-frontend)
+  - [Bước 6: Cấu hình biến môi trường](#bước-6-cấu-hình-biến-môi-trường)
+  - [Bước 7: Chạy ứng dụng](#bước-7-chạy-ứng-dụng)
+- [Biến môi trường](#biến-môi-trường)
+- [Cấu trúc dự án](#cấu-trúc-dự-án)
 
 ---
 
-## Tech Stack
+## Tính năng
 
-| Component | Technology |
-|-----------|-----------|
-| **Backend** | Python 3.12 + FastAPI |
-| **Database** | PostgreSQL (via SQLAlchemy 2.x async + asyncpg) |
-| **Migrations** | Alembic |
-| **Task Queue** | Redis + Celery |
-| **AI** | Anthropic Claude 3.5 Haiku (event classification + message composition) |
-| **Frontend** | Next.js 15 + React 19 + Tailwind CSS v4 |
-| **State Management** | TanStack React Query v5 |
-| **Telegram** | Telethon (MTProto client) |
-| **Google APIs** | google-api-python-client + google-auth-oauthlib |
-| **Auth** | python-jose (JWT) + passlib (bcrypt) |
-| **HTTP Client** | httpx (async) + openapi-fetch (frontend) |
-| **Testing** | pytest (backend, 631 tests) + Vitest (frontend, 481 tests) |
+### Bảng điều khiển (`/dashboard`)
+
+- **Tổng số Danh bạ** — số lượng tất cả danh bạ trong CRM
+- **Gợi ý đang chờ** — gợi ý theo dõi đang chờ bạn thực hiện
+- **Khớp danh tính** — phát hiện danh bạ trùng lặp trên các nền tảng
+- **Nên liên hệ tuần này** — top 3 danh bạ nên theo dõi, với lý do và tin nhắn do AI soạn
+- **Hoạt động gần đây** — danh bạ bạn tương tác gần đây
+- **Sức khỏe mối quan hệ** — phân tích danh bạ theo trạng thái (đang hoạt động, đang ấm lên, đang nguội)
+
+### Quản lý Danh bạ
+
+- Danh sách danh bạ phân trang, có thể sắp xếp với tìm kiếm
+- **Tìm kiếm toàn văn** trên tên, email, công ty, Twitter, Telegram, tiểu sử và nội dung tin nhắn
+- Lọc theo thẻ (tags)
+- Chỉ báo màu sức mạnh mối quan hệ (xanh/vàng/đỏ)
+- **Thao tác hàng loạt** — chọn nhiều danh bạ để thêm/xóa thẻ, đặt mức ưu tiên, gộp hoặc xóa
+
+### Tích hợp Nền tảng
+
+- **Gmail** — OAuth 2.0, đồng bộ email threads
+- **Telegram** — MTProto client, đồng bộ chat, nhóm, tiểu sử
+- **Twitter/X** — OAuth 2.0 PKCE, đồng bộ DM và mentions
+- **LinkedIn** — Chrome extension để thu thập dữ liệu
+
+### Gợi ý Theo dõi Thông minh
+
+AI tạo gợi ý nên liên hệ với ai và tại sao:
+- Kích hoạt dựa trên thờii gian (90+ ngày không tương tác)
+- Kích hoạt dựa trên sự kiện (thay đổi công việc, gây quỹ)
+- Soạn tin nhắn theo ngữ cảnh với Claude AI
 
 ---
 
-## Prerequisites
+## Yêu cầu hệ thống
 
 - **Python 3.12+**
-- **Node.js 18+** and npm
+- **Node.js 18+** và npm
 - **PostgreSQL 14+**
 - **Redis 6+**
 
 ---
 
-## Setup Guide
+## Hướng dẫn cài đặt
 
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/sneg55/pingcrm.git
-cd pingcrm
-```
-
-### 2. Database Setup (PostgreSQL)
-
-Create the database:
+### Bước 1: Clone Repository
 
 ```bash
-createdb pingcrm
+git clone https://github.com/your-org/realcrm.git
+cd realcrm
 ```
 
-Or via psql:
+### Bước 2: Cài đặt PostgreSQL
+
+#### Phương án A: PostgreSQL Local (máy tính cá nhân)
+
+**Windows:**
+1. Tải PostgreSQL từ [postgresql.org/download/windows](https://www.postgresql.org/download/windows/)
+2. Cài đặt với mật khẩu postgres (ghi nhớ mật khẩu này)
+3. Mở pgAdmin hoặc psql và tạo database:
 
 ```sql
-CREATE DATABASE pingcrm;
+CREATE DATABASE realcrm;
 ```
 
-### 3. Redis Setup
-
-Install and start Redis:
-
+**macOS:**
 ```bash
-# macOS
+brew install postgresql
+brew services start postgresql
+createdb realcrm
+```
+
+**Ubuntu/Debian:**
+```bash
+sudo apt install postgresql postgresql-contrib
+sudo systemctl start postgresql
+sudo -u postgres createdb realcrm
+```
+
+#### Phương án B: PostgreSQL trên Server độc lập (Remote)
+
+Nếu PostgreSQL được cài trên server riêng, bạn chỉ cần:
+
+1. **Tạo database trên server:**
+```sql
+CREATE DATABASE realcrm;
+CREATE USER realcrm_user WITH PASSWORD 'your_secure_password';
+GRANT ALL PRIVILEGES ON DATABASE realcrm TO realcrm_user;
+```
+
+2. **Cấu hình PostgreSQL cho kết nối từ xa** (trên server):
+- Mở file `postgresql.conf`, tìm dòng `listen_addresses` và sửa thành:
+```
+listen_addresses = '*'
+```
+- Mở file `pg_hba.conf`, thêm dòng:
+```
+host    realcrm    realcrm_user    0.0.0.0/0    md5
+```
+- Restart PostgreSQL: `sudo systemctl restart postgresql`
+
+3. **Kết nối từ máy local:** Sử dụng connection string đầy đủ trong file `.env`
+
+### Bước 3: Cài đặt Redis
+
+#### Phương án A: Redis Local (máy tính cá nhân)
+
+**Windows (dùng WSL hoặc Redis for Windows):**
+```bash
+# Trong WSL Ubuntu
+sudo apt install redis-server
+sudo service redis-server start
+```
+
+**macOS:**
+```bash
 brew install redis
 brew services start redis
+```
 
-# Ubuntu/Debian
+**Ubuntu/Debian:**
+```bash
 sudo apt install redis-server
 sudo systemctl start redis
 ```
 
-Verify Redis is running:
-
+Kiểm tra Redis đang chạy:
 ```bash
 redis-cli ping
-# Should return: PONG
+# Kết quả: PONG
 ```
 
-### 4. Backend Setup
+#### Phương án B: Redis trên Server độc lập (Remote)
+
+Nếu Redis được cài trên server riêng:
+
+1. **Cấu hình Redis cho kết nối từ xa** (trên server):
+- Mở file `redis.conf`, tìm và sửa:
+```
+bind 0.0.0.0
+protected-mode yes
+requirepass your_redis_password
+```
+- Restart Redis: `sudo systemctl restart redis`
+
+2. **Kiểm tra kết nối từ máy local:**
+```bash
+redis-cli -h YOUR_SERVER_IP -p 6379 -a your_redis_password ping
+# Kết quả: PONG
+```
+
+### Bước 4: Thiết lập Backend
 
 ```bash
 cd backend
 
-# Create virtual environment
-python3.12 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+# Tạo môi trường ảo
+python -m venv .venv
 
-# Install dependencies
+# Kích hoạt môi trường ảo
+# Windows:
+.venv\Scripts\activate
+# macOS/Linux:
+source .venv/bin/activate
+
+# Cài đặt dependencies
 pip install -r requirements.txt
 
-# Configure environment variables
+# Copy file môi trường
 cp .env.example .env
 ```
 
-Edit `.env` with your credentials (see [Environment Variables](#environment-variables) for the full list):
-
-```env
-# REQUIRED: Generate a secure secret key
-SECRET_KEY=<run: python -c "import secrets; print(secrets.token_urlsafe(64))">
-
-# Database
-DATABASE_URL=postgresql+asyncpg://localhost:5432/pingcrm
-
-# Redis
-REDIS_URL=redis://localhost:6379/0
-```
-
-Run database migrations:
+### Bước 5: Thiết lập Frontend
 
 ```bash
+cd frontend
+
+# Cài đặt dependencies
+npm install
+
+# Copy file môi trường
+cp .env.example .env.local
+```
+
+### Bước 6: Cấu hình biến môi trường
+
+#### Backend (.env)
+
+Mở file `backend/.env` và cấu hình:
+
+```env
+# ============================================
+# CẤU HÌNH CƠ BẢN (BẮT BUỘC)
+# ============================================
+
+# Database PostgreSQL
+# Format: postgresql+asyncpg://user:password@host:port/database
+# 
+# Ví dụ Local:
+DATABASE_URL=postgresql+asyncpg://postgres:your_password@localhost:5432/realcrm
+#
+# Ví dụ Server độc lập (Remote):
+# DATABASE_URL=postgresql+asyncpg://realcrm_user:your_secure_password@your_server_ip:5432/realcrm
+
+# Redis
+# Format: redis://host:port/db hoặc redis://:password@host:port/db
+#
+# Ví dụ Local:
+REDIS_URL=redis://localhost:6379/0
+#
+# Ví dụ Server độc lập (Remote) có mật khẩu:
+# REDIS_URL=redis://:your_redis_password@your_server_ip:6379/0
+
+# Secret key cho JWT - Tạo bằng lệnh:
+# python -c "import secrets; print(secrets.token_urlsafe(64))"
+SECRET_KEY=your_generated_secret_key_here
+
+# Encryption key cho OAuth tokens - Tạo bằng lệnh:
+# python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+ENCRYPTION_KEY=your_generated_encryption_key_here
+
+# Môi trường: development hoặc production
+ENVIRONMENT=development
+
+# ============================================
+# CẤU HÌNH TÙY CHỌN
+# ============================================
+
+# Thờii gian hết hạn token (phút) - mặc định 1440 (24 giờ)
+ACCESS_TOKEN_EXPIRE_MINUTES=1440
+
+# CORS origins cho frontend
+CORS_ORIGINS=["http://localhost:3000","http://127.0.0.1:3000"]
+
+# ============================================
+# TÍCH HỢP GOOGLE (Tùy chọn)
+# ============================================
+
+# Lấy từ Google Cloud Console:
+# 1. Vào https://console.cloud.google.com/
+# 2. Tạo project, enable Gmail API, Google People API, Calendar API
+# 3. Credentials > Create Credentials > OAuth 2.0 Client ID
+# 4. Add redirect URI: http://localhost:3000/auth/google/callback
+
+GOOGLE_CLIENT_ID=your_google_client_id
+GOOGLE_CLIENT_SECRET=your_google_client_secret
+GOOGLE_REDIRECT_URI=http://localhost:3000/auth/google/callback
+
+# ============================================
+# TÍCH HỢP TWITTER/X (Tùy chọn)
+# ============================================
+
+# Lấy từ Twitter Developer Portal:
+# 1. Vào https://developer.twitter.com/
+# 2. Tạo project và app, enable OAuth 2.0
+# 3. Set callback URL: http://localhost:3000/auth/twitter/callback
+
+TWITTER_CLIENT_ID=your_twitter_client_id
+TWITTER_CLIENT_SECRET=your_twitter_client_secret
+TWITTER_API_KEY=your_twitter_api_key
+TWITTER_API_SECRET=your_twitter_api_secret
+TWITTER_REDIRECT_URI=http://localhost:3000/auth/twitter/callback
+TWITTER_BEARER_TOKEN=your_twitter_bearer_token
+
+# ============================================
+# TÍCH HỢP TELEGRAM (Tùy chọn)
+# ============================================
+
+# Lấy từ my.telegram.org:
+# 1. Đăng nhập bằng số điện thoại
+# 2. API development tools > Create new application
+
+TELEGRAM_API_ID=your_api_id
+TELEGRAM_API_HASH=your_api_hash
+
+# ============================================
+# TÍCH HỢP ANTHROPIC/CLAUDE AI (Tùy chọn)
+# ============================================
+
+# Lấy từ https://console.anthropic.com/
+ANTHROPIC_API_KEY=your_anthropic_api_key
+
+# ============================================
+# BIRD CLI - Twitter Cookie (Tùy chọn)
+# ============================================
+
+# Lấy từ browser: DevTools > Application > Cookies > x.com
+AUTH_TOKEN=your_auth_token
+CT0=your_ct0_token
+```
+
+#### Frontend (.env.local)
+
+Mở file `frontend/.env.local` và cấu hình:
+
+```env
+# ============================================
+# CẤU HÌNH FRONTEND
+# ============================================
+
+# URL của backend API
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
+# URL của ứng dụng
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+```
+
+#### Tạo khóa bảo mật
+
+Chạy các lệnh sau để tạo khóa bảo mật:
+
+```bash
+# Trong thư mục backend với môi trường ảo đã kích hoạt
+
+# Tạo SECRET_KEY
+python -c "import secrets; print(secrets.token_urlsafe(64))"
+
+# Tạo ENCRYPTION_KEY
+python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+```
+
+Copy kết quả vào file `backend/.env` tương ứng.
+
+#### Chạy migration database
+
+```bash
+cd backend
 alembic upgrade head
 ```
 
-### 5. Frontend Setup
+### Bước 7: Chạy ứng dụng
 
-```bash
-cd frontend
-npm install
-```
+Bạn cần **3-4 terminal** để chạy đầy đủ:
 
-No additional frontend configuration is needed for local development. The frontend proxies all `/api/*` requests to the backend via Next.js rewrites (default: `http://localhost:8000`, configurable via `NEXT_PUBLIC_API_URL`).
-
-### 6. Platform Credentials
-
-All platform integrations are optional. The app works without them -- you can add contacts manually or via CSV and connect platforms later.
-
-#### Google OAuth (login + Gmail + Contacts + Calendar)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create a project (or select existing)
-3. Enable these APIs:
-   - Gmail API
-   - Google People API (for contacts)
-   - Google Calendar API
-4. Go to **Credentials > Create Credentials > OAuth 2.0 Client ID**
-5. Set application type to **Web application**
-6. Add authorized redirect URI: `http://localhost:3000/auth/google/callback`
-7. Copy Client ID and Client Secret to `.env`:
-   ```env
-   GOOGLE_CLIENT_ID=your_client_id
-   GOOGLE_CLIENT_SECRET=your_client_secret
-   ```
-
-#### Twitter/X API (DMs, mentions, bio monitoring)
-
-1. Go to [Twitter Developer Portal](https://developer.twitter.com/)
-2. Create a project and app
-3. Enable **OAuth 2.0** with PKCE
-4. Set callback URL: `http://localhost:3000/auth/twitter/callback`
-5. Request access to scopes: `dm.read`, `tweet.read`, `users.read`, `offline.access`
-6. Copy credentials to `.env`:
-   ```env
-   TWITTER_CLIENT_ID=your_client_id
-   TWITTER_CLIENT_SECRET=your_client_secret
-   TWITTER_API_KEY=your_api_key
-   TWITTER_API_SECRET=your_api_secret
-   TWITTER_REDIRECT_URI=http://localhost:3000/auth/twitter/callback
-   ```
-
-#### Telegram (chat sync, group discovery)
-
-1. Go to [my.telegram.org](https://my.telegram.org/)
-2. Log in with your phone number
-3. Go to **API development tools**
-4. Create a new application
-5. Copy credentials to `.env`:
-   ```env
-   TELEGRAM_API_ID=your_api_id
-   TELEGRAM_API_HASH=your_api_hash
-   ```
-
-#### Anthropic / Claude AI (message generation, event classification)
-
-1. Go to [Anthropic Console](https://console.anthropic.com/)
-2. Create an API key
-3. Add to `.env`:
-   ```env
-   ANTHROPIC_API_KEY=your_api_key
-   ```
-
-### 7. Running the Application
-
-You need **3-4 terminal windows** for full functionality:
-
-**Terminal 1 -- Backend API:**
+**Terminal 1 — Backend API:**
 ```bash
 cd backend
-source .venv/bin/activate
-uvicorn app.main:app --reload
-# Runs on http://localhost:8000
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # macOS/Linux
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-**Terminal 2 -- Frontend:**
+**Terminal 2 — Frontend:**
 ```bash
 cd frontend
 npm run dev
-# Runs on http://localhost:3000
 ```
 
-**Terminal 3 -- Celery Worker + Beat (development, single process):**
+**Terminal 3 — Celery Worker + Beat:**
 ```bash
 cd backend
-source .venv/bin/activate
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # macOS/Linux
 celery -A worker.celery_app worker --beat --loglevel=info
 ```
 
-Or as separate processes (recommended for production):
-
-```bash
-# Terminal 3 -- Celery Beat (scheduler)
-celery -A worker.celery_app beat --loglevel=info
-
-# Terminal 4 -- Celery Worker
-celery -A worker.celery_app worker --loglevel=info
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
-### Docker Setup (Alternative)
-
-```bash
-# Set required env vars
-export POSTGRES_PASSWORD=your_password
-export SECRET_KEY=$(python -c "import secrets; print(secrets.token_urlsafe(64))")
-
-# Start all services
-docker compose up
-
-# Run migrations
-docker compose exec backend alembic upgrade head
-```
-
-For production, use `docker-compose.prod.yml` which adds Caddy reverse proxy with automatic HTTPS.
+Mở [http://localhost:3000](http://localhost:3000) trong trình duyệt.
 
 ---
 
-## Environment Variables
+## Biến môi trường
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `SECRET_KEY` | **Yes** | JWT signing key. Generate with: `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
-| `DATABASE_URL` | **Yes** | PostgreSQL connection string (asyncpg format) |
-| `REDIS_URL` | No | Redis URL for Celery (default: `redis://localhost:6379/0`) |
-| `ALGORITHM` | No | JWT signing algorithm (default: `HS256`) |
-| `ACCESS_TOKEN_EXPIRE_MINUTES` | No | JWT token lifetime in minutes (default: `1440`, i.e. 24 hours) |
-| `ENCRYPTION_KEY` | No | Fernet key for encrypting stored OAuth tokens. Generate with: `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` |
-| `CORS_ORIGINS` | No | JSON array of allowed CORS origins (default: `["http://localhost:3000","http://127.0.0.1:3000"]`) |
-| `AUTH_TOKEN` | No | `auth_token` cookie from x.com for Bird CLI |
-| `CT0` | No | `ct0` CSRF cookie from x.com for Bird CLI |
-| `CHROME_EXTENSION_ID` | No | Chrome extension ID for CORS (auto-detected in dev) |
-| `GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
-| `GOOGLE_REDIRECT_URI` | No | Google OAuth callback URL (default: `http://localhost:3000/auth/google/callback`) |
-| `TWITTER_API_KEY` | No | Twitter API v2 key |
-| `TWITTER_API_SECRET` | No | Twitter API v2 secret |
-| `TWITTER_CLIENT_ID` | No | Twitter OAuth 2.0 client ID |
-| `TWITTER_CLIENT_SECRET` | No | Twitter OAuth 2.0 client secret |
-| `TWITTER_REDIRECT_URI` | No | Twitter OAuth callback URL |
-| `TWITTER_BEARER_TOKEN` | No | Twitter bearer token for app-only requests |
-| `TELEGRAM_API_ID` | No | Telegram MTProto API ID (integer) |
-| `TELEGRAM_API_HASH` | No | Telegram MTProto API hash |
-| `ANTHROPIC_API_KEY` | No | Anthropic API key for Claude AI features |
-| `NEXT_PUBLIC_API_URL` | No | Backend base URL used by the Next.js frontend (default: `http://localhost:8000`). Set this when deploying frontend and backend to different hosts. |
+| Biến | Bắt buộc | Mô tả |
+|------|----------|-------|
+| `SECRET_KEY` | **Có** | Khóa ký JWT. Tạo bằng: `python -c "import secrets; print(secrets.token_urlsafe(64))"` |
+| `DATABASE_URL` | **Có** | Chuỗi kết nối PostgreSQL (định dạng asyncpg) |
+| `REDIS_URL` | Không | URL Redis cho Celery (mặc định: `redis://localhost:6379/0`) |
+| `ENCRYPTION_KEY` | Không | Khóa Fernet để mã hóa token OAuth |
+| `ENVIRONMENT` | Không | Môi trường: `development` hoặc `production` |
+| `GOOGLE_CLIENT_ID` | Không | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Không | Google OAuth client secret |
+| `TWITTER_CLIENT_ID` | Không | Twitter OAuth 2.0 client ID |
+| `TWITTER_CLIENT_SECRET` | Không | Twitter OAuth 2.0 client secret |
+| `TELEGRAM_API_ID` | Không | Telegram MTProto API ID |
+| `TELEGRAM_API_HASH` | Không | Telegram MTProto API hash |
+| `ANTHROPIC_API_KEY` | Không | Anthropic API key cho tính năng AI |
+| `NEXT_PUBLIC_API_URL` | Không | URL backend cho frontend (mặc định: `http://localhost:8000`) |
 
 ---
 
-## Project Structure
+## Cấu trúc dự án
 
 ```
-pingcrm/
-├── README.md
-├── CLAUDE.md                  # AI assistant instructions
-├── mvp.md                     # Product specification
-├── chrome-extension/          # LinkedIn companion Chrome extension (MV3)
-├── docs/                      # Docusaurus documentation site
-│
-├── backend/                   # Python/FastAPI backend
+realcrm/
+├── backend/              # Python/FastAPI backend
 │   ├── app/
-│   │   ├── main.py                  # FastAPI app entry point + middleware
-│   │   ├── api/                     # Route handlers
-│   │   │   ├── auth.py              # Google OAuth + email/password auth
-│   │   │   ├── contacts.py          # Composition root — includes sub-routers
-│   │   │   ├── contacts_routes/     # Contact route sub-modules
-│   │   │   │   ├── crud.py          # Create, read, update, delete
-│   │   │   │   ├── listing.py       # Paginated list + search
-│   │   │   │   ├── taxonomy.py      # Tags + stats
-│   │   │   │   ├── imports.py       # CSV + LinkedIn import
-│   │   │   │   ├── sync.py          # Google/Telegram/Twitter sync dispatch
-│   │   │   │   ├── duplicates.py    # Duplicate detection + merge
-│   │   │   │   ├── messaging.py     # Interaction timeline + message send
-│   │   │   │   └── shared.py        # Shared dependencies (router guards etc.)
-│   │   │   ├── interactions.py      # Interaction timeline endpoints
-│   │   │   ├── suggestions.py       # Follow-up suggestions
-│   │   │   ├── telegram.py          # Telegram auth + sync + common groups
-│   │   │   ├── twitter.py           # Twitter OAuth PKCE + sync
-│   │   │   ├── organizations.py     # Organization CRUD + merge
-│   │   │   ├── identity.py          # Identity resolution endpoints
-│   │   │   ├── notifications.py     # Notification management
-│   │   │   └── linkedin.py          # LinkedIn push endpoint + avatar download
-│   │   ├── models/                  # SQLAlchemy ORM models
-│   │   │   ├── user.py
-│   │   │   ├── contact.py
-│   │   │   ├── contact_merge.py     # Merge audit trail
-│   │   │   ├── interaction.py
-│   │   │   ├── detected_event.py
-│   │   │   ├── follow_up.py         # FollowUpSuggestion model
-│   │   │   ├── identity_match.py
-│   │   │   ├── organization.py
-│   │   │   ├── notification.py
-│   │   │   └── google_account.py
-│   │   ├── schemas/                 # Pydantic request/response schemas (typed Envelope[T])
-│   │   ├── services/                # Business logic
-│   │   │   ├── tasks.py             # Re-export shim — backward-compatible Celery task names
-│   │   │   ├── task_jobs/           # Celery task sub-modules by domain
-│   │   │   │   ├── common.py        # Shared notify helpers
-│   │   │   │   ├── gmail.py         # Gmail sync tasks
-│   │   │   │   ├── telegram.py      # Telegram sync tasks
-│   │   │   │   ├── twitter.py       # Twitter poll + DM sync tasks
-│   │   │   │   ├── google.py        # Google Contacts + Calendar tasks
-│   │   │   │   ├── scoring.py       # Relationship score tasks
-│   │   │   │   ├── followups.py     # Suggestion generation tasks
-│   │   │   │   ├── maintenance.py   # Snooze reactivation + org stats
-│   │   │   │   └── tagging.py       # Auto-tagging tasks
-│   │   │   ├── followup_engine.py   # Follow-up suggestion generation
-│   │   │   ├── identity_resolution.py  # Cross-platform matching
-│   │   │   ├── message_composer.py  # AI message drafting via Claude
-│   │   │   ├── event_classifier.py  # LLM-based event classification
-│   │   │   ├── contact_search.py    # Contact search/filter logic
-│   │   │   ├── contact_import.py    # CSV/LinkedIn import logic
-│   │   │   ├── bio_refresh.py       # Twitter bio refresh service
-│   │   │   ├── telegram_service.py  # Telegram orchestration
-│   │   │   ├── digest_email.py      # Weekly digest email
-│   │   │   ├── scoring.py           # Relationship score calculation
-│   │   │   └── notifications.py     # Notification creation helpers
-│   │   ├── integrations/            # Third-party API clients
-│   │   │   ├── gmail.py             # Gmail thread sync
-│   │   │   ├── google_auth.py       # Google OAuth helpers
-│   │   │   ├── google_calendar.py   # Calendar event sync
-│   │   │   ├── telegram.py          # Telethon MTProto client
-│   │   │   ├── twitter.py           # Twitter API v2 client
-│   │   │   ├── bird.py              # Bird CLI (@steipete/bird) wrapper
-│   │   │   └── linkedin.py          # LinkedIn avatar download
-│   │   └── core/                    # Config, auth, database, encryption, Redis, Celery
-│   ├── alembic/                     # Database migrations
-│   ├── tests/                       # 631 pytest tests
-│   ├── worker.py                    # Celery entry point
-│   ├── requirements.txt
-│   └── .env.example
+│   │   ├── api/          # API endpoints
+│   │   ├── models/       # SQLAlchemy ORM models
+│   │   ├── services/     # Business logic
+│   │   └── integrations/ # Third-party API clients
+│   ├── alembic/          # Database migrations
+│   ├── tests/            # pytest tests
+│   └── .env.example      # Backend environment template
 │
-└── frontend/                  # Next.js 15 frontend
-    ├── src/
-    │   ├── app/                     # App Router pages
-    │   │   ├── dashboard/           # Main dashboard
-    │   │   ├── contacts/            # Contact list + new
-    │   │   │   └── [id]/            # Contact detail page
-    │   │   │       ├── _components/ # Detail UI components (timeline, panels, cards)
-    │   │   │       ├── _hooks/      # Controller hook (use-contact-detail-controller)
-    │   │   │       └── _lib/        # Helper utilities (formatters)
-    │   │   ├── organizations/       # Organization list + detail (inline editing)
-    │   │   ├── suggestions/         # Follow-up suggestions
-    │   │   ├── identity/            # Identity resolution UI
-    │   │   ├── notifications/       # Notification center
-    │   │   ├── settings/            # Platform connections + CSV import
-    │   │   │   ├── _components/     # Per-tab UI components (platform cards, import, tags)
-    │   │   │   └── _hooks/          # Controller hooks (settings, Telegram connect flow)
-    │   │   ├── onboarding/          # New user guided setup
-    │   │   ├── auth/                # Login, register, OAuth callbacks
-    │   │   ├── error.tsx            # Error boundary
-    │   │   ├── global-error.tsx     # Root error boundary
-    │   │   └── not-found.tsx        # 404 page
-    │   ├── components/              # Reusable UI components
-    │   │   ├── timeline.tsx         # Interaction timeline
-    │   │   ├── editable-field.tsx   # Inline editing components
-    │   │   ├── score-badge.tsx      # Relationship score badge
-    │   │   ├── csv-import.tsx       # CSV drag-and-drop importer
-    │   │   ├── empty-state.tsx      # Empty state placeholder
-    │   │   ├── message-editor.tsx   # AI message editor
-    │   │   └── nav.tsx              # Navigation bar with notification badge
-    │   ├── hooks/                   # React Query data hooks
-    │   │   ├── use-auth.ts          # Login, register, logout
-    │   │   ├── use-contacts.ts      # Contact CRUD + search
-    │   │   ├── use-dashboard.ts     # Dashboard stats
-    │   │   ├── use-identity.ts      # Identity match operations
-    │   │   ├── use-notifications.ts # Notification queries
-    │   │   └── use-suggestions.ts   # Follow-up suggestions
-    │   └── lib/                     # Typed API client (openapi-fetch), utilities
-    ├── vitest.config.ts
-    └── package.json
-```
-
----
-
-## API Reference
-
-All endpoints return a standard envelope: `{ data, error, meta }`.
-
-### Authentication
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/register` | Register with email/password |
-| POST | `/api/v1/auth/login` | Login with email/password |
-| GET | `/api/v1/auth/me` | Get current authenticated user profile |
-| GET | `/api/v1/auth/google/url` | Get Google OAuth authorization URL |
-| POST | `/api/v1/auth/google/callback` | Exchange Google OAuth code for JWT |
-| GET | `/api/v1/auth/google/accounts` | List connected Google accounts |
-| DELETE | `/api/v1/auth/google/accounts/{id}` | Remove a connected Google account |
-| GET | `/api/v1/auth/twitter/url` | Get Twitter OAuth 2.0 PKCE URL |
-| POST | `/api/v1/auth/twitter/callback` | Exchange Twitter OAuth code for JWT |
-
-### Contacts
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/contacts` | List contacts (paginated, searchable, sortable, filterable) |
-| POST | `/api/v1/contacts` | Create a contact |
-| GET | `/api/v1/contacts/tags` | List all unique tags |
-| GET | `/api/v1/contacts/stats` | Get contact statistics for dashboard |
-| GET | `/api/v1/contacts/{id}` | Get contact detail |
-| PUT | `/api/v1/contacts/{id}` | Update contact fields |
-| DELETE | `/api/v1/contacts/{id}` | Delete a contact |
-| GET | `/api/v1/contacts/{id}/duplicates` | Find potential duplicate contacts |
-| POST | `/api/v1/contacts/{id}/merge/{other_id}` | Merge two contacts into one |
-| POST | `/api/v1/contacts/{id}/refresh-bios` | Refresh Twitter/Telegram bios |
-| POST | `/api/v1/contacts/import/csv` | Import contacts from CSV file |
-| POST | `/api/v1/contacts/import/linkedin` | Import LinkedIn connections export |
-| POST | `/api/v1/contacts/import/linkedin-messages` | Import LinkedIn messages export |
-| POST | `/api/v1/contacts/scores/recalculate` | Recalculate all relationship scores |
-
-### Sync (Background Tasks)
-
-All sync endpoints dispatch Celery tasks and return immediately with `{ "status": "started" }`. A notification is created when the sync completes or fails.
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/contacts/sync/google` | Sync Google Contacts (background) |
-| POST | `/api/v1/contacts/sync/google-calendar` | Sync Google Calendar events (background) |
-| POST | `/api/v1/contacts/sync/telegram` | Sync Telegram chats + groups + bios (background) |
-| POST | `/api/v1/contacts/sync/twitter` | Sync Twitter DMs + mentions + bios (background) |
-
-### Telegram Auth
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/v1/auth/telegram/connect` | Send OTP to phone number |
-| POST | `/api/v1/auth/telegram/verify` | Verify OTP code |
-| POST | `/api/v1/auth/telegram/verify-2fa` | Complete 2FA password verification |
-| POST | `/api/v1/auth/telegram/sync` | Sync Telegram chats (background) |
-| GET | `/api/v1/contacts/{id}/telegram/common-groups` | Get shared Telegram groups with a contact |
-
-### Interactions
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/contacts/{id}/interactions` | Get interaction timeline for a contact |
-| POST | `/api/v1/contacts/{id}/interactions` | Add a manual interaction/note |
-| PATCH | `/api/v1/contacts/{id}/interactions/{iid}` | Update a manual note |
-| DELETE | `/api/v1/contacts/{id}/interactions/{iid}` | Delete a manual note |
-
-### Suggestions
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/suggestions` | List follow-up suggestions |
-| GET | `/api/v1/suggestions/digest` | Get weekly digest suggestions |
-| PUT | `/api/v1/suggestions/{id}` | Update suggestion status (snooze/dismiss/send) |
-| POST | `/api/v1/suggestions/generate` | Generate new AI-powered suggestions |
-| POST | `/api/v1/suggestions/{id}/regenerate` | Regenerate AI message for a suggestion |
-
-### Identity Resolution
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/identity/matches` | List pending identity matches |
-| POST | `/api/v1/identity/scan` | Trigger cross-platform identity scan |
-| POST | `/api/v1/identity/matches/{id}/merge` | Merge matched contacts |
-| POST | `/api/v1/identity/matches/{id}/reject` | Reject a false match |
-
-### Notifications
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/notifications` | List all notifications (paginated) |
-| GET | `/api/v1/notifications/unread-count` | Get unread notification count |
-| PUT | `/api/v1/notifications/{id}/read` | Mark a notification as read |
-| PUT | `/api/v1/notifications/read-all` | Mark all notifications as read |
-
-### Organizations
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/v1/organizations` | List organizations (paginated, searchable) |
-| POST | `/api/v1/organizations/merge` | Merge multiple organizations into one |
-| GET | `/api/v1/organizations/{id}` | Get organization detail with contacts |
-| PATCH | `/api/v1/organizations/{id}` | Update organization fields |
-| DELETE | `/api/v1/organizations/{id}` | Delete organization (unlinks contacts) |
-
-### Health Check
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api/health` | API health check |
-
----
-
-## Celery Beat Schedule
-
-| Task | Interval |
-|------|----------|
-| Gmail sync (all users) | Every 6 hours |
-| Google Calendar sync (all users) | Daily (06:00 UTC) |
-| Telegram sync (all users) | Daily (03:00 UTC) -- chats only; groups/bios on-demand |
-| Telegram bio recheck (non-2nd-tier) | Every 3 days (05:00 UTC) |
-| Twitter activity + DM poll | Daily (04:00 UTC) |
-| Relationship score recalculation | Daily (02:00 UTC) |
-| Follow-up suggestion generation | Daily (08:00 UTC) |
-| Weekly digest email | Weekly (Monday 09:00 UTC) |
-| Snooze reactivation | Hourly |
-| Organization stats refresh | Hourly |
-
----
-
-## Testing
-
-```bash
-# Backend tests (631 tests)
-cd backend
-pytest
-
-# With coverage report
-pytest --cov=app --cov-report=term-missing
-
-# Frontend tests
-cd frontend
-npm test
-
-# Frontend tests with watch mode
-npm run test:watch
+├── frontend/             # Next.js 15 frontend (Đã Việt hóa 100%)
+│   ├── src/
+│   │   ├── app/          # App Router pages
+│   │   ├── components/   # Reusable UI components
+│   │   └── lib/          # Utilities
+│   └── .env.example      # Frontend environment template
+│
+├── chrome-extension/     # LinkedIn Chrome extension
+└── docs/                 # Docusaurus documentation
 ```
 
 ---
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+Dự án được cấp phép theo [GNU Affero General Public License v3.0](LICENSE).
 
-You are free to self-host, modify, and distribute PingCRM. If you run a modified version as a network service, you must make your source code available under the same license.
+Bạn có thể tự lưu trữ, sửa đổi và phân phối RealCRM. Nếu bạn chạy phiên bản đã sửa đổi như một dịch vụ mạng, bạn phải công khai mã nguồn của mình theo cùng giấy phép.

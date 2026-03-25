@@ -5,7 +5,7 @@ title: Telegram Integration
 
 # Telegram Integration
 
-PingCRM connects to Telegram using the MTProto protocol via the Telethon library, providing access to DMs, group memberships, and user bios.
+RealCRM connects to Telegram using the MTProto protocol via the Telethon library, providing access to DMs, group memberships, and user bios.
 
 ## Authentication
 
@@ -46,7 +46,7 @@ Chat sync imports direct messages as interactions.
 - **Incremental sync:** Only processes the 100 most recent dialogs. Group member sync and bio sync run independently (on-demand or via their own periodic schedule) — they are not included in the daily incremental chain.
 
 ### Contact resolution
-For each DM participant, PingCRM tries to match an existing contact by:
+For each DM participant, RealCRM tries to match an existing contact by:
 1. `telegram_user_id` (numeric Telegram ID — most reliable, survives username changes)
 2. `telegram_username` (@ handle)
 3. Phone number
@@ -55,7 +55,7 @@ If no match is found, a new contact is created with `source: "telegram"`.
 
 ## Group Member Sync
 
-PingCRM discovers contacts from Telegram groups you share with other users. This creates **2nd Tier contacts** — see [2nd Tier Contacts](#2nd-tier-contacts) below.
+RealCRM discovers contacts from Telegram groups you share with other users. This creates **2nd Tier contacts** — see [2nd Tier Contacts](#2nd-tier-contacts) below.
 
 ### How it works
 1. Iterates through your Telegram dialogs, filtering for private groups and supergroups only.
@@ -93,7 +93,7 @@ Disabling 2nd Tier sync does not delete existing 2nd Tier contacts — use the b
 
 ### Privacy and compliance
 
-2nd Tier contact collection is opt-in by design. You control exactly what data PingCRM stores about people you have never directly interacted with:
+2nd Tier contact collection is opt-in by design. You control exactly what data RealCRM stores about people you have never directly interacted with:
 
 - **User control:** The `sync_2nd_tier` toggle lets you stop collection at any time. Bulk delete lets you remove previously collected records in one action.
 - **Reduced noise:** Keeping passive group members out of your CRM avoids polluting your follow-up queue with people you do not have a real relationship with.
@@ -114,7 +114,7 @@ Bio changes can indicate job transitions or new ventures. When a bio change is d
 
 ## Common Groups
 
-For each contact, PingCRM identifies Telegram groups you both belong to.
+For each contact, RealCRM identifies Telegram groups you both belong to.
 
 - Data is cached for 24 hours per contact.
 - Displayed in the contact detail sidebar as shared context.
@@ -144,7 +144,7 @@ A sync lock prevents concurrent syncs for the same user. The lock has a 1-hour T
 
 Telegram enforces strict rate limits via FloodWait errors.
 
-### How PingCRM handles rate limits
+### How RealCRM handles rate limits
 - A Redis key `tg_flood:{user_id}` tracks active cooldowns with a TTL.
 - FloodWait coordination spans all Telegram operations (chat sync, bio sync, group sync) so that one operation's cooldown is respected by all others.
 - The send-message endpoint returns HTTP **429** with a `Retry-After` header when a cooldown is active.

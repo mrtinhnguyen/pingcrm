@@ -56,13 +56,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 "ENCRYPTION_KEY is not set. Encrypted fields will not work. "
                 "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
             )
-    logger.info("PingCRM API starting up...")
+    logger.info("RealCRM API starting up...")
     yield
-    logger.info("PingCRM API shutting down.")
+    logger.info("RealCRM API shutting down.")
 
 
 app = FastAPI(
-    title="PingCRM API",
+    title="RealCRM API",
     description="AI-powered networking assistant backend",
     version="0.1.0",
     lifespan=lifespan,

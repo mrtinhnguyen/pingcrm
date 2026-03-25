@@ -1,5 +1,5 @@
 /**
- * PingCRM LinkedIn Companion v2 — Popup Controller
+ * RealCRM LinkedIn Companion v2 — Popup Controller
  *
  * State machine with three views:
  *   unpaired  — no token in storage (show pairing flow)
@@ -199,7 +199,7 @@
   startPairingBtn.addEventListener("click", async () => {
     const rawUrl = instanceUrlInput.value.trim();
     if (!rawUrl) {
-      showUrlError("Please enter your PingCRM instance URL.");
+      showUrlError("Please enter your RealCRM instance URL.");
       return;
     }
 
@@ -265,10 +265,10 @@
     try {
       const response = await chrome.runtime.sendMessage({ type: "SYNC_NOW" });
       if (!response || !response.ok) {
-        console.warn("[PingCRM Popup] Sync failed:", response?.error);
+        console.warn("[RealCRM Popup] Sync failed:", response?.error);
       }
     } catch (e) {
-      console.error("[PingCRM Popup] SYNC_NOW error:", e.message);
+      console.error("[RealCRM Popup] SYNC_NOW error:", e.message);
     } finally {
       setLoading(syncNowBtn, false);
       await render();
@@ -285,7 +285,7 @@
     try {
       await chrome.runtime.sendMessage({ type: "DISCONNECT" });
     } catch (e) {
-      console.warn("[PingCRM Popup] DISCONNECT error:", e.message);
+      console.warn("[RealCRM Popup] DISCONNECT error:", e.message);
     } finally {
       disconnectBtn.disabled = false;
       await render();

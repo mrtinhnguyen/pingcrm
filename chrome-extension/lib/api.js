@@ -1,5 +1,5 @@
 /**
- * Fetch wrapper for PingCRM backend API.
+ * Fetch wrapper for RealCRM backend API.
  * v2: login() removed (replaced by pairing flow).
  */
 const Api = {

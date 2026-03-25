@@ -31,12 +31,12 @@ import { ContactsToolbar } from "./_components/contacts-toolbar";
 // ---------------------------------------------------------------------------
 
 const sortColumns = [
-  { key: "name", label: "Contact" },
-  { key: "company", label: "Company" },
-  { key: "score", label: "Score" },
-  { key: "priority", label: "Priority" },
-  { key: "activity", label: "Activity" },
-  { key: "interaction", label: "Last Conversation" },
+  { key: "name", label: "Danh bạ" },
+  { key: "company", label: "Công ty" },
+  { key: "score", label: "Điểm" },
+  { key: "priority", label: "Ưu tiên" },
+  { key: "activity", label: "Hoạt động" },
+  { key: "interaction", label: "Cuộc trò chuyện cuối" },
 ] as const;
 
 // ---------------------------------------------------------------------------
@@ -65,7 +65,7 @@ function ScoreNumberBadge({ score }: { score: number }) {
 function PriorityBadge({ level }: { level: string }) {
   const icons: Record<string, string> = { high: "\uD83D\uDD25", medium: "\u26A1", low: "\uD83D\uDCA4" };
   const icon = icons[level];
-  if (!icon) return <span className="text-stone-300 dark:text-stone-600">&mdash;</span>;
+  if (!icon) return <span className="text-stone-300 dark:text-stone-600">—</span>;
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border border-red-100 dark:border-red-900">
       {icon}
@@ -92,7 +92,7 @@ function PlatformIcons({ emails, telegram, twitter }: { emails: string[]; telegr
 // ---------------------------------------------------------------------------
 
 function DaysAgo({ dateStr }: { dateStr?: string | null }) {
-  if (!dateStr) return <span className="text-stone-300 dark:text-stone-600">&mdash;</span>;
+  if (!dateStr) return <span className="text-stone-300 dark:text-stone-600">—</span>;
   const days = Math.floor((Date.now() - new Date(dateStr).getTime()) / 86400000);
   const isOverdue = days > 30;
   return (
@@ -145,7 +145,7 @@ function BulkActionBar({
   return (
     <div className="sticky bottom-4 z-30 mx-auto w-fit bg-stone-900 text-white rounded-xl shadow-2xl px-5 py-3 flex items-center gap-4">
       <span className="text-sm font-medium">
-        <span className="font-mono-data">{selectedCount}</span> selected
+        <span className="font-mono-data">{selectedCount}</span> đã chọn
       </span>
       <div className="w-px h-5 bg-stone-700" />
 
@@ -157,21 +157,21 @@ function BulkActionBar({
             disabled={isPending}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
           >
-            <Tag className="w-3.5 h-3.5" /> Add Tag
+            <Tag className="w-3.5 h-3.5" /> Thêm Thẻ
           </button>
           <button
             onClick={() => { setTagMode("remove"); setShowTagDropdown((v) => !v); }}
             disabled={isPending}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
           >
-            <X className="w-3.5 h-3.5" /> Remove Tag
+            <X className="w-3.5 h-3.5" /> Xóa Thẻ
           </button>
         </div>
         {showTagDropdown && (
           <div className="absolute left-0 bottom-full mb-1 w-56 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg z-50 p-2">
             <input
               type="text"
-              placeholder={tagMode === "add" ? "Type tag name..." : "Select tag to remove..."}
+              placeholder={tagMode === "add" ? "Nhập tên thẻ..." : "Chọn thẻ để xóa..."}
               value={tagInput}
               onChange={(e) => setTagInput(e.target.value)}
               onKeyDown={(e) => {
@@ -208,7 +208,7 @@ function BulkActionBar({
                   }}
                   className="w-full text-left px-2.5 py-1.5 text-sm text-teal-600 dark:text-teal-400 hover:bg-teal-50 dark:hover:bg-teal-950 rounded-md font-medium"
                 >
-                  + Create &quot;{tagInput.trim()}&quot;
+                  + Tạo &quot;{tagInput.trim()}&quot;
                 </button>
               )}
             </div>
@@ -223,14 +223,14 @@ function BulkActionBar({
           disabled={isPending}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
         >
-          <SlidersHorizontal className="w-3.5 h-3.5" /> Priority
+          <SlidersHorizontal className="w-3.5 h-3.5" /> Ưu tiên
         </button>
         {showPriorityDropdown && (
           <div className="absolute left-0 bottom-full mb-1 w-40 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg z-50 p-1">
             {[
-              { value: "high", label: "High", color: "text-red-600 dark:text-red-400" },
-              { value: "medium", label: "Medium", color: "text-stone-700 dark:text-stone-300" },
-              { value: "low", label: "Low", color: "text-stone-400 dark:text-stone-500" },
+              { value: "high", label: "Cao", color: "text-red-600 dark:text-red-400" },
+              { value: "medium", label: "Trung bình", color: "text-stone-700 dark:text-stone-300" },
+              { value: "low", label: "Thấp", color: "text-stone-400 dark:text-stone-500" },
             ].map((opt) => (
               <button
                 key={opt.value}
@@ -251,13 +251,13 @@ function BulkActionBar({
           disabled={isPending}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
         >
-          <Building2 className="w-3.5 h-3.5" /> Company
+          <Building2 className="w-3.5 h-3.5" /> Công ty
         </button>
         {showCompanyInput && (
           <div className="absolute left-0 bottom-full mb-1 w-56 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg z-50 p-2">
             <input
               type="text"
-              placeholder="Set company name..."
+              placeholder="Đặt tên công ty..."
               value={companyInput}
               onChange={(e) => setCompanyInput(e.target.value)}
               onKeyDown={(e) => {
@@ -280,7 +280,7 @@ function BulkActionBar({
           disabled={isPending}
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
         >
-          <GitMerge className="w-3.5 h-3.5" /> Merge
+          <GitMerge className="w-3.5 h-3.5" /> Gộp
         </button>
       )}
 
@@ -289,7 +289,7 @@ function BulkActionBar({
         disabled={isPending}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-800 hover:bg-stone-700 transition-colors disabled:opacity-50"
       >
-        <Archive className="w-3.5 h-3.5" /> Archive
+        <Archive className="w-3.5 h-3.5" /> Lưu trữ
       </button>
 
       <button
@@ -297,7 +297,7 @@ function BulkActionBar({
         disabled={isPending}
         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-red-600 hover:bg-red-700 transition-colors disabled:opacity-50"
       >
-        <Trash2 className="w-3.5 h-3.5" /> Delete
+        <Trash2 className="w-3.5 h-3.5" /> Xóa
       </button>
 
       <button
@@ -345,7 +345,7 @@ function Pagination({
   return (
     <div className="flex items-center justify-between mt-4">
       <p className="text-xs text-stone-500 dark:text-stone-400">
-        Showing <strong>{from}-{to}</strong> of <strong>{total}</strong>
+        Hiển thị <strong>{from}-{to}</strong> của <strong>{total}</strong>
       </p>
       <div className="flex items-center gap-1.5">
         <button
@@ -353,7 +353,7 @@ function Pagination({
           onClick={() => onPageChange(page - 1)}
           className="px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:text-stone-300 dark:disabled:text-stone-600 disabled:bg-stone-50 dark:disabled:bg-stone-900 disabled:cursor-not-allowed transition-colors"
         >
-          Previous
+          Trước
         </button>
         {pages.map((p, i) =>
           p === "..." ? (
@@ -377,7 +377,7 @@ function Pagination({
           onClick={() => onPageChange(page + 1)}
           className="px-3 py-1.5 text-xs font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 disabled:text-stone-300 dark:disabled:text-stone-600 disabled:bg-stone-50 dark:disabled:bg-stone-900 disabled:cursor-not-allowed transition-colors"
         >
-          Next
+          Tiếp theo
         </button>
       </div>
     </div>
@@ -432,12 +432,12 @@ function ContactsPageContent() {
         {/* Header */}
         <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
           <div>
-            <h1 className="text-2xl font-display font-bold text-stone-900 dark:text-stone-100">Contacts</h1>
+            <h1 className="text-2xl font-display font-bold text-stone-900 dark:text-stone-100">Danh bạ</h1>
             {stats && (
               <p className="text-sm text-stone-500 dark:text-stone-400 mt-0.5">
-                <span className="font-mono-data">{stats.total.toLocaleString()}</span> contacts
-                {" \u00B7 "}
-                <span className="font-mono-data">{activeRelationships}</span> active relationships
+                <span className="font-mono-data">{stats.total.toLocaleString()}</span> danh bạ
+                {" · "}
+                <span className="font-mono-data">{activeRelationships}</span> mối quan hệ đang hoạt động
               </p>
             )}
           </div>
@@ -445,7 +445,7 @@ function ContactsPageContent() {
             href="/contacts/new"
             className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
           >
-            <Plus className="w-4 h-4" /> Add Contact
+            <Plus className="w-4 h-4" /> Thêm Danh bạ
           </Link>
         </div>
 
@@ -474,9 +474,9 @@ function ContactsPageContent() {
             <div className="w-14 h-14 rounded-full bg-stone-100 dark:bg-stone-800 flex items-center justify-center mx-auto mb-4">
               <SearchX className="w-7 h-7 text-stone-400 dark:text-stone-500" />
             </div>
-            <h3 className="text-base font-display font-bold text-stone-900 dark:text-stone-100 mb-1">No contacts found</h3>
+            <h3 className="text-base font-display font-bold text-stone-900 dark:text-stone-100 mb-1">Không tìm thấy danh bạ</h3>
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-5 max-w-sm mx-auto">
-              Try adjusting your filters or search terms, or add a new contact.
+              Thử điều chỉnh bộ lọc hoặc từ khóa tìm kiếm, hoặc thêm danh bạ mới.
             </p>
             <div className="flex items-center justify-center gap-3">
               {activeFilterCount > 0 && (
@@ -484,14 +484,14 @@ function ContactsPageContent() {
                   onClick={() => router.replace("/contacts", { scroll: false })}
                   className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
                 >
-                  Clear filters
+                  Xóa bộ lọc
                 </button>
               )}
               <Link
                 href="/contacts/new"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
               >
-                <Plus className="w-4 h-4" /> Add Contact
+                <Plus className="w-4 h-4" /> Thêm Danh bạ
               </Link>
             </div>
           </div>
@@ -521,7 +521,7 @@ function ContactsPageContent() {
 
         {isError && (
           <div className="text-center py-12 text-red-500">
-            Failed to load contacts. Is the backend running?
+            Không thể tải danh bạ. Backend có đang chạy không?
           </div>
         )}
 
@@ -538,7 +538,7 @@ function ContactsPageContent() {
                   onChange={toggleSelectAll}
                   disabled={selectingAll}
                   className="w-3.5 h-3.5 rounded border-stone-300 dark:border-stone-600 text-teal-600"
-                  aria-label="Select all"
+                  aria-label="Chọn tất cả"
                 />
               </div>
               {sortColumns.map(({ key, label }) => {
@@ -584,7 +584,7 @@ function ContactsPageContent() {
                       checked={isSelected}
                       onChange={() => toggleSelect(contact.id)}
                       className="w-3.5 h-3.5 rounded border-stone-300 dark:border-stone-600 text-teal-600"
-                      aria-label={`Select ${name}`}
+                      aria-label={`Chọn ${name}`}
                     />
                   </div>
 

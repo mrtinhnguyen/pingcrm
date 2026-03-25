@@ -4,7 +4,7 @@ sidebar_position: 99
 
 # Contributing
 
-Thanks for your interest in contributing to PingCRM! See our full [CONTRIBUTING.md](https://github.com/sneg55/pingcrm/blob/main/CONTRIBUTING.md) for detailed instructions.
+Thanks for your interest in contributing to RealCRM! See our full [CONTRIBUTING.md](https://github.com/sneg55/pingcrm/blob/main/CONTRIBUTING.md) for detailed instructions.
 
 ## Quick Start
 

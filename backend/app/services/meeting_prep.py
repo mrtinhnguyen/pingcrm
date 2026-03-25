@@ -416,7 +416,7 @@ def compose_prep_email(
         <tr>
           <td style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
             <p style="margin:0;font-size:12px;color:#9ca3af;">
-              Sent by <a href="{esc(base_url)}" style="color:#0d9488;text-decoration:none;">PingCRM</a>
+              Sent by <a href="{esc(base_url)}" style="color:#0d9488;text-decoration:none;">RealCRM</a>
               &middot;
               <a href="{esc(base_url)}/settings" style="color:#0d9488;text-decoration:none;">Manage preferences</a>
             </p>

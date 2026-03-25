@@ -5,15 +5,15 @@ title: LinkedIn Integration
 
 # LinkedIn Integration
 
-PingCRM syncs LinkedIn messages and profiles through a Chrome extension. The extension calls LinkedIn's internal Voyager API directly from your browser — no LinkedIn credentials are sent to the backend.
+RealCRM syncs LinkedIn messages and profiles through a Chrome extension. The extension calls LinkedIn's internal Voyager API directly from your browser — no LinkedIn credentials are sent to the backend.
 
 ## Extension Pairing
 
 Connecting the extension uses a one-time pairing code instead of a password:
 
-1. Install the PingCRM Chrome extension.
+1. Install the RealCRM Chrome extension.
 2. Open the extension popup — it displays a code like `PING-X7K3M2`.
-3. Open PingCRM **Settings → Integrations → LinkedIn** and click **Connect**.
+3. Open RealCRM **Settings → Integrations → LinkedIn** and click **Connect**.
 4. Enter the code in the modal and click **Pair**.
 5. The extension polls the backend and, once matched, shows **Connected**.
 
@@ -29,7 +29,7 @@ A **2-hour throttle** prevents excessive syncs during a browsing session. The po
 
 ## What Gets Synced
 
-The extension syncs contacts you have **LinkedIn conversations** with. If you've exchanged messages with someone, they become a contact in PingCRM with their most recent message, profile info, and avatar. You can also pull and regenerate AI follow-up suggestions directly from LinkedIn using the **P** and **R** buttons injected into the messaging composer.
+The extension syncs contacts you have **LinkedIn conversations** with. If you've exchanged messages with someone, they become a contact in RealCRM with their most recent message, profile info, and avatar. You can also pull and regenerate AI follow-up suggestions directly from LinkedIn using the **P** and **R** buttons injected into the messaging composer.
 
 **Synced automatically:**
 - Contacts you've messaged (inbound and outbound)
@@ -74,13 +74,13 @@ For a complete import of your LinkedIn network (including connections you haven'
 1. Go to [LinkedIn Data Export](https://www.linkedin.com/mypreferences/d/download-my-data) and request your data
 2. Download the archive when ready (usually takes ~24 hours)
 3. Extract `Connections.csv` from the archive
-4. In PingCRM, go to **Contacts → Import** and upload the CSV
+4. In RealCRM, go to **Contacts → Import** and upload the CSV
 
 This imports all your 1st-degree connections with names, companies, positions, and email addresses. The extension's Voyager sync will then enrich these contacts with avatars and recent message history on subsequent syncs.
 
 ## Privacy
 
-LinkedIn session cookies (`li_at` and `JSESSIONID`) are read fresh from your browser at the start of every sync and are used only to authenticate Voyager API calls made from the extension itself. They are never transmitted to the PingCRM backend. All Voyager requests originate from your browser and your IP address, indistinguishable from normal LinkedIn browsing.
+LinkedIn session cookies (`li_at` and `JSESSIONID`) are read fresh from your browser at the start of every sync and are used only to authenticate Voyager API calls made from the extension itself. They are never transmitted to the RealCRM backend. All Voyager requests originate from your browser and your IP address, indistinguishable from normal LinkedIn browsing.
 
 ## Sync Schedule
 

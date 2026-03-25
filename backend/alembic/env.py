@@ -5,6 +5,10 @@ from alembic import context
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy import pool
 
+# Load environment variables from .env file
+from dotenv import load_dotenv
+load_dotenv()
+
 # Import Base and all models so Alembic can detect them
 from app.core.database import Base
 import app.models  # noqa: F401 - ensures all models are registered
@@ -15,6 +19,7 @@ import os
 db_url = os.environ.get("DATABASE_URL")
 if db_url:
     config.set_main_option("sqlalchemy.url", db_url)
+    print(f"Using DATABASE_URL from environment: {db_url.replace(os.environ.get('DATABASE_URL', '').split('@')[0].split(':')[-1], '***')}")
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)

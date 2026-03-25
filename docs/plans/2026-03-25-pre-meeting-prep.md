@@ -147,7 +147,7 @@ Expected: FAIL with `ModuleNotFoundError: No module named 'app.integrations.gmai
 Create `backend/app/integrations/gmail_send.py`:
 
 ```python
-"""Gmail send service for PingCRM.
+"""Gmail send service for RealCRM.
 
 Sends emails via the Gmail API using a user's OAuth credentials.
 This is a sync module — called from within Celery task async wrappers.
@@ -315,7 +315,7 @@ Expected: FAIL with `ModuleNotFoundError`
 Create `backend/app/services/meeting_prep.py`:
 
 ```python
-"""Pre-meeting prep email composer for PingCRM.
+"""Pre-meeting prep email composer for RealCRM.
 
 Queries upcoming meetings, gathers attendee context, generates AI talking
 points, and composes an HTML prep brief email.
@@ -888,7 +888,7 @@ def compose_prep_email(
         </td></tr>
         <tr><td style="padding:16px 32px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
           <p style="margin:0;font-size:12px;color:#9ca3af;">
-            Sent by <a href="{_BASE_URL}" style="color:#0d9488;text-decoration:none;">PingCRM</a> &middot;
+            Sent by <a href="{_BASE_URL}" style="color:#0d9488;text-decoration:none;">RealCRM</a> &middot;
             <a href="{_BASE_URL}/settings" style="color:#0d9488;text-decoration:none;">Manage preferences</a>
           </p>
         </td></tr>

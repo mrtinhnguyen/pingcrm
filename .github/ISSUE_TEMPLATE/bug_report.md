@@ -29,4 +29,4 @@ What actually happened.
 - OS: [e.g. macOS 14, Ubuntu 24.04]
 - Browser: [e.g. Chrome 120]
 - Deployment: [Docker / manual]
-- PingCRM version: [e.g. v1.0.0]
+- RealCRM version: [e.g. v1.0.0]

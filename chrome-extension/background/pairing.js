@@ -1,8 +1,8 @@
 /**
- * Pairing code generation and polling for PingCRM LinkedIn Companion.
+ * Pairing code generation and polling for RealCRM LinkedIn Companion.
  *
  * Flow:
- *   1. User opens popup and sets their PingCRM instance URL.
+ *   1. User opens popup and sets their RealCRM instance URL.
  *   2. startPairing() generates a PING-XXXXXX code and starts polling the backend.
  *   3. Backend marks the code as redeemed when the user visits Settings → Extensions.
  *   4. On 200, the token and apiUrl are persisted; polling stops automatically.
@@ -11,7 +11,7 @@
  * Expiry: 10 minutes (backend enforces this; extension auto-regenerates on 410).
  *
  * Storage keys written:
- *   apiUrl   - PingCRM instance URL (set before pairing begins)
+ *   apiUrl   - RealCRM instance URL (set before pairing begins)
  *   token    - Bearer token received on successful pairing
  */
 
@@ -59,7 +59,7 @@ function generatePairingCode() {
 // ── Storage helpers ───────────────────────────────────────────────────────────
 
 /**
- * Read the stored PingCRM instance URL.
+ * Read the stored RealCRM instance URL.
  * Returns null if not yet configured (user must enter URL in popup first).
  *
  * @returns {Promise<string|null>}
@@ -75,7 +75,7 @@ async function getStoredApiUrl() {
  * Check a single poll cycle against the backend pairing endpoint.
  * Handles 200 (paired), 404 (pending), 410 (expired), 429 (skip cycle).
  *
- * @param {string} apiUrl - PingCRM backend base URL
+ * @param {string} apiUrl - RealCRM backend base URL
  * @param {string} code   - Current pairing code, e.g. "PING-K7R2MQ"
  * @returns {Promise<"paired"|"pending"|"expired"|"rate_limited"|"error">}
  */
@@ -105,10 +105,10 @@ async function _pollOnce(apiUrl, code) {
     if (resp.status === 429) return "rate_limited";
 
     // Any other non-2xx — log but keep polling
-    console.warn("[PingCRM Pairing] Unexpected poll status:", resp.status);
+    console.warn("[RealCRM Pairing] Unexpected poll status:", resp.status);
     return "error";
   } catch (e) {
-    console.warn("[PingCRM Pairing] Poll network error:", e.message);
+    console.warn("[RealCRM Pairing] Poll network error:", e.message);
     return "error";
   }
 }
@@ -146,7 +146,7 @@ function startPairing() {
       _codeGeneratedAt = Date.now();
       // Notify any listeners (popup may be listening for storage changes)
       await chrome.storage.local.set({ _pairingCode: _currentCode });
-      console.log("[PingCRM Pairing] Code regenerated (expiry):", _currentCode);
+      console.log("[RealCRM Pairing] Code regenerated (expiry):", _currentCode);
     }
 
     const apiUrl = await getStoredApiUrl();
@@ -158,7 +158,7 @@ function startPairing() {
     const outcome = await _pollOnce(apiUrl, _currentCode);
 
     if (outcome === "paired") {
-      console.log("[PingCRM Pairing] Paired successfully");
+      console.log("[RealCRM Pairing] Paired successfully");
       stopPolling();
       await chrome.storage.local.remove(["_pairingCode"]);
       resolveDone();
@@ -167,7 +167,7 @@ function startPairing() {
       _currentCode = generatePairingCode();
       _codeGeneratedAt = Date.now();
       await chrome.storage.local.set({ _pairingCode: _currentCode });
-      console.log("[PingCRM Pairing] Code regenerated (server 410):", _currentCode);
+      console.log("[RealCRM Pairing] Code regenerated (server 410):", _currentCode);
     }
     // "pending", "rate_limited", "error" — no action, keep polling
   }, PAIRING_POLL_INTERVAL_MS);

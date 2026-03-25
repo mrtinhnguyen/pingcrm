@@ -22,8 +22,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PingCRM",
-  description: "Your AI-powered networking assistant",
+  title: "RealCRM - Quản lý Quan hệ Doanh nghiệp",
+  description: "Trợ lý kết nối mạng lưới được hỗ trợ bởi AI",
 };
 
 export default function RootLayout({
@@ -32,7 +32,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="vi" suppressHydrationWarning>
       <head>
         <script
           dangerouslySetInnerHTML={{

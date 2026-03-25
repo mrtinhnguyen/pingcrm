@@ -1,4 +1,4 @@
-"""Twitter contact mapping helpers for PingCRM."""
+"""Twitter contact mapping helpers for RealCRM."""
 from __future__ import annotations
 
 import asyncio

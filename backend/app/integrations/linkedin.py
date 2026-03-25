@@ -1,4 +1,4 @@
-"""LinkedIn integration helpers for PingCRM."""
+"""LinkedIn integration helpers for RealCRM."""
 from __future__ import annotations
 
 import logging

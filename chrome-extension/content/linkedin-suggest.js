@@ -124,7 +124,7 @@
   async function handleRegenerate(rBtn) {
     if (!_currentSuggestion?.id) {
       showError(rBtn, "No suggestion for this contact");
-      console.log("[PingCRM Suggest] R clicked but no suggestion. Slug:", _currentSlug);
+      console.log("[RealCRM Suggest] R clicked but no suggestion. Slug:", _currentSlug);
       return;
     }
     rBtn.classList.add(PINGCRM_BTN_CLASS + "--loading");
@@ -198,7 +198,7 @@
       const name = el.textContent?.trim();
       // Filter out status text, empty strings, and very long text
       if (name && name.length > 2 && name.length < 40 && !name.toLowerCase().includes("status") && !name.toLowerCase().includes("online")) {
-        console.log("[PingCRM Suggest] Extracted overlay partner name:", name);
+        console.log("[RealCRM Suggest] Extracted overlay partner name:", name);
         _partnerName = name;
         return null;
       }
@@ -306,8 +306,8 @@
         _globalInjected = true;
 
         // Create buttons
-        const pBtn = createButton("P", "Pull PingCRM suggestion", handlePull);
-        const rBtn = createButton("R", "Regenerate PingCRM suggestion", () => handleRegenerate(rBtn));
+        const pBtn = createButton("P", "Pull RealCRM suggestion", handlePull);
+        const rBtn = createButton("R", "Regenerate RealCRM suggestion", () => handleRegenerate(rBtn));
 
         if (!_currentSuggestion) {
           pBtn.classList.add(PINGCRM_BTN_CLASS + "--hidden");
@@ -322,7 +322,7 @@
           toolbar.appendChild(pBtn);
           toolbar.appendChild(rBtn);
         }
-        console.log("[PingCRM Suggest] Injected P+R into toolbar");
+        console.log("[RealCRM Suggest] Injected P+R into toolbar");
       }
     } finally {
       _injecting = false;
@@ -365,7 +365,7 @@
         if (toolbars.length > 0) injectButtons();
       });
       shadowObserver.observe(host.shadowRoot, { childList: true, subtree: true });
-      console.log("[PingCRM Suggest] Watching shadow DOM");
+      console.log("[RealCRM Suggest] Watching shadow DOM");
     } else {
       setTimeout(watchShadowRoot, 2000);
     }
@@ -373,14 +373,14 @@
   watchShadowRoot();
 
   // Initial injection
-  console.log("[PingCRM Suggest] Content script loaded on:", window.location.href);
+  console.log("[RealCRM Suggest] Content script loaded on:", window.location.href);
 
   // LinkedIn overlay messenger can appear at any time. Poll every 3 seconds
   // in addition to MutationObserver to catch late-loading overlays.
   setInterval(() => {
     const toolbars = findUninjectdToolbars();
     if (toolbars.length > 0) {
-      console.log("[PingCRM Suggest] Poll found", toolbars.length, "toolbar(s)");
+      console.log("[RealCRM Suggest] Poll found", toolbars.length, "toolbar(s)");
       injectButtons();
     }
   }, 3000);
@@ -397,7 +397,7 @@
       return t === "send" || t.includes("send");
     });
     const allCE = querySelectorAllRoots('[contenteditable="true"]');
-    console.log("[PingCRM Suggest] Deep scan:", {
+    console.log("[RealCRM Suggest] Deep scan:", {
       hasShadowRoot: hasShadow,
       totalButtons: allBtns.length,
       sendButtons: sendLike.length,

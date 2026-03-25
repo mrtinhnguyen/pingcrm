@@ -1,4 +1,4 @@
-"""Twitter / X API v2 integration for PingCRM."""
+"""Twitter / X API v2 integration for RealCRM."""
 from __future__ import annotations
 
 import asyncio

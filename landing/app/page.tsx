@@ -358,7 +358,7 @@ export default function LandingPage() {
             <span style={{ color: "var(--accent)" }}>Your data, your server.</span>
           </h2>
           <p className="text-lg leading-relaxed mb-8 max-w-xl mx-auto" style={{ color: "var(--text-muted)" }}>
-            PingCRM is fully open source. Self-host on your own infrastructure, audit every line of code, and own your relationship data completely.
+            RealCRM is fully open source. Self-host on your own infrastructure, audit every line of code, and own your relationship data completely.
             No vendor lock-in, no data harvesting.
           </p>
 

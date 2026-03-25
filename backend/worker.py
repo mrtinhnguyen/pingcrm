@@ -1,5 +1,5 @@
 """
-Celery worker entry point for PingCRM.
+Celery worker entry point for RealCRM.
 
 Run the worker (with Beat scheduler) using:
 

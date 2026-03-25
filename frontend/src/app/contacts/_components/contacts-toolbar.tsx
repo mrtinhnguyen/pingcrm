@@ -16,15 +16,15 @@ import {
 // ---------------------------------------------------------------------------
 
 const priorityConfig = [
-  { key: "high", label: "High", icon: "\uD83D\uDD25", activeColor: "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 ring-1 ring-red-300 ring-offset-1" },
-  { key: "medium", label: "Medium", icon: "\u26A1", activeColor: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 ring-1 ring-amber-300 ring-offset-1" },
-  { key: "low", label: "Low", icon: "\uD83D\uDCA4", activeColor: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 ring-1 ring-blue-300 ring-offset-1" },
+  { key: "high", label: "Cao", icon: "🔥", activeColor: "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 ring-1 ring-red-300 ring-offset-1" },
+  { key: "medium", label: "Trung bình", icon: "⚡", activeColor: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 ring-1 ring-amber-300 ring-offset-1" },
+  { key: "low", label: "Thấp", icon: "💤", activeColor: "bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-400 border-blue-200 dark:border-blue-800 ring-1 ring-blue-300 ring-offset-1" },
 ] as const;
 
 const scoreConfig = [
-  { key: "strong", label: "Strong", dotColor: "bg-emerald-500", activeColor: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 ring-1 ring-emerald-300 ring-offset-1" },
-  { key: "active", label: "Warm", dotColor: "bg-amber-400", activeColor: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 ring-1 ring-amber-300 ring-offset-1" },
-  { key: "dormant", label: "Cold", dotColor: "bg-red-400", activeColor: "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 ring-1 ring-red-300 ring-offset-1" },
+  { key: "strong", label: "Mạnh", dotColor: "bg-emerald-500", activeColor: "bg-emerald-50 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 ring-1 ring-emerald-300 ring-offset-1" },
+  { key: "active", label: "Ấm", dotColor: "bg-amber-400", activeColor: "bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 ring-1 ring-amber-300 ring-offset-1" },
+  { key: "dormant", label: "Lạnh", dotColor: "bg-red-400", activeColor: "bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-400 border-red-200 dark:border-red-800 ring-1 ring-red-300 ring-offset-1" },
 ] as const;
 
 const datePresets = [
@@ -94,7 +94,7 @@ export function ContactsToolbar({
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-stone-400 dark:text-stone-500" />
           <input
             type="text"
-            placeholder="Search by name, email, company, or notes..."
+            placeholder="Tìm kiếm theo tên, email, công ty hoặc ghi chú..."
             value={searchInput}
             onChange={(e) => {
               const value = e.target.value;
@@ -116,7 +116,7 @@ export function ContactsToolbar({
           }`}
         >
           <SlidersHorizontal className="w-4 h-4" />
-          Filters
+          Bộ lọc
           {activeFilterCount > 0 && (
             <span className="ml-1 inline-flex items-center justify-center w-5 h-5 rounded-full bg-teal-100 dark:bg-teal-900 text-teal-700 dark:text-teal-400 text-[10px] font-bold">
               {activeFilterCount}
@@ -128,7 +128,7 @@ export function ContactsToolbar({
       {/* Quick filter chips with group labels */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mr-1">Priority</span>
+          <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mr-1">Ưu tiên</span>
           {priorityConfig.map(({ key, label, icon, activeColor }) => {
             const isActive = priorityFilter === key;
             return (
@@ -146,7 +146,7 @@ export function ContactsToolbar({
         </div>
         <div className="hidden sm:block w-px h-5 bg-stone-200 dark:bg-stone-700" />
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mr-1">Score</span>
+          <span className="text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider mr-1">Điểm</span>
           {scoreConfig.map(({ key, label, dotColor, activeColor }) => {
             const isActive = scoreFilter === key;
             return (
@@ -169,7 +169,7 @@ export function ContactsToolbar({
               onClick={() => router.replace("/contacts", { scroll: false })}
               className="text-xs text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300 font-medium"
             >
-              Clear all
+              Xóa tất cả
             </button>
           </div>
         )}
@@ -181,7 +181,7 @@ export function ContactsToolbar({
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Platform filter */}
             <div>
-              <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Platform</label>
+              <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Nền tảng</label>
               <div className="space-y-2">
                 {[
                   { value: "gmail", label: "Gmail", icon: <Mail className="w-3.5 h-3.5 text-red-400" /> },
@@ -204,13 +204,13 @@ export function ContactsToolbar({
 
             {/* Tags filter */}
             <div>
-              <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Tags</label>
+              <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Thẻ</label>
               <select
                 value={tagFilter}
                 onChange={(e) => setParams({ tag: e.target.value || undefined })}
                 className="w-full px-2.5 py-2 rounded-md border border-stone-200 dark:border-stone-700 bg-white dark:bg-stone-900 text-stone-900 dark:text-stone-100 text-xs focus:outline-none focus:ring-2 focus:ring-teal-400 mb-2"
               >
-                <option value="">All tags</option>
+                <option value="">Tất cả thẻ</option>
                 {allTags.map((t) => (
                   <option key={t} value={t}>{t}</option>
                 ))}
@@ -229,7 +229,7 @@ export function ContactsToolbar({
 
             {/* Last Contact — date presets + range */}
             <div>
-              <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Last Contact</label>
+              <label className="text-[11px] font-semibold text-stone-500 dark:text-stone-400 uppercase tracking-wider mb-2 block">Liên hệ Cuối</label>
               <div className="flex flex-wrap gap-1.5 mb-3">
                 {datePresets.map(({ label, days }) => {
                   const presetDate = new Date(Date.now() - days * 86400000).toISOString().split("T")[0];
@@ -254,7 +254,7 @@ export function ContactsToolbar({
               </div>
               <div className="space-y-2">
                 <div>
-                  <label className="text-[10px] text-stone-400 dark:text-stone-500 mb-0.5 block">From</label>
+                  <label className="text-[10px] text-stone-400 dark:text-stone-500 mb-0.5 block">Từ</label>
                   <input
                     type="date"
                     value={dateFrom}
@@ -263,7 +263,7 @@ export function ContactsToolbar({
                   />
                 </div>
                 <div>
-                  <label className="text-[10px] text-stone-400 dark:text-stone-500 mb-0.5 block">To</label>
+                  <label className="text-[10px] text-stone-400 dark:text-stone-500 mb-0.5 block">Đến</label>
                   <input
                     type="date"
                     value={dateTo}
@@ -278,9 +278,9 @@ export function ContactsToolbar({
           <div className="flex items-center justify-between mt-4 pt-3 border-t border-stone-100 dark:border-stone-800">
             <p className="text-xs text-stone-400 dark:text-stone-500">
               {meta ? (
-                <>Showing <strong className="text-stone-600 dark:text-stone-300">{meta.total}</strong> contacts matching filters</>
+                <>Hiển thị <strong className="text-stone-600 dark:text-stone-300">{meta.total}</strong> danh bạ phù hợp với bộ lọc</>
               ) : (
-                "Loading..."
+                "Đang tải..."
               )}
             </p>
             <div className="flex items-center gap-2">
@@ -288,7 +288,7 @@ export function ContactsToolbar({
                 onClick={() => router.replace("/contacts", { scroll: false })}
                 className="text-xs text-stone-500 dark:text-stone-400 hover:text-stone-700 dark:hover:text-stone-100"
               >
-                Reset all
+                Đặt lại tất cả
               </button>
             </div>
           </div>

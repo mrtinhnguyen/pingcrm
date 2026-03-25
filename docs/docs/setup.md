@@ -5,7 +5,7 @@ title: Setup Guide
 
 # Setup Guide
 
-This guide walks you through setting up PingCRM for local development.
+This guide walks you through setting up RealCRM for local development.
 
 ## Prerequisites
 

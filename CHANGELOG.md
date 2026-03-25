@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to PingCRM will be documented in this file.
+All notable changes to RealCRM will be documented in this file.
 
 ## [Unreleased]
 
@@ -58,7 +58,7 @@ POST /api/v1/contacts/{id}/extract-bio
 
 #### 6. その他
 
-- ブランド名を「PingCRM」に統一（全ファイル）
+- ブランド名を「RealCRM」に統一（全ファイル）
 - Chrome 拡張機能を v1.5.5 にバンプ
 
 ---
@@ -116,4 +116,4 @@ POST /api/v1/contacts/{id}/extract-bio
 
 ## [1.0.0] - 2026-03-05
 
-Initial release of PingCRM.
+Initial release of RealCRM.

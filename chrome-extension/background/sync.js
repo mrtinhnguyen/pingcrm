@@ -1,8 +1,8 @@
 /**
- * Voyager sync orchestrator for PingCRM LinkedIn Companion.
+ * Voyager sync orchestrator for RealCRM LinkedIn Companion.
  *
  * Reads LinkedIn session cookies, fetches conversations and messages via the
- * Voyager API, and pushes results to the PingCRM backend.
+ * Voyager API, and pushes results to the RealCRM backend.
  *
  * Storage keys used (chrome.storage.local):
  *   watermark        - ISO timestamp of the newest message processed (delta cursor)
@@ -184,7 +184,7 @@ function _eventToMessage(msg, conversationUrn, partnerPublicId, partnerName) {
 /**
  * Run a Voyager sync cycle.
  *
- * @param {string} apiUrl - PingCRM backend base URL
+ * @param {string} apiUrl - RealCRM backend base URL
  * @param {string} token  - Bearer token for the backend
  * @param {boolean} [force=false] - Skip throttle check and run immediately
  * @returns {Promise<{
@@ -404,7 +404,7 @@ async function _runSyncInner(apiUrl, token, force, result) {
             return await _handleSyncError(e, result);
           }
           // Non-fatal error for this conversation — skip and continue
-          console.warn("[PingCRM Voyager] Failed to fetch events for", convUrn, e.message);
+          console.warn("[RealCRM Voyager] Failed to fetch events for", convUrn, e.message);
           continue;
         }
       }
@@ -564,7 +564,7 @@ async function _backfillProfiles(backfillItems, liAt, jsessionid, apiUrl, token)
       }
     } catch (e) {
       if (e.message === "RATE_LIMITED" || e.message === "AUTH_EXPIRED") break;
-      console.warn("[PingCRM Voyager] Backfill failed for", publicId, e.message);
+      console.warn("[RealCRM Voyager] Backfill failed for", publicId, e.message);
     }
   }
 
@@ -579,7 +579,7 @@ async function _backfillProfiles(backfillItems, liAt, jsessionid, apiUrl, token)
         body: JSON.stringify({ profiles, messages: [] }),
       });
     } catch (e) {
-      console.warn("[PingCRM Voyager] Backfill push failed:", e.message);
+      console.warn("[RealCRM Voyager] Backfill push failed:", e.message);
     }
   }
 

@@ -1,4 +1,4 @@
-"""Structured JSON logging configuration for PingCRM.
+"""Structured JSON logging configuration for RealCRM.
 
 Provides:
 - JSON-formatted log output for machine-parseable logs (AI-friendly)

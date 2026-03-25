@@ -41,24 +41,24 @@ const channelIcons: Record<Channel, ReactNode> = {
 };
 
 const snoozeOptions = [
-  { label: "2 weeks", days: 14 },
-  { label: "1 month", days: 30 },
-  { label: "3 months", days: 90 },
+  { label: "2 tuần", days: 14 },
+  { label: "1 tháng", days: 30 },
+  { label: "3 tháng", days: 90 },
 ];
 
 function getContactName(c: Suggestion["contact"]): string {
-  if (!c) return "Unknown";
+  if (!c) return "Không xác định";
   return (
     c.full_name ??
-    ([c.given_name, c.family_name].filter(Boolean).join(" ") || "Unknown")
+    ([c.given_name, c.family_name].filter(Boolean).join(" ") || "Không xác định")
   );
 }
 
 function getScoreTier(score: number | null | undefined): { label: string; color: string } {
-  if (score == null) return { label: "New", color: "bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800" };
-  if (score >= 70) return { label: "Strong", color: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" };
-  if (score >= 30) return { label: "Warm", color: "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800" };
-  return { label: "Cold", color: "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800" };
+  if (score == null) return { label: "Mới", color: "bg-sky-50 dark:bg-sky-950 text-sky-600 dark:text-sky-400 border-sky-200 dark:border-sky-800" };
+  if (score >= 70) return { label: "Mạnh", color: "bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800" };
+  if (score >= 30) return { label: "Ấm", color: "bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 border-amber-200 dark:border-amber-800" };
+  return { label: "Lạnh", color: "bg-red-50 dark:bg-red-950 text-red-600 dark:text-red-400 border-red-200 dark:border-red-800" };
 }
 
 // ---------------------------------------------------------------------------
@@ -79,10 +79,10 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
   const tier = getScoreTier(null); // contact doesn't carry score in suggestion payload
 
   const triggerLabels: Record<string, string> = {
-    time_based: "90+ days",
-    event_based: "New event",
-    scheduled: "Scheduled",
-    birthday: "Birthday",
+    time_based: "90+ ngày",
+    event_based: "Sự kiện mới",
+    scheduled: "Đã lên lịch",
+    birthday: "Sinh nhật",
   };
 
   const handleSend = async (message: string, ch: Channel, scheduledFor?: string) => {
@@ -99,7 +99,7 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
           id: suggestion.id,
           input: { status: "sent", suggested_message: message, suggested_channel: ch },
         });
-        setSendConfirm(scheduledFor ? "Scheduled!" : "Sent via Telegram!");
+        setSendConfirm(scheduledFor ? "Đã lên lịch!" : "Đã gửi qua Telegram!");
         setTimeout(() => setSendConfirm(null), 3000);
       } catch (err) {
         setSendError(err instanceof Error ? err.message : "Failed to send");
@@ -113,7 +113,7 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
         id: suggestion.id,
         input: { status: "sent", suggested_message: message, suggested_channel: ch },
       });
-      setSendConfirm("Copied to clipboard");
+      setSendConfirm("Đã sao chép vào clipboard");
       setTimeout(() => setSendConfirm(null), 3000);
     }
   };
@@ -180,8 +180,8 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
             </div>
             <span className="text-[11px] text-stone-400 dark:text-stone-500 shrink-0">
               {suggestion.trigger_type === "birthday"
-                ? "Birthday"
-                : triggerLabels[suggestion.trigger_type] ?? "Follow-up"}
+                ? "Sinh nhật"
+                : triggerLabels[suggestion.trigger_type] ?? "Theo dõi"}
             </span>
           </div>
           <p className="text-xs text-stone-500 dark:text-stone-400 mt-1 line-clamp-2">
@@ -203,8 +203,8 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
                   void queryClient.invalidateQueries({ queryKey: ["suggestions"] });
                 }}
                 disabledChannels={{
-                  ...(c?.telegram_username ? {} : { telegram: "No Telegram" }),
-                  ...(!c?.twitter_handle ? { twitter: "No Twitter" } : {}),
+                  ...(c?.telegram_username ? {} : { telegram: "Không có Telegram" }),
+                  ...(!c?.twitter_handle ? { twitter: "Không có Twitter" } : {}),
                 }}
               />
 
@@ -215,7 +215,7 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
                     onClick={() => setSnoozeOpen((v) => !v)}
                     className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 hover:bg-amber-100 dark:hover:bg-amber-900 transition-colors"
                   >
-                    <Clock className="w-3 h-3" /> Snooze <ChevronDown className="w-2.5 h-2.5" />
+                    <Clock className="w-3 h-3" /> Nhắc lại sau <ChevronDown className="w-2.5 h-2.5" />
                   </button>
                   {snoozeOpen && (
                     <div className="absolute left-0 bottom-full mb-1 w-32 bg-white dark:bg-stone-900 rounded-lg border border-stone-200 dark:border-stone-700 shadow-lg py-1 z-50">
@@ -235,13 +235,13 @@ function DashboardSuggestionCard({ suggestion }: { suggestion: Suggestion }) {
                   onClick={handleDismiss}
                   className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs rounded-md text-stone-400 dark:text-stone-500 border border-stone-200 dark:border-stone-700 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
                 >
-                  <X className="w-3 h-3" /> Dismiss
+                  <X className="w-3 h-3" /> Bỏ qua
                 </button>
                 <button
                   onClick={() => setExpanded(false)}
                   className="ml-auto text-xs text-stone-400 dark:text-stone-500 hover:text-stone-600 dark:hover:text-stone-300"
                 >
-                  Collapse
+                  Thu gọn
                 </button>
               </div>
             </div>
@@ -288,7 +288,7 @@ function ActivityItem({ event }: { event: ActivityEvent }) {
           {event.contact_name}
         </p>
         <p className="text-xs text-stone-500 dark:text-stone-400 truncate">
-          {event.content_preview || `${event.platform} ${dirLabel === "from" ? "message received" : "message sent"}`}
+          {event.content_preview || `${event.platform} ${dirLabel === "from" ? "đã nhận tin nhắn" : "đã gửi tin nhắn"}`}
         </p>
       </div>
       <div className="flex flex-col items-end shrink-0 gap-1">
@@ -312,8 +312,8 @@ function OverdueRow({ contact }: { contact: OverdueContact }) {
     ([contact.given_name, contact.family_name].filter(Boolean).join(" ") || "Unnamed");
   const daysLabel =
     contact.days_overdue <= 0
-      ? "due today"
-      : `${contact.days_overdue}d overdue`;
+      ? "hết hạn hôm nay"
+      : `${contact.days_overdue} ngày quá hạn`;
   const isUrgent = contact.days_overdue > 5;
 
   return (
@@ -330,8 +330,8 @@ function OverdueRow({ contact }: { contact: OverdueContact }) {
         <p className="text-sm font-medium text-stone-900 dark:text-stone-100 truncate">{name}</p>
         <p className="text-xs text-stone-400 dark:text-stone-500">
           {contact.last_interaction_at
-            ? `${formatDistanceToNow(new Date(contact.last_interaction_at))} since last contact`
-            : "No interactions"}
+            ? `${formatDistanceToNow(new Date(contact.last_interaction_at))} kể từ lần liên hệ cuối`
+            : "Chưa có tương tác"}
         </p>
       </div>
       <div className="flex items-center gap-1 shrink-0">
@@ -361,26 +361,26 @@ export default function DashboardPage() {
       <div className="max-w-6xl mx-auto px-4 py-8">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-2xl font-display font-bold text-stone-900 dark:text-stone-100">Dashboard</h1>
+          <h1 className="text-2xl font-display font-bold text-stone-900 dark:text-stone-100">Bảng điều khiển</h1>
           <p className="text-sm text-stone-500 dark:text-stone-400 mt-1">
             {pendingSuggestions.length > 0 || overdueContacts.length > 0 ? (
               <>
-                You have{" "}
+                Bạn có{" "}
                 {pendingSuggestions.length > 0 && (
                   <strong className="text-teal-700 dark:text-teal-400">
-                    {allPending.length} pending suggestion{allPending.length !== 1 ? "s" : ""}
+                    {allPending.length} gợi ý đang chờ
                   </strong>
                 )}
-                {pendingSuggestions.length > 0 && overdueContacts.length > 0 && " and "}
+                {pendingSuggestions.length > 0 && overdueContacts.length > 0 && " và "}
                 {overdueContacts.length > 0 && (
                   <strong className="text-stone-700 dark:text-stone-300">
-                    {overdueContacts.length} contact{overdueContacts.length !== 1 ? "s" : ""}
+                    {overdueContacts.length} danh bạ
                   </strong>
                 )}
-                {overdueContacts.length > 0 && " need attention this week."}
+                {overdueContacts.length > 0 && " cần chú ý tuần này."}
               </>
             ) : (
-              "Your networking overview"
+              "Tổng quan kết nối mạng lưới của bạn"
             )}
           </p>
         </div>
@@ -391,23 +391,23 @@ export default function DashboardPage() {
             <div className="w-16 h-16 rounded-full bg-teal-50 dark:bg-teal-950 flex items-center justify-center mx-auto mb-4">
               <Users className="w-8 h-8 text-teal-400" />
             </div>
-            <h2 className="text-lg font-display font-bold text-stone-900 dark:text-stone-100 mb-2">Welcome to Ping!</h2>
+            <h2 className="text-lg font-display font-bold text-stone-900 dark:text-stone-100 mb-2">Chào mừng đến với Ping!</h2>
             <p className="text-sm text-stone-500 dark:text-stone-400 mb-6 max-w-md mx-auto">
-              Get started by connecting your accounts or importing contacts.
-              Ping will help you stay on top of your relationships.
+              Bắt đầu bằng cách kết nối tài khoản hoặc nhập danh bạ.
+              Ping sẽ giúp bạn duy trì các mối quan hệ.
             </p>
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Link
                 href="/settings"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg bg-teal-600 text-white hover:bg-teal-700 transition-colors shadow-sm"
               >
-                <Plug className="w-4 h-4" /> Connect accounts
+                <Plug className="w-4 h-4" /> Kết nối tài khoản
               </Link>
               <Link
                 href="/settings"
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-medium rounded-lg border border-stone-200 dark:border-stone-700 text-stone-600 dark:text-stone-300 hover:bg-stone-50 dark:hover:bg-stone-800 transition-colors"
               >
-                <FileDown className="w-4 h-4" /> Import CSV
+                <FileDown className="w-4 h-4" /> Nhập CSV
               </Link>
             </div>
           </div>
@@ -420,14 +420,14 @@ export default function DashboardPage() {
               icon={<Users className="w-4 h-4 text-teal-600 dark:text-teal-400" />}
               iconBg="bg-teal-50 dark:bg-teal-950"
               value={stats.total}
-              label="Total contacts"
+              label="Tổng danh bạ"
               isLoading={isLoading}
             />
             <StatCard
               icon={<HeartPulse className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />}
               iconBg="bg-emerald-50 dark:bg-emerald-950"
               value={stats.active + stats.strong}
-              label="Active relationships"
+              label="Mối quan hệ đang hoạt động"
               isLoading={isLoading}
               delay="50ms"
               previousValue={stats.activeLastWeek}
@@ -436,7 +436,7 @@ export default function DashboardPage() {
               icon={<MessageCircle className="w-4 h-4 text-sky-600 dark:text-sky-400" />}
               iconBg="bg-sky-50 dark:bg-sky-950"
               value={stats.interactionsThisWeek}
-              label="Interactions this week"
+              label="Tương tác tuần này"
               isLoading={isLoading}
               delay="100ms"
               previousValue={stats.interactionsLastWeek}
@@ -453,10 +453,10 @@ export default function DashboardPage() {
               <div>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
-                    Pending Follow-ups
+                    Theo dõi đang chờ
                   </h2>
                   <Link href="/suggestions" className="text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300">
-                    View all &rarr;
+                    Xem tất cả &rarr;
                   </Link>
                 </div>
 
@@ -470,9 +470,9 @@ export default function DashboardPage() {
                   <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-8 text-center">
                     <Sparkles className="w-8 h-8 text-stone-200 dark:text-stone-700 mx-auto mb-2" />
                     <p className="text-sm text-stone-400 dark:text-stone-500">
-                      No pending suggestions.{" "}
+                      Không có gợi ý đang chờ.{" "}
                       <Link href="/suggestions" className="text-teal-600 dark:text-teal-400 hover:underline">
-                        Generate suggestions
+                        Tạo gợi ý
                       </Link>
                     </p>
                   </div>
@@ -488,7 +488,7 @@ export default function DashboardPage() {
               {/* Recent Activity */}
               <div>
                 <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100 mb-3">
-                  Recent Activity
+                  Hoạt động gần đây
                 </h2>
                 {isLoading ? (
                   <div className="space-y-3">
@@ -499,7 +499,7 @@ export default function DashboardPage() {
                 ) : recentActivity.length === 0 ? (
                   <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-8 text-center">
                     <MessageCircle className="w-8 h-8 text-stone-200 dark:text-stone-700 mx-auto mb-2" />
-                    <p className="text-sm text-stone-400 dark:text-stone-500">No recent activity</p>
+                    <p className="text-sm text-stone-400 dark:text-stone-500">Không có hoạt động gần đây</p>
                   </div>
                 ) : (
                   <div className="space-y-2">
@@ -516,15 +516,15 @@ export default function DashboardPage() {
               <div className="bg-white dark:bg-stone-900 rounded-xl border border-stone-200 dark:border-stone-700 p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-sm font-display font-semibold text-stone-900 dark:text-stone-100">
-                    Needs Attention
+                    Cần chú ý
                   </h2>
                   {overdueContacts.length > 0 && (
                     <span className="text-[11px] font-medium text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-950 px-2 py-0.5 rounded-full">
-                      {overdueContacts.length} contact{overdueContacts.length !== 1 ? "s" : ""}
+                      {overdueContacts.length} danh bạ
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-stone-400 dark:text-stone-500 mb-4">High-priority contacts going silent</p>
+                <p className="text-xs text-stone-400 dark:text-stone-500 mb-4">Danh bạ ưu tiên cao đang im lặng</p>
                 {isLoading ? (
                   <div className="space-y-3">
                     {[1, 2, 3].map((n) => (
@@ -533,7 +533,7 @@ export default function DashboardPage() {
                   </div>
                 ) : overdueContacts.length === 0 ? (
                   <p className="text-sm text-stone-400 dark:text-stone-500 text-center py-4">
-                    All caught up!
+                    Đã xử lý xong!
                   </p>
                 ) : (
                   <div className="space-y-3">
@@ -547,7 +547,7 @@ export default function DashboardPage() {
                     href="/contacts?sort=overdue"
                     className="block text-center text-xs font-medium text-teal-600 dark:text-teal-400 hover:text-teal-700 dark:hover:text-teal-300 mt-4 pt-3 border-t border-stone-100 dark:border-stone-800"
                   >
-                    View all &rarr;
+                    Xem tất cả &rarr;
                   </Link>
                 )}
               </div>

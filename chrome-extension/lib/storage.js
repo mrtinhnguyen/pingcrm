@@ -1,9 +1,9 @@
 /**
- * Chrome storage wrapper for PingCRM LinkedIn Companion v2.
+ * Chrome storage wrapper for RealCRM LinkedIn Companion v2.
  *
  * Keys:
  *   token           - Bearer token received on successful pairing
- *   apiUrl          - PingCRM instance base URL (no trailing slash)
+ *   apiUrl          - RealCRM instance base URL (no trailing slash)
  *   watermark       - ISO timestamp of the newest Voyager message processed
  *   cookiesValid    - boolean; false when LinkedIn cookies are missing/expired
  *   _pairingCode    - active pairing code (removed on successful pair)

@@ -1,4 +1,4 @@
-# Contributing to PingCRM
+# Contributing to RealCRM
 
 Thanks for your interest in contributing! Here's how to get started.
 

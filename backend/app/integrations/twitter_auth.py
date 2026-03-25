@@ -1,4 +1,4 @@
-"""Twitter / X OAuth 2.0 PKCE token management for PingCRM."""
+"""Twitter / X OAuth 2.0 PKCE token management for RealCRM."""
 from __future__ import annotations
 
 import base64
